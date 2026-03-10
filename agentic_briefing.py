@@ -2495,24 +2495,48 @@ def _parse_llm_json(text: str) -> dict:
 
     # Last resort: try to extract material_movers array directly from the text.
     # Even if the full JSON is broken, the movers array at the top might be complete.
-    movers_match = re.search(r'"material_movers"\s*:\s*(\[.*?\])\s*,\s*"', cleaned, re.DOTALL)
-    if movers_match:
-        try:
-            movers_str = _fix_common_issues(movers_match.group(1))
-            movers = json.loads(movers_str)
-            print(f"  ⚠ Full JSON parse failed but extracted {len(movers)} material_movers directly")
-            return {"status": "analyzed", "material_movers": movers, "raw_analysis": text}
-        except json.JSONDecodeError:
-            pass
+    # Use a balanced-bracket approach instead of non-greedy regex to handle escaped quotes
+    mm_start = cleaned.find('"material_movers"')
+    if mm_start >= 0:
+        arr_start = cleaned.find('[', mm_start)
+        if arr_start >= 0:
+            # Find the matching closing bracket by counting depth
+            depth = 0
+            arr_end = -1
+            for i in range(arr_start, len(cleaned)):
+                c = cleaned[i]
+                if c == '[': depth += 1
+                elif c == ']': depth -= 1
+                if depth == 0:
+                    arr_end = i + 1
+                    break
+            if arr_end > arr_start:
+                try:
+                    movers_str = _fix_common_issues(cleaned[arr_start:arr_end])
+                    movers = json.loads(movers_str)
+                    print(f"  ⚠ Full JSON parse failed but extracted {len(movers)} material_movers directly")
+                    return {"status": "analyzed", "material_movers": movers, "raw_analysis": text}
+                except json.JSONDecodeError:
+                    pass
 
     # Try an even more aggressive extraction — find all complete mover objects
+    # Use json.loads validation rather than relying solely on regex for boundaries
     mover_objects = []
-    for m in re.finditer(r'\{\s*"driver"\s*:.*?"persistence"\s*:\s*"[^"]*"\s*\}', cleaned, re.DOTALL):
-        try:
-            obj = json.loads(_fix_common_issues(m.group()))
-            mover_objects.append(obj)
-        except json.JSONDecodeError:
-            continue
+    for m in re.finditer(r'\{\s*"driver"\s*:', cleaned):
+        # From each potential mover start, try expanding until we find valid JSON
+        start = m.start()
+        depth = 0
+        for i in range(start, min(start + 2000, len(cleaned))):
+            if cleaned[i] == '{': depth += 1
+            elif cleaned[i] == '}': depth -= 1
+            if depth == 0:
+                try:
+                    obj = json.loads(_fix_common_issues(cleaned[start:i+1]))
+                    if 'driver' in obj:
+                        mover_objects.append(obj)
+                except json.JSONDecodeError:
+                    pass
+                break
     if mover_objects:
         print(f"  ⚠ Extracted {len(mover_objects)} mover objects via regex fallback")
         return {"status": "analyzed", "material_movers": mover_objects, "raw_analysis": text}
