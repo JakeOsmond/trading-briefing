@@ -300,21 +300,44 @@ def tool_fetch_market_data(sheet_tab: str, cell_range: str = "A1:Z500") -> str:
 
 
 def tool_web_search(query: str) -> str:
-    """Search the web for market context, competitor info, or industry news."""
+    """Search the web for market context, competitor info, or industry news. Returns results with source URLs."""
     try:
         print(f"    🌐 Web search: {query}")
         client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        resp = client.chat.completions.create(
+        # Use web_search_preview tool for real web results with URLs
+        resp = client.responses.create(
             model="gpt-4.1-mini",
-            max_completion_tokens=1500,
-            messages=[
-                {"role": "system", "content": "You are a research assistant. Search your knowledge for the most recent and relevant information about this query. Focus on UK travel insurance market, competitors, regulatory changes, and travel trends. Be specific with dates, numbers, and sources where possible."},
-                {"role": "user", "content": f"What is the latest information about: {query}"},
-            ],
+            tools=[{"type": "web_search_preview"}],
+            input=f"""Search the web for the latest information about: {query}
+
+Focus on UK travel insurance market, competitors, regulatory changes, travel trends, and news.
+For EVERY fact or claim, include the source URL in markdown link format: [Source Name](URL).
+Be specific with dates, numbers, and always cite your sources.""",
         )
-        return resp.choices[0].message.content
+        # Extract the text output from the response
+        result_text = ""
+        for item in resp.output:
+            if item.type == "message":
+                for block in item.content:
+                    if block.type == "output_text":
+                        result_text += block.text
+        return result_text if result_text else "No web results found."
     except Exception as e:
-        return f"Web search error: {e}"
+        # Fall back to regular chat completion if web_search_preview not available
+        print(f"    ⚠ Web search tool failed ({e}), falling back to knowledge-based search...")
+        try:
+            client = openai.OpenAI(api_key=OPENAI_API_KEY)
+            resp = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                max_completion_tokens=1500,
+                messages=[
+                    {"role": "system", "content": "You are a research assistant. Provide the most recent and relevant information about this query. Focus on UK travel insurance market, competitors, regulatory changes, and travel trends. Be specific with dates, numbers, and name your sources (e.g. 'according to the Financial Times', 'per Google Trends data')."},
+                    {"role": "user", "content": f"What is the latest information about: {query}"},
+                ],
+            )
+            return resp.choices[0].message.content
+        except Exception as e2:
+            return f"Web search error: {e2}"
 
 
 def tool_scan_drive(keywords: str, days_back: int = 14) -> str:
@@ -1909,7 +1932,9 @@ to fill gaps in the story and build the full picture.
 ## YOUR TOOLS
 1. **run_sql** — query BigQuery (auto-corrects common mistakes)
 2. **fetch_market_data** — pull from Google Sheets market intelligence
-3. **web_search** — external market context, competitor news, regulatory changes
+3. **web_search** — external market context, competitor news, regulatory changes.
+   Returns results WITH SOURCE URLs — always preserve these URLs in your findings so
+   the synthesis stage can cite them in the briefing.
 4. **scan_drive** — recently modified Google Drive docs (pricing, campaigns, releases).
    IMPORTANT: scan_drive searches YOUR Google Drive files — only files you own or that are
    shared with you. This means insurance-related documents. Files about Adventures/Shortbreaks
@@ -2100,18 +2125,37 @@ Each driver heading MUST include either `RECURRING` or `NEW` as a tag after the 
 
 ## Customer Search Intent
 
-_{1–3 sentences focused on Google Trends data and customer search behaviour. What are people searching for?
-How has travel insurance search intent changed vs last year? Which destinations/products are trending up?
-Use data from the Insurance Intent and Dashboard Metrics tabs. Be specific with numbers (e.g. "searches up 57% YoY").}_
+_{3–6 sentences focused on Google Trends data and customer search behaviour. **Cite your sources.**
+For every claim, attribute it: "According to Google Trends data..." or "Insurance Intent data shows..."
+If a Google Trends link is available, include it as a markdown link.
+
+Cover:
+- How has travel insurance search intent changed vs last year? (specific % YoY)
+- Which destinations, trip types, or products are trending up or down?
+- Any notable spikes or dips in search volume and possible causes?
+- Use data from the Insurance Intent and Dashboard Metrics tabs. Be specific with numbers.
+
+Format source citations as: **Source:** [Name](URL) or **Source:** Google Sheets — Insurance Intent tab}_
 
 ---
 
 ## News & Market Context
 
-_{1–3 sentences covering global news, competitor activity, airline capacity, regulatory changes, and any
-external factors from the AI Insights tab that explain WHY trading numbers moved. Reference specific
-insights by name. Cover things like: cheap flight deals driving demand, competitor pricing moves,
-regulatory changes, economic factors. If the market is genuinely quiet, skip entirely.}_
+_{4–8 sentences covering external factors that explain WHY trading numbers moved. **Every claim must cite a source.**
+This section should feel like a mini market briefing — credible, specific, and well-sourced.
+
+Cover as many of these as the data supports:
+- Global news affecting travel demand (airline capacity, strikes, weather, geopolitical events)
+- Competitor activity (pricing moves, new products, marketing campaigns)
+- Regulatory or FCA changes affecting insurance
+- Economic factors (consumer confidence, exchange rates, fuel prices)
+- Travel trends (destination popularity, booking patterns)
+
+For web search results, include the source as a markdown link: [Article Title](URL).
+For AI Insights from the Google Sheet, cite as: **Source:** AI Insights — [insight name].
+For Google Drive documents, cite as: **Source:** Internal — [document name].
+
+If the market is genuinely quiet, say so in one sentence with a source confirming it.}_
 
 ---
 
@@ -2173,7 +2217,9 @@ ALWAYS cover ALL of these — there is NO minimum threshold:
 
 ## LENGTH TARGET
 
-The entire briefing, excluding SQL dig blocks, should be **under 400 words**. If you're over 400 words, cut.
+The entire briefing, excluding SQL dig blocks, should be **under 600 words**. The extra allowance is for
+source citations in the Customer Search Intent and News & Market Context sections — these sections should
+be thorough and well-sourced. If you're over 600 words, cut from the What's Driving This descriptions first.
 """)
 
 
@@ -3537,7 +3583,8 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     return f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Trading Covered &mdash; by Holiday Extras &mdash; {today_str}</title>
+<title>Trading Covered</title>
+<link rel="icon" type="image/png" href="https://dmy0b9oeprz0f.cloudfront.net/holidayextras.co.uk/brand-guidelines/logo-tags/png/better-future.png">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ── Custom Properties — HX Brand ── */
@@ -4341,6 +4388,8 @@ body::after{{
 .nar ul,.nar ol{{padding-left:22px;margin-bottom:12px}}
 .nar li{{font-size:13.5px;color:#cbd5e1;margin-bottom:6px;line-height:1.7}}
 .nar strong{{color:#f1f5f9}}
+.nar a{{color:var(--accent-light);text-decoration:none;border-bottom:1px dotted rgba(146,95,255,0.4);transition:color 0.2s,border-color 0.2s}}
+.nar a:hover{{color:var(--yellow);border-bottom-color:var(--yellow)}}
 .nar table{{width:100%;border-collapse:separate;border-spacing:0;margin:16px 0;font-size:12px;border-radius:10px;overflow:hidden}}
 .nar th{{background:rgba(51,65,85,0.6);color:var(--text);padding:11px 15px;text-align:left;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.6px}}
 .nar td{{padding:11px 15px;border-bottom:1px solid var(--border);color:#cbd5e1}}
