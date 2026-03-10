@@ -4360,9 +4360,9 @@ body::after{{
 .pcard .pv{{font-size:26px;font-weight:800;letter-spacing:-1px;margin:8px 0}}
 
 /* ── Interactive chart ── */
-.chart-wrap{{padding:24px;margin-bottom:24px;position:relative;overflow:hidden}}
+.chart-wrap{{padding:24px;margin-bottom:24px;position:relative;overflow:visible}}
 .chart-wrap .st{{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px}}
-.chart-container{{position:relative;height:180px;display:flex;align-items:flex-end;gap:4px;overflow:hidden;min-width:0;padding-top:80px}}
+.chart-container{{position:relative;height:180px;display:flex;align-items:flex-end;gap:4px;overflow:visible;min-width:0;padding-top:80px}}
 .bar-col{{flex:1 1 0;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;min-width:0}}
 .bar{{
   border-radius:6px 6px 0 0;width:80%;min-width:14px;
@@ -4414,7 +4414,7 @@ body::after{{
 .tooltip .tt-yoy-up{{color:#00D4C8;font-weight:600}}
 .tooltip .tt-yoy-down{{color:#FF5F68;font-weight:600}}
 /* YoY Growth chart */
-.yoy-chart-container{{position:relative;height:120px;display:flex;align-items:center;gap:4px;overflow:hidden;min-width:0}}
+.yoy-chart-container{{position:relative;height:120px;display:flex;align-items:center;gap:4px;overflow:visible;min-width:0}}
 .yoy-bar-col{{flex:1 1 0;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;min-width:0;height:100%}}
 .yoy-bar-area{{position:relative;flex:1;width:100%;display:flex;flex-direction:column;align-items:center}}
 .yoy-bar{{width:80%;min-width:14px;border-radius:4px;position:absolute;transform-origin:center}}
@@ -4600,10 +4600,10 @@ body::after{{
   .nar{{padding:22px 16px}}
   .nar table{{font-size:11px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}}
   .nar th,.nar td{{padding:8px 10px;white-space:nowrap}}
-  .chart-container{{height:130px;padding-top:60px}}
+  .chart-container{{height:130px;padding-top:60px;overflow:hidden}}
   .chart-wrap{{padding:16px;overflow:hidden}}
+  .yoy-chart-container{{height:90px;overflow:hidden}}
   .chart-wrap .st{{font-size:10px;letter-spacing:.5px;margin-bottom:10px}}
-  .yoy-chart-container{{height:90px}}
   .bar-col .tooltip{{display:none !important}}
   .banner-wrap{{margin:0 0 10px;border-radius:12px}}
   .banner-img{{border-radius:12px}}
