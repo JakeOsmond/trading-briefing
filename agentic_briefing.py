@@ -3547,21 +3547,41 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     headline_html = _linkify_headline(headline_text)
 
     # Colour-code directional terms in the headline for clarity
+    # IMPORTANT: only replace in text OUTSIDE of HTML tags to avoid corrupting attributes
+    def _colour_outside_tags(html, patterns, css_class):
+        """Apply colour spans only to text segments outside HTML tags."""
+        # Split into tag vs text segments
+        parts = re.split(r'(<[^>]+>)', html)
+        for i, part in enumerate(parts):
+            if part.startswith('<'):
+                continue  # skip HTML tags entirely
+            for pat in patterns:
+                part = re.sub(pat, rf'<span class="{css_class}">\1</span>', part, flags=re.IGNORECASE)
+            parts[i] = part
+        return ''.join(parts)
+
     # Negative/bad indicators → red
-    for pat in [r'(down\s+£[\d,.]+k?)', r'(fell\s+[\d,.]+%?)', r'(dropped?\s+[\d,.]+%?)',
-                r'(lost?\s+£[\d,.]+k?)', r'(negative\s+margins?)', r'(squeeze)', r'(shrink\w*)',
-                r'(worse)', r'(decline\w*)', r'(losing)']:
-        headline_html = re.sub(pat, r'<span class="hl-down">\1</span>', headline_html, flags=re.IGNORECASE)
+    headline_html = _colour_outside_tags(headline_html,
+        [r'(down\s+£[\d,.]+k?)', r'(fell\s+[\d,.]+%?)', r'(dropped?\s+[\d,.]+%?)',
+         r'(lost?\s+£[\d,.]+k?)', r'(negative\s+margins?)', r'(squeeze\w*)', r'(shrink\w*)',
+         r'(worse)', r'(decline\w*)', r'(losing)'], 'hl-down')
     # Positive/good indicators → green
-    for pat in [r'(up\s+£[\d,.]+k?)', r'(rose\s+[\d,.]+%?)', r'(grew\s+[\d,.]+%?)',
-                r'(growth)', r'(rising\s+fast)', r'(record\s+\w+)', r'(rising)',
-                r'(strong\w*)', r'(gain\w*)', r'(improving)']:
-        headline_html = re.sub(pat, r'<span class="hl-up">\1</span>', headline_html, flags=re.IGNORECASE)
+    headline_html = _colour_outside_tags(headline_html,
+        [r'(up\s+£[\d,.]+k?)', r'(rose\s+[\d,.]+%?)', r'(grew\s+[\d,.]+%?)',
+         r'(growth)', r'(rising\s+fast)', r'(record\s+\w+)', r'(rising)',
+         r'(strong\w*)', r'(gain\w*)', r'(improving)'], 'hl-up')
     # Neutral/watch indicators → amber
-    for pat in [r'(despite)', r'(flat)', r'(mixed)', r'(watch\w*)']:
-        headline_html = re.sub(pat, r'<span class="hl-neutral">\1</span>', headline_html, flags=re.IGNORECASE)
-    # Bold monetary amounts that aren't already wrapped
-    headline_html = re.sub(r'(?<!>)(£[\d,.]+k?)', r'<strong>\1</strong>', headline_html)
+    headline_html = _colour_outside_tags(headline_html,
+        [r'(despite)', r'(flat)', r'(mixed)', r'(watch\w*)'], 'hl-neutral')
+    # Bold monetary amounts — only outside tags
+    headline_html = _colour_outside_tags(headline_html,
+        [r'(£[\d,.]+k?)'], 'hl-down')  # money amounts get bold via strong
+    # Wrap standalone £ amounts in <strong> outside tags
+    parts = re.split(r'(<[^>]+>)', headline_html)
+    for i, part in enumerate(parts):
+        if not part.startswith('<'):
+            parts[i] = re.sub(r'(?<!>)(£[\d,.]+k?)', r'<strong>\1</strong>', part)
+    headline_html = ''.join(parts)
 
     also_html = " &middot; ".join(also_items) if also_items else ""
 
@@ -3986,18 +4006,26 @@ body::after{{
   letter-spacing:.3px;
 }}
 
-/* ── Sticky toolbar ── */
+/* ── Fixed floating toolbar — pill shape ── */
 .hdr{{
   display:flex;
   justify-content:flex-end;
   align-items:center;
-  padding:8px 28px;
-  border-bottom:1px solid var(--border);
-  position:sticky;top:0;z-index:1000;
-  background:rgba(15,18,30,0.92);
+  gap:8px;
+  padding:8px 20px;
+  position:fixed;
+  top:12px;
+  right:12px;
+  z-index:1000;
+  background:rgba(15,18,30,0.6);
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
-  margin-left:-28px;margin-right:-28px;
-  margin-bottom:12px;
+  border-radius:9999px;
+  border:1px solid rgba(146,95,255,0.25);
+  box-shadow:0 4px 24px rgba(0,0,0,0.3),0 0 12px rgba(84,46,145,0.15),inset 0 1px 0 rgba(255,255,255,0.04);
+}}
+.hdr:hover{{
+  border-color:rgba(146,95,255,0.45);
+  box-shadow:0 4px 24px rgba(0,0,0,0.3),0 0 20px rgba(84,46,145,0.25),inset 0 1px 0 rgba(255,255,255,0.06);
 }}
 /* (badge CSS removed — replaced by .refresh-btn above) */
 .inv-badge{{
@@ -4556,8 +4584,8 @@ body::after{{
   .banner-wrap{{margin:0 0 10px;border-radius:12px}}
   .banner-img{{border-radius:12px}}
   .banner-date{{font-size:10px;bottom:8px;right:12px}}
-  .hdr{{margin-left:-16px;margin-right:-16px;padding:6px 16px}}
-  .hdr>div{{flex-wrap:wrap;gap:6px}}
+  .hdr{{top:8px;right:8px;padding:6px 14px;gap:6px}}
+  .hdr>div{{flex-wrap:wrap;gap:4px}}
   .c{{padding:20px 16px;overflow-x:hidden}}
   .card .val{{font-size:22px}}
   .pcard .pv{{font-size:20px}}
