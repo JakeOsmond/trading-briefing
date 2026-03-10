@@ -68,8 +68,20 @@ jobs:
           Co-Authored-By: Trading Covered Bot <noreply@holidayextras.com>"
           git push
 
+      - name: Write Cloudflare credentials
+        run: |
+          mkdir -p ~/.config/.wrangler/config
+          cat > ~/.config/.wrangler/config/default.toml << 'TOML'
+          oauth_token = "placeholder"
+          refresh_token = "${{ secrets.CLOUDFLARE_REFRESH_TOKEN }}"
+          scopes = ["account:read", "user:read", "workers:write", "pages:write", "offline_access"]
+          TOML
+
       - name: Deploy to Cloudflare Pages
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler pages deploy briefings --project-name trading-covered --commit-dirty=true
+
+      - name: Clean up Cloudflare credentials
+        if: always()
+        run: rm -rf ~/.config/.wrangler
