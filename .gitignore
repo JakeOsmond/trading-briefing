@@ -9,3 +9,4 @@ schemas/
 # Conversation export logs
 *-command-*.txt
 *-this-session-*.txt
+.wrangler/
