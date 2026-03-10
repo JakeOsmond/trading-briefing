@@ -1,0 +1,69 @@
+name: Daily Trading Briefing
+
+on:
+  schedule:
+    # 05:00 UTC = 06:00 BST (UK summer), 05:00 GMT (UK winter). Mon-Fri.
+    - cron: "0 5 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Override date (YYYY-MM-DD). Leave empty for today."
+        required: false
+        type: string
+
+concurrency:
+  group: briefing
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  generate-briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Write GCP credentials file
+        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
+
+      - name: Run briefing script
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
+          CI: "true"
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            python agentic_briefing.py --date "${{ github.event.inputs.date }}"
+          else
+            python agentic_briefing.py
+          fi
+
+      - name: Clean up credentials
+        if: always()
+        run: rm -f /tmp/gcp-key.json
+
+      - name: Commit and push briefing
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add briefings/*.html briefings/*.md briefings/archive.json
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          DATE=$(date -u +%Y-%m-%d)
+          git commit -m "Briefing: ${DATE}
+
+          Co-Authored-By: Trading Covered Bot <noreply@holidayextras.com>"
+          git push

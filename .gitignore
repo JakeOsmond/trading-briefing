@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+.DS_Store
+raw_data.json
+briefings/*_data.json
+briefings/*_investigation.json
+schemas/
+# Conversation export logs
+*-command-*.txt
+*-this-session-*.txt
