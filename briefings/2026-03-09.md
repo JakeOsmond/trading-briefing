@@ -1,137 +1,105 @@
 ---
 # HX Trading Briefing — 09 Mar 2026
 
-## Strong demand but margin squeeze: high volumes, falling profit per policy as price wars hit Singles
+## Aggregator Singles Volume Up but Margin Collapses, Dragging Down Total GP
 
 ---
 
 ## At a Glance
 
-- 🔴 **Single Trip GP Down** — We made about £5.1k less profit on Single policies this week despite selling more, as average GP per policy fell 14–47% YoY on both Direct (down to £19 from £22) and Aggregator (down to £1.80 from £3.40).
-- 🔴 **Partner Single Volume Loss** — Referral partner Single volumes dropped by over 200 policies (down 23%), erasing around £3.7k profit, mainly from big trade partners.
-- 🔴 **Cover Level Margin Erosion** — GP per policy dropped across all Bronze and Silver tiers; even with more Bronze/Silver sales, margin hit cost us about £1.7k this week.
-- 🔴 **Web Funnel Weak on High-GP** — We lost £1.3k from high-value customers dropping out earlier in the funnel versus last year, mainly on desktop.
-- 🟢 **Annuals & Renewals Up** — Annual (Aggregator) sales rose 10% and renewals climbed by 113 policies, adding around £1.6k GP—these are future renewal wins.
+- 🔴 **Aggregator Single Trip GP crash** — We made just £2.1k on aggregator singles this week, down £500 vs last year, even though we sold 1,164 policies (up nearly 400); margin per policy nearly halved.
+- 🔴 **Partner Referral Singles volume & GP drop** — Referral singles lost £3.7k vs last year at £16.4k GP, driven by 200 fewer sales and fatter commission shares.
+- 🔴 **Direct Single Trip GP slide** — Direct singles lost £1.5k GP vs last year at £42k total, with sales up 13% but profit per policy down by £3.
+- 🔴 **Direct Annual GP down on margin squeeze** — Direct annuals rose 8% in volume but GP fell £3.3k as rising costs hit hard.
+- 🟢 **Renewal Annual GP up** — Renewal annuals gave us £5.7k more GP, thanks to higher volume—even after heavier discounting.
 
 ---
 
 ## What's Driving This
 
-### Direct Single GP Down `RECURRING`
-Gross profit from Direct Singles was hit hard: up 256 policies YoY, but GP per policy fell from £22 to £19 (down 14%)—about £2.5k less profit this week, now a 4th straight week of squeeze. This is price-led; cost pressure and deal hunting mean more sales but even thinner margins.
-
-```sql-dig
-SELECT SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) 
-FROM `hx-data-production.commercial_finance.insurance_policies_new` 
-WHERE distribution_channel='Direct' AND policy_type='Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
-```
-
-### Aggregator Single GP Down `RECURRING`
-GP collapsed on Aggregator Singles—margin nearly halved: down to £1.80 per policy on 1,164 issued (up from 772 last year), costing us £2.6k this week. Heavy aggregator price competition is the cause; margin has now dropped for a third week straight.
-
-```sql-dig
-SELECT SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) 
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE distribution_channel='Aggregator' AND policy_type='Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
-```
-
-### Partner Referral Single GP Down `NEW`
-Referral-based Singles fell from 917 to 705 policies (down £3.7k GP) as major brokers/partners delivered fewer sales—mostly a volume loss, not a margin issue. Commission rates on these deals have risen; this drop is new and driven by soft partner traffic.
-
-```sql-dig
-SELECT scheme_name, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) 
-FROM `hx-data-production.commercial_finance.insurance_policies_new` 
-WHERE distribution_channel='Partner Referral' AND policy_type='Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
-GROUP BY scheme_name
-```
-
-### Mixed Cover Level Margin Erosion `RECURRING`
-Bronze and Silver cover—mainstream policies—saw GP per policy fall (Bronze down to £17, Silver to £36), costing us about £1.7k this week. This is a mix effect: more lower-value policies, and underwriter/medical costs edging up—another persistent trend.
-
-```sql-dig
-SELECT cover_level_name, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) 
-FROM `hx-data-production.commercial_finance.insurance_policies_new` 
-WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY cover_level_name
-```
-
-### High GP Conversion Rate Decline (Web Funnel) `RECURRING`
-High-value users (50+ GP potential) dropped out more in the funnel, especially on desktop, costing about £1.3k GP this week—the third week of this pattern. This is a conversion issue: people are browsing but not completing, especially on high-margin options.
-
-```sql-dig
-SELECT device_type, COUNTIF(page_count >= 5) AS deep_sessions, SUM(CAST(total_gp AS FLOAT64)) AS gp
-FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
-WHERE event_type='booked' AND booking_flow_stage='Checkout' AND event_start_datetime BETWEEN '2026-03-02' AND '2026-03-09'
-GROUP BY device_type
-```
-
-### Multi-Search Session Impact Softening `NEW`
-Deal-hunter sessions (multi-search) went up but delivered less GP/session—down £1.40 on mobile, £1.00 on desktop for a hit of £920 this week. This is a new issue, clearly linked to current market price sensitivity and competitive quotes.
-
-```sql-dig
-SELECT session_id, COUNT(DISTINCT page_type) AS page_count, SUM(CAST(total_gp AS FLOAT64)) 
-FROM `hx-data-production.commercial_finance.insurance_web_utm_4` 
-WHERE Multiple_search='Yes' AND event_start_datetime BETWEEN '2026-03-02' AND '2026-03-09' 
-GROUP BY session_id
-```
-
-### Renewals Volume & GP Up `RECURRING`
-Renewal Annuals clocked in +113 policies vs last year, adding about £1.1k to GP—volume offset a small dip in per-policy margin. This is now a consistent driver of trading resilience for HX.
-
+### Aggregator Single Trip GP collapse `RECURRING`
+GP on aggregator singles is just £1.78 per policy, nearly half last year’s £3.35, as relentless price cuts and 30% commissions hollow out profit. Despite selling over 390 more policies, this is the fifth week of ongoing collapse—mix is almost entirely cheap Classic tiers now.
 ```sql-dig
 SELECT SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE distribution_channel='Renewals' AND policy_type='Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+FROM hx-data-production.commercial_finance.insurance_policies_new
+WHERE distribution_channel = 'Aggregator' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
 ```
 
-### Annual Policy Volume Up (Aggregator) `RECURRING`
-Annual Aggregator sales up 10% (1,144 vs 1,046 policies); GP is negative as always (down £7k), but volume growth brings £500/week in future renewal potential. This reflects the market tilt toward annual cover as value-conscious travellers plan multiple trips—fourth week of sustained rise.
-
+### Partner Referral Single Trip GP drop `RECURRING`
+Partner referral singles dropped by over 200 policies and £3.7k in GP year-on-year (now 705 policies, £16.4k GP). Volume fell, and higher commissions (£27 per policy, up 16%) ate into what margin remained.
 ```sql-dig
 SELECT SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
-FROM `hx-data-production.commercial_finance.insurance_policies_new` 
-WHERE distribution_channel='Aggregator' AND policy_type='Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+FROM hx-data-production.commercial_finance.insurance_policies_new
+WHERE distribution_channel = 'Partner Referral' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+```
+
+### Direct Single Trip GP drop `RECURRING`
+GP on direct singles slid from £21.92 to £18.75 per policy, with sales up by 256 but yield hit by rising underwriter costs and more medicals. This erosion has been steady since January and now spans all main destinations.
+```sql-dig
+SELECT cover_area, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+FROM hx-data-production.commercial_finance.insurance_policies_new
+WHERE distribution_channel = 'Direct' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+GROUP BY cover_area
+```
+
+### Direct Annual GP small contraction `RECURRING`
+We sold 76 more direct annuals, but GP fell £3.3k to £52.2k as per-policy profit dropped from £55.87 to £48.84; price rose but underwriter cost surged too. Margin pressure is now standard across all tiers.
+```sql-dig
+SELECT SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+FROM hx-data-production.commercial_finance.insurance_policies_new
+WHERE distribution_channel = 'Direct' AND policy_type = 'Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+```
+
+### Renewal Annual GP improvement `RECURRING`
+Renewal annuals were up £5.7k GP (volume up 10%, to 1,291) even as policy price and yield slipped—discounting is higher but strong retention in older customers is paying off. This is a recurring, positive trend and key to future profit.
+```sql-dig
+SELECT SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+FROM hx-data-production.commercial_finance.insurance_policies_new
+WHERE distribution_channel = 'Renewals' AND policy_type = 'Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+```
+
+### Increase in Worldwide policy mix, but lower GP `RECURRING`
+Worldwide policy sales jumped (+270), but GP fell £6.9k as per-policy profit dropped from £30 to £24 due to commission and product mix shifts. Value-seeking buyers are making up more of this segment.
+```sql-dig
+SELECT SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+FROM hx-data-production.commercial_finance.insurance_policies_new
+WHERE destination_group = 'Worldwide' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+```
+
+### Cruise GP growth (Direct & Renewal) `NEW`
+Cruise policies added £2.3k GP, mostly from direct and renewal channels; older age groups and premium add-ons drove the uptick. Growth in this area is recent but potentially sustainable.
+```sql-dig
+SELECT SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+FROM hx-data-production.commercial_finance.insurance_policies_new
+WHERE cruise_flag = 'Cruise' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
 ```
 
 ---
 
 ## Customer Search Intent
 
-Travel insurance search is red hot—up 74% YoY, outpacing holidays by 18% and sitting at the highest Google Search index for March in years. "Cheap flights" searches are up 129%, "holiday deals" up 33%, and value-led queries (Spain, Turkey, the Canaries) are trending. Shoppers are in ‘decision’ mode—looking for fast quotes and clear price, not just browsing.
+Insurance searches are up 74% year-on-year (index 11.5 vs 6.6)—especially for Spain, Turkey, and AMT. Queries are mostly price-sensitive (“cheap flights,” “holiday deals”) and medical-related. More people are searching for insurance before booking, but price resistance is strong.
 
 ---
 
 ## News & Market Context
 
-Airlines are flooding the market with low fares, especially to Spain and Turkey—easyJet, Jet2, and Ryanair all expanded seat sales, so traveller volumes are booming. The insurance market is in a price-led dogfight—competitors are heavily discounting Singles, and Saga is matching auto-extensions for stranded Middle East customers. There’s no travel chaos, so demand is value-driven, not fear-driven.
+Airlines keep dropping fares to Spain, Turkey, and the Canaries, flooding the market with lower-value customers. Google search volume for travel insurance is at a multi-year high, led by bargain-hunters. Major aggregators are slashing prices and jacking up commission demands—this is directly driving down our margins. Airline disruption in the Middle East is seeing some insurers (SAGA) add auto-extensions; we’re already getting renewal queries about war exclusions.
 
 ---
 
 ## Actions
 
-| Priority | What to do                                                    | Why                                    | Worth     |
-|----------|--------------------------------------------------------------|----------------------------------------|-----------|
-| 1        | Cut Single cover bids on high-cost Aggregators and review partner commission offers | Margins on Singles are getting wiped out | ~£5k/week |
-| 2        | Funnel fast-quote Annual/AMT landing pages into top PPC/SEO slots targeting "cheap flights", Spain, Turkey | Annual volume is surging; win future renewals  | ~£1k+/week |
-| 3        | Fix web funnel on desktop—especially for high-GP, high-browse customers | Losing £1.3k/week in high-value conversions | ~£1.3k/week |
-| 4        | Alert sales/BD to recover partner referral Single volumes; target brokers with tailored pricing | Partner channel loses £3.7k this week   | ~£3.7k/week |
-| 5        | Run Bronze/Silver margin health-check with Underwriting—focus on base cost, not just price | Margin squeeze costing £1.7k/week       | ~£1.7k/week |
+| Priority | What to do                                                           | Why (from the data)                                    | Worth      |
+|----------|---------------------------------------------------------------------|--------------------------------------------------------|------------|
+| 1        | Tighten aggregator single trip pricing, start yield or volume cap    | Aggregator singles are eating £7k+/week in losses      | ~£7k/wk    |
+| 2        | Push Direct Annual/AMT sales hard, lead with value and medical cover | Annuals are delivering net GP and are future renewals  | ~£6k/wk    |
+| 3        | Renegotiate or pause referral commissions for single trips           | Referral GP is down £3.7k on higher commissions        | ~£4k/wk    |
+| 4        | Double down on cruise add-ons in direct and renewal                  | We’re up £2.3k from cruise sales—room to grow         | ~£2k/wk    |
 
 ---
 
-_Generated 09:04 10 Mar 2026 | 22 investigation tracks | GPT-4_
+_Generated 12:01 10 Mar 2026 | 22 investigation tracks | GPT-4_
 
 ---
-
-**Review notes:**
-- Every £ claim matches the detailed numbers in the investigation summary.
-- Every material mover (Direct Single, Aggregator Single, Annual (Aggregator), Renewals, Partner Referral Single, Mixed Cover Margin, Web Funnel/Conversion, Multi-Search) is present with direction, size, and duration.
-- No critical movers are missing; no Annual margin warnings are included; all SQL dig blocks use the right literal dates.
-- Actions are specific, tied to drivers, and sized.
-- Headline puts price war/Single margin squeeze as the lead, matching biggest £ impact.
-- Customer intent/news have referenced Google index and airline/industry specifics.
-- Nothing material is omitted, no unnecessary filler is present, and all instructions are followed.
-
-**No changes required.**
-
----
-*Generated 15:08 10 Mar 2026 | Tracks: 22 + Follow-ups: 27 | Model: gpt-4.1*
+*Generated 15:49 10 Mar 2026 | Tracks: 22 + Follow-ups: 35 | Model: gpt-4.1*
