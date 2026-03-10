@@ -3393,6 +3393,41 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 
     # Extract At a Glance items for the "Also..." section
     glance_items = re.findall(r'<li>(.*?)</li>', html_body[:html_body.find('</ul>') + 6] if '</ul>' in html_body else html_body)
+    # Build all driver heading slugs for fuzzy matching
+    all_driver_headings = re.findall(r'<h3 id="driver-([^"]+)">(.*?)</h3>', html_body)
+    driver_slug_lookup = []  # [(slug, plain_name), ...]
+    for slug, heading_html in all_driver_headings:
+        plain = re.sub(r'<[^>]+>', '', heading_html).strip().lower()
+        driver_slug_lookup.append((slug, plain))
+
+    def _find_best_driver_slug(keyword_text):
+        """Find the driver heading slug that best matches a glance keyword."""
+        kw = keyword_text.lower()
+        # Exact slug match
+        kw_slug = re.sub(r'[^a-z0-9]+', '-', kw).strip('-')
+        for slug, plain in driver_slug_lookup:
+            if slug == kw_slug:
+                return slug
+        # Fuzzy: check if the keyword words appear in any driver name
+        kw_words = set(w for w in kw.split() if len(w) > 3)
+        best_slug, best_score = None, 0
+        for slug, plain in driver_slug_lookup:
+            plain_words = set(plain.split())
+            overlap = len(kw_words & plain_words)
+            if overlap > best_score:
+                best_score = overlap
+                best_slug = slug
+        # Also try: does any driver name contain the keyword or vice versa
+        if not best_slug or best_score == 0:
+            for slug, plain in driver_slug_lookup:
+                if kw in plain or plain in kw:
+                    return slug
+                # Check if any significant keyword word appears in driver name
+                for w in kw_words:
+                    if w in plain:
+                        return slug
+        return best_slug if best_score > 0 else None
+
     # Build "also" items from glance items (skip the first one which is the headline topic)
     also_items = []
     for item in glance_items[1:5]:  # take items 2-5
@@ -3401,9 +3436,12 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         bold_match = re.search(r'<strong[^>]*>(.*?)</strong>', item)
         if bold_match:
             keyword = re.sub(r'<[^>]+>', '', bold_match.group(1)).strip()
-            slug = re.sub(r'[^a-z0-9]+', '-', keyword.lower()).strip('-')
-            # Try to link to a driver heading
-            also_items.append(f'<a href="#driver-{slug}">{clean}</a>')
+            matched_slug = _find_best_driver_slug(keyword)
+            if matched_slug:
+                also_items.append(f'<a href="#driver-{matched_slug}">{clean}</a>')
+            else:
+                # Fall back to linking to "What's Driving This" section
+                also_items.append(f'<a href="#section-what-s-driving-this">{clean}</a>')
         else:
             also_items.append(clean)
 
@@ -3489,6 +3527,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 /* ── Reset & Base ── */
 *{{box-sizing:border-box;margin:0;padding:0}}
 html{{scroll-behavior:smooth;overflow-x:hidden;overflow-y:auto;height:auto}}
+[id^="section-"],[id^="driver-"]{{scroll-margin-top:60px}}
 body{{
   font-family:'Nunito',system-ui,-apple-system,sans-serif;
   background:var(--bg);
@@ -4391,7 +4430,7 @@ body::after{{
 
 <!-- Sticky toolbar — buttons only -->
 <div class="hdr">
-<div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end"><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button>{"<span class='inv-badge' onclick='document.querySelector(\".trail-section\").scrollIntoView({behavior:\"smooth\"});if(!document.getElementById(\"trailBody\").classList.contains(\"open\")){toggleTrail()}'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
+<div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end"><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button>{"<span class='inv-badge' onclick='openInvestigations()'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
 </div>
 
 <!-- Headline Tile — one-sentence takeaway -->
@@ -4610,6 +4649,24 @@ function toggleTrail(){{
       break;
     }}
   }}
+}}
+
+/* ── Open investigations from toolbar badge ── */
+function openInvestigations(){{
+  const section=document.querySelector('.trail-section');
+  const body=document.getElementById('trailBody');
+  if(!section) return;
+  /* Open the trail if it's closed */
+  if(body&&!body.classList.contains('open')){{
+    toggleTrail();
+  }}
+  /* Scroll so the section header is right below the sticky toolbar */
+  setTimeout(function(){{
+    const hdr=document.querySelector('.hdr');
+    const offset=hdr?hdr.offsetHeight+8:50;
+    const top=section.getBoundingClientRect().top+window.scrollY-offset;
+    window.scrollTo({{top:top,behavior:'smooth'}});
+  }},100);
 }}
 
 /* ── Scroll-reactive animations — BIDIRECTIONAL ── */
