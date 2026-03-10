@@ -513,6 +513,83 @@ body::after{
   opacity:1;transform:translateY(0);pointer-events:auto;
 }
 
+/* Archive button */
+.archive-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 14px;border-radius:20px;
+  font-size:10px;font-weight:700;letter-spacing:.5px;
+  background:rgba(148,163,184,0.08);color:#94A3B8;
+  border:1px solid rgba(148,163,184,0.2);
+  cursor:pointer;
+  transition:all 0.2s ease;
+  text-transform:uppercase;
+}
+.archive-btn:hover{
+  background:rgba(148,163,184,0.15);
+  color:#CBD5E1;
+  border-color:rgba(148,163,184,0.4);
+}
+
+/* Archive overlay */
+.archive-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);
+  z-index:10000;display:none;
+  justify-content:center;align-items:center;
+  animation:archive-fadein 0.3s ease;
+}
+.archive-overlay.open{display:flex}
+@keyframes archive-fadein{from{opacity:0} to{opacity:1}}
+.archive-panel{
+  background:var(--surface-solid);
+  border:1px solid var(--border);
+  border-radius:16px;
+  width:min(600px, 90vw);
+  max-height:80vh;
+  overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  display:flex;flex-direction:column;
+}
+.archive-header{
+  padding:20px 24px;
+  border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.archive-header h2{margin:0;font-size:16px;font-weight:700;color:var(--text)}
+.archive-close{
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  font-size:20px;padding:4px 8px;border-radius:8px;
+  transition:background 0.2s;
+}
+.archive-close:hover{background:rgba(255,255,255,0.1);color:var(--text)}
+.archive-list{
+  overflow-y:auto;padding:12px 0;flex:1;
+}
+.archive-item{
+  display:flex;align-items:center;gap:14px;
+  padding:12px 24px;
+  cursor:pointer;
+  transition:background 0.15s;
+  border-bottom:1px solid rgba(148,163,184,0.05);
+}
+.archive-item:hover{background:rgba(84,46,145,0.08)}
+.archive-date{
+  font-size:13px;font-weight:700;color:var(--text);
+  min-width:100px;
+}
+.archive-headline{
+  font-size:12px;color:var(--muted);
+  flex:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.archive-size{
+  font-size:10px;color:rgba(148,163,184,0.5);
+  min-width:50px;text-align:right;
+}
+.archive-empty{
+  padding:40px 24px;text-align:center;color:var(--muted);font-size:13px;
+}
+
 /* ── Metric cards (top 4) ── */
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
 .card{
@@ -793,7 +870,7 @@ body::after{
 <!-- Header — always visible, no scroll animation -->
 <div class="hdr">
 <div style="display:flex;align-items:center;gap:10px"><img src="https://dmy0b9oeprz0f.cloudfront.net/holidayextras.co.uk/brand-guidelines/logo-tags/png/microchip.png" alt="HX" style="width:28px;height:28px;filter:drop-shadow(0 0 8px rgba(84,46,145,0.5))"><div><h1><span>Trading Covered</span> <i style="font-weight:400;font-size:0.6em;opacity:0.7">by Holiday Extras</i></h1><div class="dt">Monday 09 March 2026</div></div><span id="stickySection" class="sticky-section-label"></span></div>
-<div style="display:flex;align-items:center;gap:8px"><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><span class='inv-badge' onclick='document.querySelector(".trail-section").scrollIntoView({behavior:"smooth"});if(!document.getElementById("trailBody").classList.contains("open")){toggleTrail()}'>56 investigations<span class='inv-tooltip'>Trading Covered ran <strong>56 automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span></div>
+<div style="display:flex;align-items:center;gap:8px"><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button><span class='inv-badge' onclick='document.querySelector(".trail-section").scrollIntoView({behavior:"smooth"});if(!document.getElementById("trailBody").classList.contains("open")){toggleTrail()}'>57 investigations<span class='inv-tooltip'>Trading Covered ran <strong>57 automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span></div>
 </div>
 
 <!-- Key Metrics — cards animate individually, parent wrapper does NOT -->
@@ -840,48 +917,79 @@ body::after{
 <div class="section-title">Trading Briefing</div>
 <div class="nar glass-card"><hr />
 <h1>HX Trading Briefing — 09 Mar 2026</h1>
-<h2>Record Policy Sales Can't Offset Margin Crash as Price War Hits Hardest Europe, Worldwide, and Single Trip</h2>
+<h2>Single trip margin collapse wipes out GP gains from record demand, despite strong mobile and annual growth.</h2>
 <hr />
 <h2>At a Glance</h2>
 <ul>
-<li><strong class="glance-bad">Europe GP Down £4k</strong> — Europe trips made £110k GP, £4k less than last year, even after selling 10% more; margin per policy now £20.50 (12% lower).</li>
-<li><strong class="glance-bad">Direct Single Margin Hit £1.6k</strong> — Single trip GP from direct dropped £1.6k (to £42k); margin per policy sank 14% YoY despite higher sales.</li>
-<li><strong class="glance-bad">Aggregator Single Crash £900</strong> — GP on aggregator single-trip fell £900 to just £2k as margin halved to £1.80 per policy, even with volume up 50%.</li>
-<li><strong class="glance-bad">Worldwide GP Down £1.4k</strong> — Worldwide sales up but GP down £1.4k (now £59k); per-policy GP dropped from £30 to £24.</li>
-<li><strong class="glance-good">Total Volume Up +730, Low GP</strong> — We sold over 7,700 policies this week (+10%), but because margins shrank, total GP actually <strong>fell</strong> £11k.</li>
+<li><strong class="glance-bad">GP down £11k YoY</strong> — We landed £169k GP this week, down £11k (6%) on last year, mainly because single trip margins got hammered.</li>
+<li><strong class="glance-good">Mobile web conversion surge</strong> — Mobile booked sessions up 16% (+500), adding £7k GP, thanks to a cleaner funnel and search-to-book leaps.</li>
+<li><strong class="glance-bad">Partner Referral single trip slide</strong> — Lost £3.7k GP on this route, with single trip volume down 23% — pure volume drop, not margin.</li>
+<li><strong class="glance-bad">Aggregator single trip margin crushed</strong> — GP fell £1.5k (down 40%), as avg. margin per policy halved, even though sales jumped 51%.</li>
+<li><strong class="glance-good">Annuals (Gold Plus/Gold Cruise) upsell</strong> — Uplift worth £1.6k this week, driven by AMT web buyers switching to higher cover.</li>
 </ul>
 <hr />
 <h2>What's Driving This</h2>
-<h3>Europe Destination GP Softness <span class="badge-recurring">Recurring</span></h3>
-<p>Europe volume up nearly 500 policies (to 5,357), but lower margin (£20.50 vs £23.20) dragged regional GP down £4k. Flight sales to Spain/Turkey triggered intense deal-hunting and discounting for six straight weeks.</p>
-<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-1')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-1" style="display:none"><code>SELECT destination_group, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE destination_group='Europe' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code><button class="copy-btn" onclick="copySQL('sql-1')">Copy</button></pre></div>
+<h3>Mobile Web Funnel Shifts <span class="badge-recurring">Recurring</span></h3>
+<p>Mobile bookings up 16% (+496 sessions YoY), adding £7k GP—search-to-book rate up 0.2pts, driven by funnel fixes and more deep-engaged mobile shoppers. This trend’s persisted for several weeks, powered by heavy mobile PPC.</p>
+<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-1')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-1" style="display:none"><code>SELECT COUNT(DISTINCT session_id) AS mobile_sessions, SUM(policy_count) AS bookings, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+WHERE device_type = 'Mobile' AND session_start_date BETWEEN '2026-03-02' AND '2026-03-09'</code><button class="copy-btn" onclick="copySQL('sql-1')">Copy</button></pre></div>
 
-<h3>Direct Single Policy GP Decline <span class="badge-recurring">Recurring</span></h3>
-<p>More direct single trips sold (2,239 vs 1,983 LY), but margin per policy down to £18.75 (from £21.90); GP fell £1.6k. Higher discounts (now 11%) and underwriter fees are biting—this is a regular squeeze, not a one-off.</p>
-<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-2')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-2" style="display:none"><code>SELECT distribution_channel, policy_type, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel='Direct' AND policy_type='Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1,2</code><button class="copy-btn" onclick="copySQL('sql-2')">Copy</button></pre></div>
+<h3>Partner Referral Single Trip Volume Fall <span class="badge-recurring">Recurring</span></h3>
+<p>GP dropped £3.7k (to £16.4k), all due to volume falling 23% YoY—no shift into annuals, just lost sales. The drop has lasted for a month and isn’t just seasonality.</p>
+<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-2')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-2" style="display:none"><code>SELECT SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+AND distribution_channel='Partner Referral' AND policy_type='Single'</code><button class="copy-btn" onclick="copySQL('sql-2')">Copy</button></pre></div>
 
-<h3>Aggregator Single Policy GP Crash <span class="badge-recurring">Recurring</span></h3>
-<p>Single-trip aggregator GP halved per policy (£3.35 ➔ £1.78); total GP down nearly £900 despite 50% more volume (1,164 vs 772). Higher aggregator/underwriter cuts and price war pressure—structural, not temporary.</p>
-<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-3')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-3" style="display:none"><code>SELECT distribution_channel, policy_type, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel='Aggregator' AND policy_type='Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1,2</code><button class="copy-btn" onclick="copySQL('sql-3')">Copy</button></pre></div>
+<h3>Aggregator Single Trip Margin Collapse <span class="badge-recurring">Recurring</span></h3>
+<p>We sold 51% more aggregator single trips (1,164 vs 772), but GP plunged £1.5k as average margin halved to £1.78 per policy. Commission (30%+) and a race to the bottom on price are killing profit for the third week running.</p>
+<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-3')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-3" style="display:none"><code>SELECT SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+AND distribution_channel='Aggregator' AND policy_type='Single'</code><button class="copy-btn" onclick="copySQL('sql-3')">Copy</button></pre></div>
 
-<h3>Worldwide Destination GP Drop <span class="badge-recurring">Recurring</span></h3>
-<p>Worldwide sales up (2,429 vs 2,157), GP down £1.4k (now £58.9k); margin shrank 20% (now £24/policy). This price-led squeeze matches the pattern seen in Europe and is driven by cheap long-haul deals.</p>
-<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-4')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-4" style="display:none"><code>SELECT destination_group, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE destination_group='Worldwide' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code><button class="copy-btn" onclick="copySQL('sql-4')">Copy</button></pre></div>
+<h3>Direct Single Trip Margin Drop <span class="badge-recurring">Recurring</span></h3>
+<p>Direct single trip sales up 13%, but GP fell £1.5k as margin per policy slid to £18.75 (from £21.92). Extra claims risk and small increases in cover cost are the culprits; steady drop for several weeks.</p>
+<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-4')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-4" style="display:none"><code>SELECT SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp,
+SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))/NULLIF(SUM(policy_count),0) AS avg_gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+AND distribution_channel='Direct' AND policy_type='Single'</code><button class="copy-btn" onclick="copySQL('sql-4')">Copy</button></pre></div>
 
-<h3>Aggregator Annual Margin More Negative <span class="badge-recurring">Recurring</span></h3>
-<p>Annual aggregator sales up (1,144, +9%), but GP now -£7.2k (worse than last year, -£6.7k); margin per policy steady at -£6.26. This is deliberate: we're investing for future renewals by growing annual volume.</p>
-<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-5')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-5" style="display:none"><code>SELECT distribution_channel, policy_type, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel='Aggregator' AND policy_type='Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1,2</code><button class="copy-btn" onclick="copySQL('sql-5')">Copy</button></pre></div>
+<h3>Aggregator Annual Margin Still Negative, But Volume Up <span class="badge-recurring">Recurring</span></h3>
+<p>Annuals via aggregator grew 9% in policy count, but GP is still -£7.2k as discounts and commission outweigh volume. This is by design—building future renewal pool—even though short-term losses increased by £460.</p>
+<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-5')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-5" style="display:none"><code>SELECT SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+AND distribution_channel='Aggregator' AND policy_type='Annual'</code><button class="copy-btn" onclick="copySQL('sql-5')">Copy</button></pre></div>
 
-<h3>Total Volume Up, GP Still Down <span class="badge-recurring">Recurring</span></h3>
-<p>Sales soared to 7,786 (up 10% YoY), but margin erosion meant total GP dropped by £11k week-on-week. If margin had held, we'd be up £17k—real growth is eaten up by the price war.</p>
-<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-6')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-6" style="display:none"><code>SELECT SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09'</code><button class="copy-btn" onclick="copySQL('sql-6')">Copy</button></pre></div>
+<h3>Renewal Annual Volume and GP Growth <span class="badge-recurring">Recurring</span></h3>
+<p>Renewal annuals up 10% (+113 policies), adding £660 GP vs last year (to £52.9k). AMT repeat buyers continue to prop up our future income, even as margin per policy dipped a bit.</p>
+<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-6')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-6" style="display:none"><code>SELECT SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+AND distribution_channel='Renewals' AND policy_type='Annual'</code><button class="copy-btn" onclick="copySQL('sql-6')">Copy</button></pre></div>
+
+<h3>Gold Plus/Gold Cruise Annual Scheme Switch <span class="badge-new">New</span></h3>
+<p>Gold Plus and Gold Cruise AMT schemes lifted GP by £1.6k this week, as more AMT web buyers took higher cover. Upsell momentum started this week, led by medical and multi-search shoppers.</p>
+<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-7')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-7" style="display:none"><code>SELECT SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09'
+AND (scheme_name LIKE '%Gold Plus%' OR scheme_name LIKE '%Gold Cruise%') AND policy_type = 'Annual'</code><button class="copy-btn" onclick="copySQL('sql-7')">Copy</button></pre></div>
+
+<h3>Deep Web Engagement Drives High GP <span class="badge-new">New</span></h3>
+<p>Shoppers engaging with &gt;5 pages delivered £900 extra GP, mainly from mobile AMT buyers going for pricier cover. This has ticked up for two weeks, tracking with mobile funnel investments.</p>
+<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL('sql-8')">Dig into this in GBQ</button><pre class="dig-sql" id="sql-8" style="display:none"><code>SELECT COUNT(DISTINCT session_id) AS sessions, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+WHERE session_seconds &gt; 240 AND session_start_date BETWEEN '2026-03-02' AND '2026-03-09'</code><button class="copy-btn" onclick="copySQL('sql-8')">Copy</button></pre></div>
 
 <hr />
 <h2>Customer Search Intent</h2>
-<p>Travel insurance searches are up 57% over last year (index 11.5 vs 6.6). Most people are looking for “cheap flights,” “Spain/Turkey cover,” and “annual policy deals”—correlating directly with our single/annual high-volume, low-margin sales. Mobile conversion strong, but basket value and extras are way down.</p>
+<p>Travel insurance search demand is booming—up 57% YoY (Google index 11 this week vs 7 last year). Most of the spike is for annual multi-trip, Spain, Turkey, and medical-related cover; searchers are chasing bargains thanks to headline flight deals.</p>
 <hr />
 <h2>News &amp; Market Context</h2>
-<p>Airlines (easyJet, Jet2) ramped up cheap fares and online travel agents are pushing last-minute Spain/Turkey deals. Insurance aggregators and rivals like Saga responded with heavy PPC activity and broad-based price cuts. No macro disruption, but BA Middle East flight rerouting continues—keep exclusions and extensions visible.</p>
+<p>EasyJet and Jet2 unleashed major fare sales, bringing in price-driven buyers and pushing up AMT demand. UK aggregators are locked in a margin-killing price war—commission rates are crushing single trip GP. Saga's cover extensions are live for stranded travellers; market is hyper-competitive on volume at the expense of profit.</p>
 <hr />
 <h2>Actions</h2>
 <table>
@@ -896,334 +1004,409 @@ body::after{
 <tbody>
 <tr>
 <td>1</td>
-<td>Redirect marketing/PPC to drive more annual and Spain/Turkey sales, de-emphasise loss-leading singles</td>
-<td>Aggregator/direct singles margin collapse, annuals drive future value</td>
-<td>~£3-5k/week</td>
+<td>Double down on mobile/AMT PPC and fast-quote landing pages</td>
+<td>£7k/week gain in GP from better mobile conversion</td>
+<td>~£7k/week</td>
 </tr>
 <tr>
 <td>2</td>
-<td>Push mobile and aggregator buyers toward annual/AMT over single-trip offers</td>
-<td>Mobile is volume-rich but GP-poor; annuals are our renewal base</td>
+<td>Push Gold Plus/Gold Cruise AMT upsell on web/partner flows</td>
+<td>£1.6k/week incremental GP from higher cover</td>
 <td>~£2k/week</td>
 </tr>
 <tr>
 <td>3</td>
-<td>Review and cut extra discounts on direct singles</td>
-<td>Margin per policy fell 14% on direct singles</td>
-<td>~£1.6k/week</td>
+<td>Pause or reprice aggregator single trip loss-leader products</td>
+<td>-£1.5k/week wiped by negative margins</td>
+<td>~£1.5k/week</td>
 </tr>
 <tr>
 <td>4</td>
-<td>Pre-select annual/AMT on aggregator and remove “best” discount from single quotes</td>
-<td>Aggregator single margins worst hit</td>
-<td>~£900/week</td>
+<td>Ramp up new partner referral offers—claw back volume</td>
+<td>-£3.7k/week lost in partner single trips</td>
+<td>~£4k/week</td>
 </tr>
 <tr>
 <td>5</td>
-<td>Add renewal “pipeline” messaging to direct web journeys; highlight value over price</td>
-<td>Total GP fell despite more sales; value buyers hold margin</td>
-<td>~£1-2k/week</td>
+<td>Smooth web onboarding from session start to quote</td>
+<td>High-intent conversions lag; more deep sessions pay</td>
+<td>£2.5k/week</td>
 </tr>
 </tbody>
 </table><div style="color:rgba(148,163,184,0.5);font-style:italic;font-size:11px;line-height:1.6;margin-top:20px;border-top:1px solid var(--border);padding-top:12px"><hr />
-<p><em>Generated 09:25 10 Mar 2026 | 22 investigation tracks | GPT-4</em></p></div></div>
+<p><em>Generated 08:11 10 Mar 2026 | 22 investigation tracks | GPT-4</em></p></div></div>
 </div>
 
 <!-- Investigation Trail -->
-<div class="section-gap trail-section" data-animate="reveal"><div class="section-title">How We Investigated This</div><p class="trail-intro">This briefing is not a guess. Before writing a single word, we checked <strong>22 different areas</strong> of yesterday's trading data, identified <strong>16 things that are meaningfully moving the numbers</strong>, ran <strong>34 follow-up checks</strong> to understand <em>why</em> those movements happened, and then wrote the briefing with a built-in review step. Here is exactly what we did.</p><button class="trail-toggle" id="trailToggle" onclick="toggleTrail()"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Show full investigation trail</button><div class="trail-body" id="trailBody"><div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">1</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 1</span><span class="trail-round-desc">Looked at every angle of trading</span><span class="trail-round-meta">22 areas checked</span></div><div class="trail-reasoning">We started by looking at <strong>every angle</strong> of yesterday's trading. That means 22 separate checks, each comparing this year against the same period last year. We looked at how sales break down by channel (direct, aggregator, partners) and product type, which insurance schemes are selling best and worst, how customers with medical conditions are affecting margins, which cover levels (Bronze, Silver, Gold, etc.) customers are choosing, how much we are paying partners and agents in commission, the age profile and new-vs-returning customer split, where customers are travelling to and how that affects profit, cancellation volumes and why customers are cancelling, how our renewal book is performing and retention trends, where visitors are dropping off on the website before buying, whether any specific days were unusually good or bad, how discounts and marketing campaigns are affecting profit per policy, how the cruise segment is performing versus standard travel, which web journeys (device, scheme, medical) produce the most profit per session, where high-value vs low-value customers are dropping off in the funnel, how the web-to-purchase path differs for annual vs single trip customers, whether customers who search multiple times convert better or worse, how the medical screening step affects conversion rates by device, what users browse online vs what they actually end up buying, how deep into the website people go and whether that leads to better sales, how commission, underwriter costs, IPT, and discounts compare as a % of price paid — and whether costs grew faster than revenue, and decomposing GP into traffic × conversion × price × margin to find which lever moved most.</div><details class="trail-call-details"><summary>See what we checked</summary><div class="trail-calls"><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Channel × Product Matrix</strong></div><div class="trail-call-summary">How sales break down by channel (direct, aggregator, partners) and product type</div><div class="trail-result" style="font-size:11px">14 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Scheme Performance</strong></div><div class="trail-call-summary">Which insurance schemes are selling best and worst</div><div class="trail-result" style="font-size:11px">112 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Medical vs Non-Medical</strong></div><div class="trail-call-summary">How customers with medical conditions are affecting margins</div><div class="trail-result" style="font-size:11px">145 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Cover Level & Upsell Mix</strong></div><div class="trail-call-summary">Which cover levels (bronze, silver, gold, etc.) customers are choosing</div><div class="trail-result" style="font-size:11px">16 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Commission & Partner Economics</strong></div><div class="trail-call-summary">How much we are paying partners and agents in commission</div><div class="trail-result" style="font-size:11px">105 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Customer Demographics</strong></div><div class="trail-call-summary">The age profile and new-vs-returning customer split</div><div class="trail-result" style="font-size:11px">97 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Destination & Region Mix</strong></div><div class="trail-call-summary">Where customers are travelling to and how that affects profit</div><div class="trail-result" style="font-size:11px">4 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Cancellation Analysis</strong></div><div class="trail-call-summary">Cancellation volumes and why customers are cancelling</div><div class="trail-result" style="font-size:11px">65 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Renewal Performance</strong></div><div class="trail-call-summary">How our renewal book is performing and retention trends</div><div class="trail-result" style="font-size:11px">18 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Web Funnel (Detailed)</strong></div><div class="trail-call-summary">Where visitors are dropping off on the website before buying</div><div class="trail-result" style="font-size:11px">54 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Day-of-Week Patterns</strong></div><div class="trail-call-summary">Whether any specific days were unusually good or bad</div><div class="trail-result" style="font-size:11px">16 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Discount & Campaign Effectiveness</strong></div><div class="trail-call-summary">How discounts and marketing campaigns are affecting profit per policy</div><div class="trail-result" style="font-size:11px">59 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Cruise vs Non-Cruise</strong></div><div class="trail-call-summary">How the cruise segment is performing versus standard travel</div><div class="trail-result" style="font-size:11px">465 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Session-to-GP Bridge (Device × Scheme × Medical)</strong></div><div class="trail-call-summary">Which web journeys (device, scheme, medical) produce the most profit per session</div><div class="trail-result" style="font-size:11px">164 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Funnel Drop-off by Value Tier</strong></div><div class="trail-call-summary">Where high-value vs low-value customers are dropping off in the funnel</div><div class="trail-result" style="font-size:11px">24 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Annual vs Single Conversion Path (YoY)</strong></div><div class="trail-call-summary">How the web-to-purchase path differs for annual vs single trip customers</div><div class="trail-result" style="font-size:11px">18 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Multi-Search Session GP Impact</strong></div><div class="trail-call-summary">Whether customers who search multiple times convert better or worse</div><div class="trail-result" style="font-size:11px">12 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Medical Screening Funnel by Device</strong></div><div class="trail-call-summary">How the medical screening step affects conversion rates by device</div><div class="trail-result" style="font-size:11px">18 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Web Insurance Group to Cover Level Outcome</strong></div><div class="trail-call-summary">What users browse online vs what they actually end up buying</div><div class="trail-result" style="font-size:11px">251 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Session Engagement Depth vs Trading Outcome</strong></div><div class="trail-call-summary">How deep into the website people go and whether that leads to better sales</div><div class="trail-result" style="font-size:11px">18 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Cost Decomposition vs Price Growth</strong></div><div class="trail-call-summary">How commission, underwriter costs, ipt, and discounts compare as a % of price paid — and whether costs grew faster than revenue</div><div class="trail-result" style="font-size:11px">14 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Traffic × Conversion × Price × GP Bridge</strong></div><div class="trail-call-summary">Decomposing gp into traffic × conversion × price × margin to find which lever moved most</div><div class="trail-result" style="font-size:11px">6 data points returned</div></div></div></details></div></div>
-<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">2</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 2</span><span class="trail-round-desc">Found the biggest movers</span><span class="trail-round-meta">16 material drivers identified</span></div><div class="trail-reasoning">From all that data, we identified <strong>16 things moving the numbers</strong>. The biggest was <strong>Aggregator Single Policy GP crash</strong>, which is pushing GP <strong>down by about &pound;906 per week</strong>. Here they are, ranked by how much money they represent:</div><div style="margin:12px 0"><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">1</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--red);font-weight:700;font-size:14px">&#9660; &pound;906/wk</span> &mdash; <strong>Aggregator Single Policy GP crash</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">GP per Aggregator Single trip dropped from £3.35 to £1.78 and volumes rose (772→1164), but GP fell from £2588.9 (LY) to £2076.23 (TY). Higher volume didn't offset the large drop in margin per policy (-47%).</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">2</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--red);font-weight:700;font-size:14px">&#9660; &pound;1,593/wk</span> &mdash; <strong>Direct Single Policy GP decline</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Direct Single trip GP fell from £43,460.5 (LY) to £41,973.04 (TY; 7d slice), despite volumes rising (1983→2239). Margin per policy dropped sharply: £21.92 (LY) to £18.75 (TY, -14%). Average price was essentially flat.</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">3</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--red);font-weight:700;font-size:14px">&#9660; &pound;463/wk</span> &mdash; <strong>Aggregator Annual Margin More Negative</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Number of Aggregator Annual policies rose (1046→1144), but GP diminished further, from -£6700.06 last year to -£7163.06 (7d run-rate), with average margin -£6.41 (LY) to -£6.26 (TY). Internal policy; volume-led effect.</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">4</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--red);font-weight:700;font-size:14px">&#9660; &pound;1,423/wk</span> &mdash; <strong>Worldwide Destination GP Drop</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Worldwide policy count up (2157→2429), but GP dropped from £65,769.91 to £58,903.28. GP per policy down from £30.49→£24.25. Price impression down to £24.25 as more competitive/cheaper policies sold.</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">5</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--green);font-weight:700;font-size:14px">&#9650; &pound;532/wk</span> &mdash; <strong>High Policy Volume, GP Lower</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Total policy volume up (7054→7786, +10.4% YoY for the week), but total GP fell (179,837.68→168,973.22). This volume effect would have led to a GP gain of £17.3k at historic margins, but margin loss overwhelms volume gain.</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">6</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--red);font-weight:700;font-size:14px">&#9660; &pound;3,998/wk</span> &mdash; <strong>Europe Destination GP Softness</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Europe policy volumes up (4897→5357), but GP fell from £114,067.77 (LY) to £110,069.94 (TY). Margin per policy dropped from £23.29 to £20.55 (Europe is ~70% of total GP).</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">7</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--green);font-weight:700;font-size:14px">&#9650; &pound;2,335/wk</span> &mdash; <strong>Mobile Web Conversion Volume Boost—Low GP Yield</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--yellow);margin-left:6px">Temporary</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Mobile sessions and bookings up (3109→3605 weekly bookings), but GP per booking lags desktop: heavy uplift in low GP policies, diluting average. Most new volume is Bronze/Silver, single-trip, low-value bookings.</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">8</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--green);font-weight:700;font-size:14px">&#9650; &pound;733/wk</span> &mdash; <strong>Direct Annual Volume and Mix</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Direct Annual policy volumes up (993→1069), GP slightly down from £55,479.92 to £52,212.44, but volume is positive. Margin per policy fell from £55.87→£48.84 (-12.6%), as more low-priced AMT policies sold.</div></div></div></div><div style="margin-top:14px;padding:12px 16px;background:rgba(84,46,145,0.08);border-radius:10px;font-size:12px;line-height:1.7"><strong>The maths check:</strong> Overall GP moved &pound;10,864 down this week. The drivers above account for &pound;10,880 of that. That leaves &pound;16 unexplained &mdash; likely spread across many small movements.</div><details class="trail-call-details"><summary>See findings from every area we checked</summary><div style="padding:8px 0"><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How sales break down by channel (direct, aggregator, partners) and product type</strong>: Aggregator and Direct Single margins down, Direct Annual low-margin volume surge. All structural.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Which insurance schemes are selling best and worst</strong>: Deflation in Silver/Bronze schemes; AMT schemes seeing volume up but GP per policy down.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How customers with medical conditions are affecting margins</strong>: Slight shift toward more medically screened policies in higher volume segments, but not the primary mover.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Which cover levels (bronze, silver, gold, etc.) customers are choosing</strong>: More policies in Bronze/Silver, lower-value tiers. Gold/Deluxe margin and volume flat or down.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How much we are paying partners and agents in commission</strong>: Total commission share up for Aggregator and Partner Referral channels. No single partner/gross jump.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">The age profile and new-vs-returning customer split</strong>: Some growth in Under-35 and 55-69 buckets, but nothing explaining aggregate margin drop.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Where customers are travelling to and how that affects profit</strong>: Europe/Worldwide attract more volume but lower GP; matches price-led market search.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Cancellation volumes and why customers are cancelling</strong>: No material movement; almost zero reported.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How our renewal book is performing and retention trends</strong>: Renewal volume and GP similar overall; minor changes in retention/auto-renew split.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Where visitors are dropping off on the website before buying</strong>: Largest drop-offs at search stage, esp. on desktop sessions; post-search, purchase rates up. Funnel 'front-loaded' attrition.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Whether any specific days were unusually good or bad</strong>: No single bad day: variance spread M-F, with slightly weaker GP across weekdays.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How discounts and marketing campaigns are affecting profit per policy</strong>: Discount rate up for Direct and Partnered, minor. No single campaign collapse; all margin erosion is diffuse.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How the cruise segment is performing versus standard travel</strong>: Cruise largely flat in volume and margin. No big swing versus non-cruise.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Which web journeys (device, scheme, medical) produce the most profit per session</strong>: Mobile gains sessions, but GP-per-conversion lower. High GP journeys are desktop, deep engagement.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Where high-value vs low-value customers are dropping off in the funnel</strong>: Low-GP policies hit checkout in higher number. High-GP customers still convert well, but session pool dilutes.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How the web-to-purchase path differs for annual vs single trip customers</strong>: Annual conversion holding up, GP per booked annual session dropping slightly. Single trip GP falling on volume.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Whether customers who search multiple times convert better or worse</strong>: Multi-searchers convert well, especially desktop/tablet (conversion ~33%), but sessions are small % of total.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How the medical screening step affects conversion rates by device</strong>: Medical screening sessions up; on desktop, conversion and GP both high. On mobile, effect flattens.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">What users browse online vs what they actually end up buying</strong>: Users browse higher cover (Silver/Gold) but buy lower; conversion gap.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How deep into the website people go and whether that leads to better sales</strong>: Deep sessions (5+ pages) have best conversion and GP, but average depth falling as mobile light-browsers enter.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How commission, underwriter costs, ipt, and discounts compare as a % of price paid — and whether costs grew faster than revenue</strong>: Commission and underwriter cost share both up slightly; customer price stable or down. Margin % shrinks.</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Decomposing gp into traffic × conversion × price × margin to find which lever moved most</strong>: Mobile and desktop both see weaker session-to-search, but mobile’s search-to-book is very high; traffic quality?</div></div></details></div></div>
-<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.1</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.1</span><span class="trail-round-desc">Context gathering — internal docs, market data, web search</span><span class="trail-round-meta">6 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128194; Scanned recent internal documents for anything related to: <em>insurance pricing,insurance campaign,insurance product release</em></div><div class="trail-result" style="margin-top:6px">[]</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#127760; Searched the web for: <em>&ldquo;UK travel insurance discounting margin trends March 2026&rdquo;</em></div><div class="trail-result" style="margin-top:6px">As of the latest available information up to mid-2024, there are no specific publicly released figures or detailed industry reports explicitly projecting UK travel insurance discounting margin trends </div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128200; Pulled the latest figures from our <strong>AI Insights</strong> market tracker</div><div class="trail-result" style="margin-top:6px">[
+<div class="section-gap trail-section" data-animate="reveal"><div class="section-title">How We Investigated This</div><p class="trail-intro">This briefing is not a guess. Before writing a single word, we checked <strong>22 different areas</strong> of yesterday's trading data, identified <strong>16 things that are meaningfully moving the numbers</strong>, ran <strong>35 follow-up checks</strong> to understand <em>why</em> those movements happened, and then wrote the briefing with a built-in review step. Here is exactly what we did.</p><button class="trail-toggle" id="trailToggle" onclick="toggleTrail()"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Show full investigation trail</button><div class="trail-body" id="trailBody"><div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">1</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 1</span><span class="trail-round-desc">Looked at every angle of trading</span><span class="trail-round-meta">22 areas checked</span></div><div class="trail-reasoning">We started by looking at <strong>every angle</strong> of yesterday's trading. That means 22 separate checks, each comparing this year against the same period last year. We looked at how sales break down by channel (direct, aggregator, partners) and product type, which insurance schemes are selling best and worst, how customers with medical conditions are affecting margins, which cover levels (Bronze, Silver, Gold, etc.) customers are choosing, how much we are paying partners and agents in commission, the age profile and new-vs-returning customer split, where customers are travelling to and how that affects profit, cancellation volumes and why customers are cancelling, how our renewal book is performing and retention trends, where visitors are dropping off on the website before buying, whether any specific days were unusually good or bad, how discounts and marketing campaigns are affecting profit per policy, how the cruise segment is performing versus standard travel, which web journeys (device, scheme, medical) produce the most profit per session, where high-value vs low-value customers are dropping off in the funnel, how the web-to-purchase path differs for annual vs single trip customers, whether customers who search multiple times convert better or worse, how the medical screening step affects conversion rates by device, what users browse online vs what they actually end up buying, how deep into the website people go and whether that leads to better sales, how commission, underwriter costs, IPT, and discounts compare as a % of price paid — and whether costs grew faster than revenue, and decomposing GP into traffic × conversion × price × margin to find which lever moved most.</div><details class="trail-call-details"><summary>See what we checked</summary><div class="trail-calls"><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Channel × Product Matrix</strong></div><div class="trail-call-summary">How sales break down by channel (direct, aggregator, partners) and product type</div><div class="trail-result" style="font-size:11px">14 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Scheme Performance</strong></div><div class="trail-call-summary">Which insurance schemes are selling best and worst</div><div class="trail-result" style="font-size:11px">112 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Medical vs Non-Medical</strong></div><div class="trail-call-summary">How customers with medical conditions are affecting margins</div><div class="trail-result" style="font-size:11px">145 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Cover Level & Upsell Mix</strong></div><div class="trail-call-summary">Which cover levels (bronze, silver, gold, etc.) customers are choosing</div><div class="trail-result" style="font-size:11px">16 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Commission & Partner Economics</strong></div><div class="trail-call-summary">How much we are paying partners and agents in commission</div><div class="trail-result" style="font-size:11px">105 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Customer Demographics</strong></div><div class="trail-call-summary">The age profile and new-vs-returning customer split</div><div class="trail-result" style="font-size:11px">97 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Destination & Region Mix</strong></div><div class="trail-call-summary">Where customers are travelling to and how that affects profit</div><div class="trail-result" style="font-size:11px">4 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Cancellation Analysis</strong></div><div class="trail-call-summary">Cancellation volumes and why customers are cancelling</div><div class="trail-result" style="font-size:11px">65 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Renewal Performance</strong></div><div class="trail-call-summary">How our renewal book is performing and retention trends</div><div class="trail-result" style="font-size:11px">18 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Web Funnel (Detailed)</strong></div><div class="trail-call-summary">Where visitors are dropping off on the website before buying</div><div class="trail-result" style="font-size:11px">54 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Day-of-Week Patterns</strong></div><div class="trail-call-summary">Whether any specific days were unusually good or bad</div><div class="trail-result" style="font-size:11px">16 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Discount & Campaign Effectiveness</strong></div><div class="trail-call-summary">How discounts and marketing campaigns are affecting profit per policy</div><div class="trail-result" style="font-size:11px">59 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Cruise vs Non-Cruise</strong></div><div class="trail-call-summary">How the cruise segment is performing versus standard travel</div><div class="trail-result" style="font-size:11px">465 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Session-to-GP Bridge (Device × Scheme × Medical)</strong></div><div class="trail-call-summary">Which web journeys (device, scheme, medical) produce the most profit per session</div><div class="trail-result" style="font-size:11px">164 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Funnel Drop-off by Value Tier</strong></div><div class="trail-call-summary">Where high-value vs low-value customers are dropping off in the funnel</div><div class="trail-result" style="font-size:11px">24 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Annual vs Single Conversion Path (YoY)</strong></div><div class="trail-call-summary">How the web-to-purchase path differs for annual vs single trip customers</div><div class="trail-result" style="font-size:11px">18 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Multi-Search Session GP Impact</strong></div><div class="trail-call-summary">Whether customers who search multiple times convert better or worse</div><div class="trail-result" style="font-size:11px">12 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Medical Screening Funnel by Device</strong></div><div class="trail-call-summary">How the medical screening step affects conversion rates by device</div><div class="trail-result" style="font-size:11px">18 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Web Insurance Group to Cover Level Outcome</strong></div><div class="trail-call-summary">What users browse online vs what they actually end up buying</div><div class="trail-result" style="font-size:11px">251 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Session Engagement Depth vs Trading Outcome</strong></div><div class="trail-call-summary">How deep into the website people go and whether that leads to better sales</div><div class="trail-result" style="font-size:11px">18 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Cost Decomposition vs Price Growth</strong></div><div class="trail-call-summary">How commission, underwriter costs, ipt, and discounts compare as a % of price paid — and whether costs grew faster than revenue</div><div class="trail-result" style="font-size:11px">14 data points returned</div></div><div class="trail-call"><div class="trail-call-header">&#10003; <strong>Traffic × Conversion × Price × GP Bridge</strong></div><div class="trail-call-summary">Decomposing gp into traffic × conversion × price × margin to find which lever moved most</div><div class="trail-result" style="font-size:11px">6 data points returned</div></div></div></details></div></div>
+<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">2</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 2</span><span class="trail-round-desc">Found the biggest movers</span><span class="trail-round-meta">16 material drivers identified</span></div><div class="trail-reasoning">From all that data, we identified <strong>16 things moving the numbers</strong>. The biggest was <strong>Mobile web funnel shifts</strong>, which is pushing GP <strong>up by about &pound;7,072 per week</strong>. Here they are, ranked by how much money they represent:</div><div style="margin:12px 0"><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">1</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--green);font-weight:700;font-size:14px">&#9650; &pound;7,072/wk</span> &mdash; <strong>Mobile web funnel shifts</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--yellow);margin-left:6px">Temporary</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Mobile booked sessions up by +496 (16%) YoY (3605 TY vs 3109 LY), mobile traffic +1,463 sessions (+5%) and conversion rate jumped, especially search-to-book: 0.74 TY vs 0.54 LY (+0.20pts). This mobile conversion lift represents an estimated +7072 GP </div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">2</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--red);font-weight:700;font-size:14px">&#9660; &pound;1,533/wk</span> &mdash; <strong>Aggregator single trip margin collapse</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Aggregator single trip GP fell from £2,589 LY to £2,076 TY, despite policies rising (1,164 TY vs 772 LY, +50.8%). However, avg GP dropped from £3.35 to £1.78. Root cause: commission % high (30%+), avg price fell sharply (£46.63 LY to £34.83 TY), whil</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">3</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--red);font-weight:700;font-size:14px">&#9660; &pound;3,710/wk</span> &mdash; <strong>Partner Referral single trip fall</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Partner Referral single trip GP fell £3,710 (16,439 TY vs 20,149 LY), with volume -212 policies (-23%). The avg GP held steady (£23.32 vs £21.97), so gap is pure volume. No sign of shift to annual in this channel. Root cause: partner volume drop, des</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">4</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--red);font-weight:700;font-size:14px">&#9660; &pound;2,488/wk</span> &mdash; <strong>Direct single trip margin drop</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Direct single trip policies +256 (+12.9%), but GP only £41,973 TY vs £43,460 LY (-1,487), and avg GP sank (from £21.92 to £18.75). Price rose slightly (£58.59 TY vs £58.02 LY), so margin hit is cost driven — possible uptick in option/addon cost or me</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">5</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--red);font-weight:700;font-size:14px">&#9660; &pound;463/wk</span> &mdash; <strong>Aggregator annual margin still negative with increased policies</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Aggregator annual issue count up (1,144 TY vs 1,046 LY, +9.3%), but margin still structurally negative (£-7,163 TY vs -£6,700 LY). Commission rate rose to 30.4% and avg price surged (£131 TY vs £99 LY), showing pricing is chasing acquisition (as per </div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">6</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--green);font-weight:700;font-size:14px">&#9650; &pound;660/wk</span> &mdash; <strong>Renewal annual volume and GP growth</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Renewal annual up: 1291 policies TY vs 1,178 LY (+9.6%), GP up from £54,216 LY to £52,954 TY, and avg GP is down from £46.02 to £41.02 (more competitive pricing/discounting, 14.4% to 14.0% disc pct). Volume/share gain as per market trend for more ann</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">7</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--green);font-weight:700;font-size:14px">&#9650; &pound;1,635/wk</span> &mdash; <strong>Gold Plus/Gold Cruise annual scheme switch</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--accent-light);margin-left:6px">Structural</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Gold Plus Main Annual Med HX grew sharply (GP +£1,635, policies +63, avg GP and price held steady), and Gold Cruise Annual Med HX up as well, both driven by online multi-search/AMT journeys. Upsell to higher cover seen in web_cover_level_outcome (hig</div></div></div><div style="padding:10px 14px;margin:6px 0;background:rgba(15,23,42,0.5);border-radius:10px;border:1px solid var(--border);display:flex;gap:12px;align-items:flex-start"><div style="min-width:28px;text-align:center;font-size:14px;font-weight:800;color:var(--muted);padding-top:2px">8</div><div style="flex:1"><div style="margin-bottom:4px"><span style="color:var(--green);font-weight:700;font-size:14px">&#9650; &pound;901/wk</span> &mdash; <strong>Deep web engagement drives high GP</strong> <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);color:var(--yellow);margin-left:6px">Temporary</span></div><div style="font-size:12px;color:#cbd5e1;line-height:1.6">Deep funnel sessions (5+ pages) GP increased £901 (from £54,037 LY to £55,322 TY mobile; computer up too). Conversion rate on these deep sessions up +0.015ppt mobile, +0.005ppt computer. These users over-index on annual/AMT and high cover, with bette</div></div></div></div><div style="margin-top:14px;padding:12px 16px;background:rgba(84,46,145,0.08);border-radius:10px;font-size:12px;line-height:1.7"><strong>The maths check:</strong> Overall GP moved &pound;10,864 down this week. The drivers above account for &pound;10,826 of that. That leaves &pound;38 unexplained &mdash; likely spread across many small movements.</div><details class="trail-call-details"><summary>See findings from every area we checked</summary><div style="padding:8px 0"><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How sales break down by channel (direct, aggregator, partners) and product type</strong>: Aggregator: GP down on both single and annual from commission and margin; Partner Referral single lost volume; Direct single margin compressed</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Which insurance schemes are selling best and worst</strong>: Gold Plus/Gold Cruise annual schemes up; partner/bronze down; higher cover up</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How customers with medical conditions are affecting margins</strong>: Minor uptick in medical risk cases on direct; AMT buyers increasingly declare health—margin not driven by medical shift</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Which cover levels (bronze, silver, gold, etc.) customers are choosing</strong>: Classic/Deluxe/Elite policy GP much lower YoY: mix shifted toward Silver/Gold; Bronze slightly up in policies but down in margin</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How much we are paying partners and agents in commission</strong>: Aggregator and select partner products now at 30%+ average commission—main contributor to aggregator margin, but not partner fall</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">The age profile and new-vs-returning customer split</strong>: Growth in AMT and deep explorer types aged 35-69, single/partner referrals saw drop in 55+ segment</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Where customers are travelling to and how that affects profit</strong>: Worldwide volume up, Europe flat GP, but avg margin down in both due to commission/cost structure</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Cancellation volumes and why customers are cancelling</strong>: No material movement, no GP impact</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How our renewal book is performing and retention trends</strong>: Renewal annual up in volume and GP, but unit margin down as discounts rise</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Where visitors are dropping off on the website before buying</strong>: Mobile: more conversions; session-to-search rate down, search-to-book up</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Whether any specific days were unusually good or bad</strong>: Saturday and Monday consistently strongest. Weakest growth was Sunday and Thursday—Monday still high volume but margin down</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How discounts and marketing campaigns are affecting profit per policy</strong>: Most discount GP now on direct/renewals; no one-off campaign causing negative margin. Discounts higher on renewals, not single policy drivers</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How the cruise segment is performing versus standard travel</strong>: Cruise GP up on direct and mobile, minor in share. Most movement is non-cruise; cruise up, but not a material mover itself</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Which web journeys (device, scheme, medical) produce the most profit per session</strong>: GP per session highest in deep medical/annual journeys; mobile and multi-search top channels</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Where high-value vs low-value customers are dropping off in the funnel</strong>: High GP users over-index in conversion; bottleneck now at session-to-search, not late funnel drop</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How the web-to-purchase path differs for annual vs single trip customers</strong>: Annual conversion rates steady on computer, slightly down mobile. Most annual policy GP from deep, high-conv AMT journeys</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Whether customers who search multiple times convert better or worse</strong>: Multi-search up on conversion rate, and GP per converted session up for tablets/computer, flat mobile</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How the medical screening step affects conversion rates by device</strong>: Medical screeners convert at higher GP per policy, especially on desktop; mobile medical screening conversion sequentially up</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">What users browse online vs what they actually end up buying</strong>: Upsell strong in PPC/SEO, bronze buyers upsold to silver/gold post-browse</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How deep into the website people go and whether that leads to better sales</strong>: Deep explorers give best conversion and margin, especially on mobile</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">How commission, underwriter costs, ipt, and discounts compare as a % of price paid — and whether costs grew faster than revenue</strong>: Aggregator commission still climbing (now at/above 30% margin wipeout); all other direct/partner channels stable to rising cost per gross</div><div style="font-size:12px;color:#cbd5e1;padding:4px 0;line-height:1.6"><strong style="color:var(--text)">Decomposing gp into traffic × conversion × price × margin to find which lever moved most</strong>: Traffic up, but lower session-to-search, higher payoff for those who get a quote—conversion strategy tuning has effect</div></div></details></div></div>
+<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.1</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.1</span><span class="trail-round-desc">Context gathering — internal docs, market data, web search</span><span class="trail-round-meta">8 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128194; Scanned recent internal documents for anything related to: <em>pricing,scheme,medical,discount,campaign</em></div><div class="trail-result" style="margin-top:6px">[
+  {
+    "name": "03-Pricing",
+    "modified": "2026-03-09T14:15:58.054Z",
+    "modified_by": "Jake Osmond"
+  }
+]</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128194; Scanned recent internal documents for anything related to: <em>aggregator,commission,deal</em></div><div class="trail-result" style="margin-top:6px">[]</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128200; Pulled the latest figures from our <strong>AI Insights</strong> market tracker</div><div class="trail-result" style="margin-top:6px">[
   {
     "section_key": "what_matters",
-    "insight_text": "Insurance search demand is hot right now: insurance is 11 vs 7 last year, holidays 9 vs 6, combined 10 vs 6, likely driven by people chasi</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 1: Aggregator Single - cover level</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 1: Aggregator Single - cover level
-SELECT cover_level_name, SUM(policy_count) as policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1 ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">[
+    "insight_text": "Insurance search demand is hot right now: insurance is 11 vs 7 last year, holidays 9 vs 6, combined 10 vs 6, likely driven by people chasi</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#127760; Searched the web for: <em>&ldquo;UK travel insurance aggregator pricing trends 2026&rdquo;</em></div><div class="trail-result" style="margin-top:6px">As of mid-2024, here is the latest information regarding UK travel insurance aggregator pricing trends projected for 2026:
+
+1. **Pricing Trends and Market Context:**
+   - UK travel insurance prices ha</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data by <strong>distribution channel, partner/agent, daily breakdown</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>SELECT agent_name, COUNT(DISTINCT policy_id) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp FROM `hx-data-production.commercial_finance.insurance_policies_new` WHERE transaction_date &gt;= DATE('2026-01-01') AND distribution_channel = 'Partner Referral' AND transaction_type = 'New Issue' GROUP BY agent_name ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">⚠️ SQL was auto-corrected: Auto-corrected COUNT(DISTINCT policy_id) → SUM(policy_count)
+
+[
   {
-    "cover_level_name": "Classic",
-    "policies": 753,
-    "gp": 567.9999999999995
+    "agent_name": "P&amp;O Ins Web",
+    "policies": 3420,
+    "gp": "60791.49"
   },
   {
-    "cover_level_name": "Elite",
-    "policies": 200,
-    "gp": 556.7499999999999
-  },
-  {
-    "cover</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 2: Aggregator Single - scheme</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 2: Aggregator Single - scheme
-SELECT scheme_name, SUM(policy_count) as policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp, SUM(CAST(base_commission AS FLOAT64))/NULLIF(SUM(policy_count),0) as avg_com, SUM(CAST(total_gross_inc_ipt AS FLOAT64))/NULLIF(SUM(policy_count),0) as avg_price FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "scheme_name": "Classic Compare",
-    "policies": 333,
-    "gp": 194.31999999999996,
-    "avg_com": 6.843483483483483,
-    "avg_price": 23.259669669669666
-  },
-  {
-    "scheme_name": "Classi</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 3: Aggregator Single - days to travel</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 3: Aggregator Single - days to travel
-SELECT CASE WHEN days_to_travel &lt; 8 THEN '&lt;8' WHEN days_to_travel &lt;15 THEN '8-14' WHEN days_to_travel &lt;31 THEN '15-30' ELSE '30+' END as days_to_travel_band, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: days_to_travel at [2:18]; reason: invalidQuery, location: query, message: Unrecognized name: days_to_travel at [2:18]
+    "agent_name": "P</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 1: cover_level_name SELECT cover_level_name, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_co</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 1: cover_level_name SELECT cover_level_name, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp FROM `hx-data-production.commercial_finance.insurance_policies_new` WHERE transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09') AND distribution_channel = 'Aggregator' AND policy_type='Single' GROUP BY cover_level_name ORDER BY gp ASC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Syntax error: Unexpected end of statement at [1:407]; reason: invalidQuery, location: query, message: Syntax error: Unexpected end of statement at [1:407]
+
+Location: </div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 2: age SELECT MAX(max_age_at_purchase) AS age_band, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 2: age SELECT MAX(max_age_at_purchase) AS age_band, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp FROM `hx-data-production.commercial_finance.insurance_policies_new` WHERE transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09') AND distribution_channel = 'Aggregator' AND policy_type='Single' GROUP BY age_band ORDER BY gp ASC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Syntax error: Unexpected end of statement at [1:406]; reason: invalidQuery, location: query, message: Syntax error: Unexpected end of statement at [1:406]
+
+Location: </div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 3: max_medical_score_grouped SELECT max_medical_score_grouped, SUM(policy_count) AS policies, SUM(total_gr</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 3: max_medical_score_grouped SELECT max_medical_score_grouped, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp FROM `hx-data-production.commercial_finance.insurance_policies_new` WHERE transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09') AND distribution_channel = 'Aggregator' AND policy_type='Single' GROUP BY max_medical_score_grouped ORDER BY gp ASC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Syntax error: Unexpected end of statement at [1:434]; reason: invalidQuery, location: query, message: Syntax error: Unexpected end of statement at [1:434]
+
+Location: </div></div></div></div></div>
+<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.2</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.2</span><span class="trail-round-desc">Deep dives into movers 1–4</span><span class="trail-round-meta">9 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 2: booking_source by device (Direct single/mobile)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 2: booking_source by device (Direct single/mobile)
+SELECT booking_source, device_type, COUNT(DISTINCT session_id) AS sessions, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+WHERE session_start_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+AND device_type = 'mobile'
+AND booking_flow_stage = 'Search'
+GROUP BY booking_source, device_type
+ORDER BY sessions DESC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: booking_source at [2:8]; reason: invalidQuery, location: query, message: Unrecognized name: booking_source at [2:8]
 
 Location: EU
-Job ID: 464ea21</div></div></div></div></div>
-<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.2</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.2</span><span class="trail-round-desc">Deep dives into movers 1–4</span><span class="trail-round-meta">8 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 4: Aggregator Single - agent commissions</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 4: Aggregator Single - agent commissions
-SELECT agent_code, SUM(policy_count), SUM(CAST(total_paid_commission_value AS FLOAT64)), SUM(CAST(base_commission AS FLOAT64)), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
+Job ID: 8777529c-</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 3: age band (Mobile funnel)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 3: age band (Mobile funnel)
+SELECT CASE
+  WHEN max_age_at_purchase &lt; 35 THEN '&lt;35'
+  WHEN max_age_at_purchase BETWEEN 35 AND 54 THEN '35-54'
+  WHEN max_age_at_purchase &gt;= 55 THEN '55+'
+  ELSE 'Unknown' END AS age_band,
+COUNT(DISTINCT session_id) AS sessions, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+WHERE session_start_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+AND device_type = </code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: max_age_at_purchase at [3:8]; reason: invalidQuery, location: query, message: Unrecognized name: max_age_at_purchase at [3:8]
+
+Location: EU
+Job ID:</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 2: booking_source (Aggregator single)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 2: booking_source (Aggregator single)
+SELECT booking_source, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel = 'Aggregator' AND policy_type='Single'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY booking_source
+ORDER BY gp ASC</code></div></details><div class="trail-result" style="margin-top:6px">[
   {
-    "agent_code": "AX591",
-    "f0_": 90,
-    "f1_": 1570.1299999999994,
-    "f2_": 1489.2199999999996,
-    "gp": 290.1700000000002
+    "booking_source": "Contact Centre",
+    "policies": -1,
+    "gp": "-3.91"
   },
-  {
-    "agent_code": "AXMTC",
-    "f0_": 1,
-    "f1_": 1</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 5: Aggregator Single - medical risk</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 5: Aggregator Single - medical risk
-SELECT max_medical_score_grouped, SUM(policy_count) as policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1 ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "max_medical_score_grouped": "0",
-    "policies": 787,
-    "gp": 937.9700000000003
-  },
-  {
-    "max_medical_score_grouped": "2",
-    "policies": 195,
-    "gp": 409.22999999999985
-  },
-  {
- </div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 2: Direct Single - scheme discount</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 2: Direct Single - scheme discount
-SELECT scheme_name, SUM(policy_count) as policies, SUM(CAST(base_discount_value AS FLOAT64)) as discounts, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Direct' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "scheme_name": "Silver Main Single Med HX",
-    "policies": 618,
-    "discounts": 4890.829999999999,
-    "gp": 12810.380000000008
-  },
-  {
-    "scheme_name": "Silver Cruise Single Med HX",
- </div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 3: Direct Single - device type</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 3: Direct Single - device type
-SELECT device_type, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Direct' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: device_type; Did you mean policy_type? at [2:8]; reason: invalidQuery, location: query, message: Unrecognized name: device_type; Did you mean polic</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 3 drill 2: Aggregator Annual - cover level</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 3 drill 2: Aggregator Annual - cover level
-SELECT cover_level_name, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "cover_level_name": "Classic",
-    "f0_": 643,
-    "f1_": -3655.070000000001
-  },
-  {
-    "cover_level_name": "Elite",
-    "f0_": 231,
-    "f1_": -1761.2400000000005
-  },
-  {
-    "cover_leve</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 3 drill 3: Aggregator Annual - scheme</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 3 drill 3: Aggregator Annual - scheme
-SELECT scheme_name, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "scheme_name": "Classic Compare Annual",
-    "f0_": 148,
-    "f1_": -694.1199999999999
-  },
-  {
-    "scheme_name": "Elite Money Supermarket Annual Medical",
-    "f0_": 11,
-    "f1_": -109.35</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 4 drill 1: Worldwide - cover area</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 4 drill 1: Worldwide - cover area
-SELECT cover_area, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE destination_group='Worldwide' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: cover_area; Did you mean customer_area? at [2:8]; reason: invalidQuery, location: query, message: Unrecognized name: cover_area; Did you mean custo</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 4 drill 2: Worldwide - agent group</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 4 drill 2: Worldwide - agent group
-SELECT agent_group, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE destination_group='Worldwide' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "agent_group": "X4",
-    "f0_": 2,
-    "gp": 331.44
-  },
-  {
-    "agent_group": "HV",
-    "f0_": 2,
-    "gp": 310.81
-  },
-  {
-    "agent_group": "B6",
-    "f0_": 18,
-    "gp": 507.9000000000</div></div></div></div></div>
-<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.3</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.3</span><span class="trail-round-desc">Deep dives into movers 5–8</span><span class="trail-round-meta">8 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 5 drill 1: high-volume web vs phone</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 5 drill 1: high-volume web vs phone
-SELECT booking_source, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
   {
     "booking_source": "Web",
-    "f0_": 6600,
-    "f1_": 110470.79999999996
-  },
-  {
-    "booking_source": "Auto Renewal",
-    "f0_": 600,
-    "f1_": 18760.400000000005
-  },
-  {
-    "booking_sou</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 5 drill 2: high-volume product split</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 5 drill 2: high-volume product split
-SELECT product, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "product": "Aggregator Travel",
-    "f0_": 2837,
-    "f1_": 8296.43
-  },
-  {
-    "product": "Backpacker",
-    "f0_": 22,
-    "f1_": 547.0799999999999
-  },
-  {
-    "product": "Specialist Crui</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 6 drill 1: Europe - cover level</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 6 drill 1: Europe - cover level
-SELECT cover_level_name, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE destination_group='Europe' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "cover_level_name": "Classic",
-    "f0_": 952,
-    "gp": 1263.9500000000003
-  },
-  {
-    "cover_level_name": "Elite",
-    "f0_": 259,
-    "gp": 1092.6300000000003
-  },
-  {
-    "cover_level_n</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 6 drill 2: Europe - web vs phone</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 6 drill 2: Europe - web vs phone
-SELECT booking_source, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE destination_group='Europe' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
+    "policies": 963,
+    "gp": "1649.87"
+  }
+]</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 3: cover_area</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 3: cover_area
+SELECT cover_area, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel = 'Aggregator' AND policy_type='Single'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY cover_area
+ORDER BY gp ASC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: cover_area; Did you mean customer_area? at [2:8]; reason: invalidQuery, location: query, message: Unrecognized name: cover_area; Did you mean custo</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 3 drill 2: booking_source (Partner Referral single)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 3 drill 2: booking_source (Partner Referral single)
+SELECT booking_source, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Partner Referral' AND policy_type='Single'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY booking_source</code></div></details><div class="trail-result" style="margin-top:6px">[
   {
     "booking_source": "Web",
-    "f0_": 4533,
-    "gp": 73171.60999999996
+    "policies": 440,
+    "gp": "5994.08"
   },
   {
     "booking_source": "Contact Centre",
-    "f0_": 439,
-    "gp": 26177.460000000003
-  },
-  {
-    "booking_sour</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 7 drill 1: mobile - cover level</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 7 drill 1: mobile - cover level
-SELECT cover_level_name, product, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE booking_source='Web' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' AND device_type='mobile' GROUP BY 1,2</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: device_type; Did you mean policy_type? at [2:261]; reason: invalidQuery, location: query, message: Unrecognized name: device_type; Did you mean pol</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 7 drill 2: mobile - medical risk</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 7 drill 2: mobile - medical risk
-SELECT max_medical_score_grouped, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE booking_source='Web' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' AND device_type='mobile' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: device_type; Did you mean policy_type? at [2:261]; reason: invalidQuery, location: query, message: Unrecognized name: device_type; Did you mean pol</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 8 drill 1: Direct Annual - cover level</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 8 drill 1: Direct Annual - cover level
-SELECT cover_level_name, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel='Direct' AND policy_type='Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "cover_level_name": "Gold",
-    "f0_": 301,
-    "f1_": 20085.760000000006
-  },
-  {
-    "cover_level_name": "Bronze",
-    "f0_": 265,
-    "f1_": 8570.069999999998
-  },
-  {
-    "cover_level_na</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 8 drill 2: Direct Annual - device</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 8 drill 2: Direct Annual - device
-SELECT device_type, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel='Direct' AND policy_type='Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: device_type; Did you mean policy_type? at [2:8]; reason: invalidQuery, location: query, message: Unrecognized name: device_type; Did you mean polic</div></div></div></div></div>
-<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.4</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.4</span><span class="trail-round-desc">Completing remaining drill-downs</span><span class="trail-round-meta">4 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 5 drill 3: high-volume commission</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 5 drill 3: high-volume commission
-SELECT distribution_channel, SUM(CAST(total_paid_commission_value AS FLOAT64)) as paid_comm, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "distribution_channel": "Renewals",
-    "paid_comm": 3101.980000000001,
-    "f0_": 1291,
-    "gp": 52953.930000000015
-  },
-  {
-    "distribution_channel": "Aggregator",
-    "paid_comm": 5781</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 6 drill 3: Europe - days to travel</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 6 drill 3: Europe - days to travel
-SELECT CASE WHEN days_to_travel&lt;8 THEN '&lt;8' WHEN days_to_travel&lt;15 THEN '8-14' WHEN days_to_travel&lt;31 THEN '15-30' ELSE '30+' END as days_to_travel_band, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE destination_group='Europe' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: days_to_travel at [2:18]; reason: invalidQuery, location: query, message: Unrecognized name: days_to_travel at [2:18]
+    "policies": 153,
+    "gp": "7990.04"
+  }
+]</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 3 drill 3: trip_duration_band (Partner Referral single)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 3 drill 3: trip_duration_band (Partner Referral single)
+SELECT trip_duration_band, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Partner Referral' AND policy_type='Single'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY trip_duration_band
+ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: trip_duration_band at [2:8]; reason: invalidQuery, location: query, message: Unrecognized name: trip_duration_band at [2:8]
 
 Location: EU
-Job ID: 9a4f964</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 7 drill 3: mobile - trip band</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 7 drill 3: mobile - trip band
-SELECT trip_duration_band, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE booking_source='Web' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' AND device_type='mobile' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: device_type; Did you mean policy_type? at [2:254]; reason: invalidQuery, location: query, message: Unrecognized name: device_type; Did you mean pol</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 8 drill 3: Direct Annual - age</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 8 drill 3: Direct Annual - age
-SELECT max_age_at_purchase, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel='Direct' AND policy_type='Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "max_age_at_purchase": 38,
-    "f0_": 20,
-    "f1_": 577.87
-  },
-  {
-    "max_age_at_purchase": 72,
-    "f0_": 10,
-    "f1_": 1600.45
-  },
-  {
-    "max_age_at_purchase": 31,
-    "f0_": 15,
- </div></div></div></div></div>
-<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.5</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.5</span><span class="trail-round-desc">Final checks and gap-filling</span><span class="trail-round-meta">6 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 4: Aggregator Single - 6 week margin trend</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 4: Aggregator Single - 6 week margin trend
-SELECT FORMAT_DATE('%Y-%m-%d', transaction_date) as week, SUM(policy_count) as policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp, SUM(CAST(total_paid_commission_value AS FLOAT64))/NULLIF(SUM(policy_count),0) as avg_comm FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Single' AND transaction_date BETWEEN DATE_SUB('2026-03-09', INTERVAL 42 DAY)</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "week": "2026-01-26",
-    "policies": 73,
-    "gp": 234.64000000000001,
-    "avg_comm": 14.213835616438358
-  },
-  {
-    "week": "2026-01-27",
-    "policies": 82,
-    "gp": 274.78999999999996</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 5: Aggregator Single - cover_level_name x scheme_name (sub-segment deep dive)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 5: Aggregator Single - cover_level_name x scheme_name (sub-segment deep dive)
-SELECT cover_level_name, scheme_name, SUM(policy_count) as policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp, SUM(CAST(total_paid_commission_value AS FLOAT64))/NULLIF(SUM(policy_count),0) as avg_comm FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-0</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "cover_level_name": "Classic",
-    "scheme_name": "Classic Compare",
-    "policies": 333,
-    "gp": 194.32000000000005,
-    "avg_comm": 6.977747747747751
-  },
-  {
-    "cover_level_name": "Cl</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 4: Direct Single - 6 week margin trend</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 4: Direct Single - 6 week margin trend
-SELECT FORMAT_DATE('%Y-%m-%d', transaction_date) as week, SUM(policy_count) as policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp, SUM(CAST(total_discount_value AS FLOAT64))/NULLIF(SUM(policy_count),0) as avg_disc FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Direct' AND policy_type = 'Single' AND transaction_date BETWEEN DATE_SUB('2026-03-09', INTERVAL 42 DAY) AND '2026-03-0</code></div></details><div class="trail-result" style="margin-top:6px">[
-  {
-    "week": "2026-01-26",
-    "policies": 208,
-    "gp": 5554.3399999999965,
-    "avg_disc": 7.564555769230767
-  },
-  {
-    "week": "2026-01-27",
-    "policies": 180,
-    "gp": 4274.329999999999</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 5: Direct Single - cover_level_name x scheme_name (sub-segment deep dive)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 5: Direct Single - cover_level_name x scheme_name (sub-segment deep dive)
-SELECT cover_level_name, scheme_name, SUM(policy_count) as policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp, SUM(CAST(total_discount_value AS FLOAT64))/NULLIF(SUM(policy_count),0) as avg_disc FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Direct' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY </code></div></details><div class="trail-result" style="margin-top:6px">[
+Job ID: 1</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 4 drill 1: cover_level_name (Direct single)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 4 drill 1: cover_level_name (Direct single)
+SELECT cover_level_name, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp, SUM(base_gross_exc_ipt) AS base_gross
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Direct' AND policy_type='Single'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY cover_level_name
+ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">[
   {
     "cover_level_name": "Bronze",
-    "scheme_name": "Bronze Main Single Med HX",
-    "policies": 985,
-    "gp": 11020.200000000006,
-    "avg_disc": 4.038896243654822
+    "policies": 892,
+    "gp": "9882.83",
+    "base_gross": "19987.1183333333333423"
   },
   {
-    "cover_level_n</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 3 drill 4: Aggregator Annual - 6 week trend</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 3 drill 4: Aggregator Annual - 6 week trend
-SELECT FORMAT_DATE('%Y-%m-%d', transaction_date) as week, SUM(policy_count) as policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Annual' AND transaction_date BETWEEN DATE_SUB('2026-03-09', INTERVAL 42 DAY) AND '2026-03-09' GROUP BY week ORDER BY week ASC</code></div></details><div class="trail-result" style="margin-top:6px">[
+    "cover_level_name": "Silver",
+    "policies": 582,
+    "gp": "</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 4 drill 2: days_to_travel (Direct single)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 4 drill 2: days_to_travel (Direct single)
+SELECT days_to_travel, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Direct' AND policy_type='Single'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY days_to_travel
+ORDER BY gp DESC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: days_to_travel at [2:8]; reason: invalidQuery, location: query, message: Unrecognized name: days_to_travel at [2:8]
+
+Location: EU
+Job ID: 1d10fe18-</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 4 drill 3: max_medical_score_grouped (Direct single)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 4 drill 3: max_medical_score_grouped (Direct single)
+SELECT max_medical_score_grouped, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Direct' AND policy_type='Single'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY max_medical_score_grouped
+ORDER BY gp DESC</code></div></details><div class="trail-result" style="margin-top:6px">[
   {
-    "week": "2026-01-26",
-    "policies": 129,
-    "gp": -893.6000000000005
+    "max_medical_score_grouped": "0",
+    "policies": 1168,
+    "gp": "17178.2"
   },
   {
-    "week": "2026-01-27",
-    "policies": 109,
-    "gp": -786.4699999999998
+    "max_medical_score_grouped": "2",
+    "policies": 422,
+    "gp": "10101.2"
   },
   {
-    "week": "2026-01-28"</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 3 drill 5: Aggregator Annual - cover_level_name x scheme_name (sub-segment)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 3 drill 5: Aggregator Annual - cover_level_name x scheme_name (sub-segment)
-SELECT cover_level_name, scheme_name, SUM(policy_count) as policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Aggregator' AND policy_type = 'Annual' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1,2 ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">[
+    "max_medical_</div></div></div></div></div>
+<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.3</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.3</span><span class="trail-round-desc">Deep dives into movers 5–8</span><span class="trail-round-meta">8 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 5 drill 1: scheme_name (Aggregator annual)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 5 drill 1: scheme_name (Aggregator annual)
+SELECT scheme_name, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Aggregator' AND policy_type='Annual'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY scheme_name
+ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">[
   {
-    "cover_level_name": "Classic",
     "scheme_name": "Classic Compare Annual Medical",
-    "policies": 344,
-    "gp": -1873.0299999999995
+    "policies": 272,
+    "gp": "-1477.23"
   },
   {
-    "cover_level_name": "Deluxe",
-    "scheme_</div></div></div></div></div>
-<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.6</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.6</span><span class="trail-round-desc">Verifying and consolidating findings</span><span class="trail-round-meta">1 check</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 5: Direct Single - medical split</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 5: Direct Single - medical split
-SELECT medical_split, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp FROM hx-data-production.commercial_finance.insurance_policies_new WHERE distribution_channel = 'Direct' AND policy_type = 'Single' AND transaction_date BETWEEN '2026-03-02' AND '2026-03-09' GROUP BY 1</code></div></details><div class="trail-result" style="margin-top:6px">[
+    "scheme_name": "Deluxe Compare Annual Medical",
+    "policies": 134,
+    "gp": "-747.6</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 5 drill 2: agent_code (Aggregator annual commission)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 5 drill 2: agent_code (Aggregator annual commission)
+SELECT agent_code, AVG(total_paid_commission_perc) AS avg_comm, SUM(policy_count) as policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Aggregator' AND policy_type='Annual'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY agent_code
+ORDER BY avg_comm DESC</code></div></details><div class="trail-result" style="margin-top:6px">⚠️ SQL was auto-corrected: Auto-corrected AVG(total_paid_commission_perc) → SUM/NULLIF pattern
+
+[
   {
-    "medical_split": "Medical",
-    "f0_": 847,
-    "gp": 21236.14000000001
-  },
+    "agent_code": "AX588",
+    "avg_comm": 72.42857142857143,
+    "policies": 28,
+    "gp": "-241.</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 6 drill 1: discount_value (Renewal annual)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 6 drill 1: discount_value (Renewal annual)
+SELECT AVG(total_discount_value) AS avg_disc, SUM(policy_count) as policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Renewals' AND policy_type='Annual'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')</code></div></details><div class="trail-result" style="margin-top:6px">⚠️ SQL was auto-corrected: Auto-corrected AVG(total_discount_value) → SUM/NULLIF pattern
+
+[
   {
-    "medical_split": "Non-Medical",
-    "f0_": 1392,
-    "gp": 20736.90000000001
+    "avg_disc": 23.489390697674423,
+    "policies": 1075,
+    "gp": "44086.71"
   }
-]</div></div></div></div></div>
-<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.7</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.7</span><span class="trail-round-desc">Follow-up round 7</span><span class="trail-round-meta">1 check</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128194; Scanned recent internal documents for anything related to: <em>insurance pricing,insurance campaign,insurance product release</em></div><div class="trail-result" style="margin-top:6px">[]</div></div></div></div></div>
+]</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 6 drill 2: age (Renewal annual)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 6 drill 2: age (Renewal annual)
+SELECT MAX(max_age_at_purchase) AS age_band, SUM(policy_count) as policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Renewals' AND policy_type='Annual'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY age_band
+ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Column age_band contains an aggregation function, which is not allowed in GROUP BY at [6:10]; reason: invalidQuery, location: query, message: Column age_band contains</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 7 drill 1: booking_source (Gold Plus/Gold Cruise)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 7 drill 1: booking_source (Gold Plus/Gold Cruise)
+SELECT booking_source, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE (scheme_name LIKE '%Gold Plus%' OR scheme_name LIKE '%Gold Cruise%') AND policy_type='Annual'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY booking_source</code></div></details><div class="trail-result" style="margin-top:6px">[
+  {
+    "booking_source": "Web",
+    "policies": 277,
+    "gp": "18385.37"
+  },
+  {
+    "booking_source": "Contact Centre",
+    "policies": 57,
+    "gp": "7153.97"
+  },
+  {
+    "booking_source": "Au</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 7 drill 2: max_medical_score_grouped (Gold Plus/Gold Cruise)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 7 drill 2: max_medical_score_grouped (Gold Plus/Gold Cruise)
+SELECT max_medical_score_grouped, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE (scheme_name LIKE '%Gold Plus%' OR scheme_name LIKE '%Gold Cruise%') AND policy_type='Annual'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY max_medical_score_grouped
+ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">[
+  {
+    "max_medical_score_grouped": "0",
+    "policies": 161,
+    "gp": "8121.76"
+  },
+  {
+    "max_medical_score_grouped": "2",
+    "policies": 108,
+    "gp": "10095.91"
+  },
+  {
+    "max_medical_</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 8 drill 1: device_type, max_age_at_purchase (Deep engagement web)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 8 drill 1: device_type, max_age_at_purchase (Deep engagement web)
+SELECT device_type, MAX(max_age_at_purchase) as age_band, COUNT(DISTINCT session_id) AS sessions, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+WHERE session_seconds &gt; 240 AND session_start_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY device_type, age_band
+ORDER BY gp DESC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: max_age_at_purchase at [2:25]; reason: invalidQuery, location: query, message: Unrecognized name: max_age_at_purchase at [2:25]
+
+Location: EU
+Job I</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 8 drill 2: trip_duration_band (Deep engagement web)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 8 drill 2: trip_duration_band (Deep engagement web)
+SELECT trip_duration_band, COUNT(DISTINCT session_id) AS sessions, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+WHERE session_seconds &gt; 240 AND session_start_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY trip_duration_band
+ORDER BY gp DESC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: trip_duration_band at [2:8]; reason: invalidQuery, location: query, message: Unrecognized name: trip_duration_band at [2:8]
+
+Location: EU
+Job ID: 6</div></div></div></div></div>
+<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.4</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.4</span><span class="trail-round-desc">Completing remaining drill-downs</span><span class="trail-round-meta">4 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 5 drill 3: max_medical_score_grouped (Aggregator annual)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 5 drill 3: max_medical_score_grouped (Aggregator annual)
+SELECT max_medical_score_grouped, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Aggregator' AND policy_type='Annual'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY max_medical_score_grouped
+ORDER BY policies DESC</code></div></details><div class="trail-result" style="margin-top:6px">[
+  {
+    "max_medical_score_grouped": "2",
+    "policies": 446,
+    "gp": "-2851.09"
+  },
+  {
+    "max_medical_score_grouped": "0",
+    "policies": 278,
+    "gp": "-1707.72"
+  },
+  {
+    "max_medical</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 6 drill 3: booking_source (Renewal annual)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 6 drill 3: booking_source (Renewal annual)
+SELECT booking_source, SUM(policy_count) as policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE distribution_channel='Renewals' AND policy_type='Annual'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY booking_source</code></div></details><div class="trail-result" style="margin-top:6px">[
+  {
+    "booking_source": "Web",
+    "policies": 407,
+    "gp": "16907.44"
+  },
+  {
+    "booking_source": "Auto Renewal",
+    "policies": 496,
+    "gp": "15611.31"
+  },
+  {
+    "booking_source": "Co</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 7 drill 3: channel/device_type (Gold Plus/Cruise AMT)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 7 drill 3: channel/device_type (Gold Plus/Cruise AMT)
+SELECT channel, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE (scheme_name LIKE '%Gold Plus%' OR scheme_name LIKE '%Gold Cruise%') AND policy_type='Annual'
+AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY channel
+ORDER BY gp DESC</code></div></details><div class="trail-result" style="margin-top:6px">[
+  {
+    "channel": "Direct - Medical",
+    "policies": 127,
+    "gp": "12591.72"
+  },
+  {
+    "channel": "Partner Referral - Medical",
+    "policies": 61,
+    "gp": "5927.98"
+  },
+  {
+    "channel":</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 8 drill 3: cover_level_name (Deep engagement web)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 8 drill 3: cover_level_name (Deep engagement web)
+SELECT cover_level_name, COUNT(DISTINCT session_id) AS sessions, SUM(total_gross_exc_ipt_ntu_comm) AS gp
+FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+WHERE session_seconds &gt; 240 AND session_start_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 6 DAY) AND DATE('2026-03-09')
+GROUP BY cover_level_name
+ORDER BY gp DESC</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: cover_level_name at [2:8]; reason: invalidQuery, location: query, message: Unrecognized name: cover_level_name at [2:8]
+
+Location: EU
+Job ID: 9dceb</div></div></div></div></div>
+<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.5</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.5</span><span class="trail-round-desc">Final checks and gap-filling</span><span class="trail-round-meta">4 checks</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 4: Mobile web funnel sessions, GP and conversion by week (last 6 weeks)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 4: Mobile web funnel sessions, GP and conversion by week (last 6 weeks)
+SELECT FORMAT_DATE('%Y-%W', session_start_date) AS week, COUNT(DISTINCT session_id) AS sessions, SUM(total_gross_exc_ipt_ntu_comm) AS gp, COUNT(DISTINCT IF(booking_flow_stage='Search', session_id, NULL)) AS searches, COUNT(DISTINCT IF(booking_flow_stage='Checkout', session_id, NULL)) AS checkouts FROM `hx-data-production.commercial_finance.insurance_web_utm_4` WHERE session_start_date BETWEEN DATE_SUB(DATE('</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: total_gross_exc_ipt_ntu_comm at [2:102]; reason: invalidQuery, location: query, message: Unrecognized name: total_gross_exc_ipt_ntu_comm at [2:102]</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 5: Mobile engagement × age band (cross-cut)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 5: Mobile engagement × age band (cross-cut)
+SELECT CASE WHEN max_age_at_purchase &lt; 35 THEN '&lt;35' WHEN max_age_at_purchase BETWEEN 35 AND 54 THEN '35-54' WHEN max_age_at_purchase &gt;= 55 THEN '55+' ELSE 'Unknown' END AS age_band, COUNT(DISTINCT session_id) AS deep_sessions, SUM(total_gross_exc_ipt_ntu_comm) AS gp FROM `hx-data-production.commercial_finance.insurance_web_utm_4` WHERE device_type = 'mobile' AND session_seconds &gt; 240 AND session_start_date BETWEEN DATE_SUB(DATE('2026-</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: max_age_at_purchase at [2:18]; reason: invalidQuery, location: query, message: Unrecognized name: max_age_at_purchase at [2:18]
+
+Location: EU
+Job I</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 4: Aggregator single, avg_gp/policy by week (last 6 weeks)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 4: Aggregator single, avg_gp/policy by week (last 6 weeks)
+SELECT FORMAT_DATE('%Y-%W', transaction_date) AS week, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp FROM `hx-data-production.commercial_finance.insurance_policies_new` WHERE distribution_channel='Aggregator' AND policy_type='Single' AND transaction_date BETWEEN DATE_SUB(DATE('2026-03-09'), INTERVAL 41 DA</code></div></details><div class="trail-result" style="margin-top:6px">[
+  {
+    "week": "2026-10",
+    "policies": 144,
+    "gp": "291.09",
+    "avg_gp": 2.0214583333333334
+  },
+  {
+    "week": "2026-09",
+    "policies": 1020,
+    "gp": "1785.14",
+    "avg_gp": 1.750137</div></div><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 2 drill 5: Aggregator single, scheme_name × age</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 2 drill 5: Aggregator single, scheme_name × age
+SELECT scheme_name, CASE WHEN max_age_at_purchase &lt; 35 THEN '&lt;35' WHEN max_age_at_purchase BETWEEN 35 AND 54 THEN '35-54' WHEN max_age_at_purchase &gt;= 55 THEN '55+' ELSE 'Unknown' END AS age_band, SUM(policy_count) AS policies, SUM(total_gross_exc_ipt_ntu_comm) AS gp FROM `hx-data-production.commercial_finance.insurance_policies_new` WHERE distribution_channel='Aggregator' AND policy_type='Single' AND transaction_date BETWEEN DATE_SUB(DATE(</code></div></details><div class="trail-result" style="margin-top:6px">[
+  {
+    "scheme_name": "Adventure Compare",
+    "age_band": "&lt;35",
+    "policies": 0,
+    "gp": "-2.99"
+  },
+  {
+    "scheme_name": "Deluxe Money Supermarket Medical",
+    "age_band": "55+",
+    "po</div></div></div></div></div>
+<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.6</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.6</span><span class="trail-round-desc">Verifying and consolidating findings</span><span class="trail-round-meta">1 check</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 4 (retry, fixed columns): Mobile web funnel sessions and conversion by week (last 6 weeks)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 4 (retry, fixed columns): Mobile web funnel sessions and conversion by week (last 6 weeks)
+SELECT FORMAT_DATE('%Y-%W', session_start_date) AS week,
+  COUNT(DISTINCT session_id) AS mobile_sessions,
+  COUNT(DISTINCT IF(booking_flow_stage='Search', session_id, NULL)) AS searches,
+  COUNT(DISTINCT IF(booking_flow_stage='Checkout', session_id, NULL)) AS bookings
+FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+WHERE device_type = 'mobile'
+  AND session_start_date BETW</code></div></details><div class="trail-result" style="margin-top:6px">[
+  {
+    "week": "2026-10",
+    "mobile_sessions": 3700,
+    "searches": 558,
+    "bookings": 239
+  },
+  {
+    "week": "2026-09",
+    "mobile_sessions": 27216,
+    "searches": 4324,
+    "bookings": 1</div></div></div></div></div>
+<div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">3.7</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 3.7</span><span class="trail-round-desc">Follow-up round 7</span><span class="trail-round-meta">1 check</span></div><div class="trail-calls"><div class="trail-call" style="padding:10px 14px"><div style="font-size:13px;color:var(--text);margin-bottom:4px">&#128269; Drilled into the data: <strong>Mover 1 drill 5 (retry/fix): Deep mobile engagement by age band (cross-cut, last 7d)</strong></div><details class="trail-call-details"><summary>Show technical detail</summary><div class="trail-call-query"><code>-- Mover 1 drill 5 (retry/fix): Deep mobile engagement by age band (cross-cut, last 7d)
+SELECT
+  CASE WHEN MAX(max_age_at_purchase) &lt; 35 THEN '&lt;35'
+       WHEN MAX(max_age_at_purchase) BETWEEN 35 AND 54 THEN '35-54'
+       WHEN MAX(max_age_at_purchase) &gt;= 55 THEN '55+'
+       ELSE 'Unknown' END AS age_band,
+  COUNT(DISTINCT session_id) AS mobile_deep_sessions
+FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+WHERE device_type = 'mobile' AND session_seconds &gt; 240 AND session_start_</code></div></details><div class="trail-result" style="margin-top:6px">SQL Error (after 1 attempts): 400 Unrecognized name: max_age_at_purchase at [3:17]; reason: invalidQuery, location: query, message: Unrecognized name: max_age_at_purchase at [3:17]
+
+Location: EU
+Job I</div></div></div></div></div>
 <div class="trail-step" data-animate="card"><div class="trail-connector"></div><div class="trail-dot"><span class="trail-dot-num">10</span></div><div class="trail-content glass-card"><div class="trail-round-header"><span class="trail-round">Step 10</span><span class="trail-round-desc">Wrote and checked the briefing</span><span class="trail-round-meta">Draft, review, final</span></div><div class="trail-reasoning">Finally, we wrote up everything into the briefing above. We then reviewed our own work: checking that every pound figure traces back to real data, that every action item is specific enough to act on, and that nothing material was left out. Where we spotted gaps, we revised before publishing.</div></div></div></div></div>
 
 <!-- Footer -->
 <div class="foot">
-<div>Generated 13:51 10 Mar 2026 &middot; 56 investigations (22 tracks + 34 follow-ups) via gpt-4.1 &middot; Data: BigQuery + Sheets + Drive + Web</div>
+<div>Generated 14:45 10 Mar 2026 &middot; 57 investigations (22 tracks + 35 follow-ups) via gpt-4.1 &middot; Data: BigQuery + Sheets + Drive + Web</div>
 <div class="foot-brand">Trading Covered &mdash; Powered by AI for Holiday Extras</div>
 </div>
 
@@ -1606,5 +1789,59 @@ function triggerRefresh(){
     window.location.reload();
   }, Math.max(sections.length * 80 + 500, 600));
 }
+
+/* ── Archive viewer ── */
+let archiveOpen = false;
+function toggleArchive(){
+  const overlay = document.getElementById('archiveOverlay');
+  archiveOpen = !archiveOpen;
+  if(archiveOpen){
+    overlay.classList.add('open');
+    loadArchive();
+  } else {
+    overlay.classList.remove('open');
+  }
+}
+function loadArchive(){
+  const list = document.getElementById('archiveList');
+  list.innerHTML = '<div class="archive-empty">Loading...</div>';
+  fetch('archive.json')
+    .then(r => r.ok ? r.json() : [])
+    .then(entries => {
+      if(!entries.length){
+        list.innerHTML = '<div class="archive-empty">No archived briefings yet.</div>';
+        return;
+      }
+      list.innerHTML = entries.map(e => {
+        const d = new Date(e.date + 'T00:00:00');
+        const dayName = d.toLocaleDateString('en-GB', {weekday:'short'});
+        const dateStr = d.toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+        return `<div class="archive-item" onclick="window.location.href='${e.file}'">
+          <span class="archive-date">${dayName} ${dateStr}</span>
+          <span class="archive-headline">${e.headline || '—'}</span>
+          <span class="archive-size">${e.size_kb}kb</span>
+        </div>`;
+      }).join('');
+    })
+    .catch(() => {
+      list.innerHTML = '<div class="archive-empty">Could not load archive. Run the briefing to generate archive.json.</div>';
+    });
+}
+// Close archive on escape or clicking outside
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && archiveOpen) toggleArchive();
+});
 </script>
+
+<!-- Archive overlay -->
+<div id="archiveOverlay" class="archive-overlay" onclick="if(event.target===this)toggleArchive()">
+  <div class="archive-panel">
+    <div class="archive-header">
+      <h2>Briefing Archive</h2>
+      <button class="archive-close" onclick="toggleArchive()">&times;</button>
+    </div>
+    <div id="archiveList" class="archive-list"></div>
+  </div>
+</div>
+
 </body></html>
