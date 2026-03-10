@@ -2290,28 +2290,28 @@ def run_investigation_tracks(date_params):
                 break
             except Exception as e:
                 last_error = str(e)
+                print(f"     ⚠ Error (attempt {attempt}): {last_error[:120]}")
+                if attempt >= max_retries:
+                    break
                 # Try deterministic auto-fix first
                 fixed = _autofix_track_sql(sql, last_error)
                 if fixed and fixed != sql:
-                    print(f"     ⚠ Error: {last_error[:120]}")
                     print(f"     🔧 Auto-fixing and retrying...")
                     sql = fixed
-                else:
-                    # Deterministic fix didn't help — try AI fix
-                    print(f"     ⚠ Error (attempt {attempt}): {last_error[:120]}")
-                    if attempt < max_retries:
-                        print(f"     🤖 Asking AI to fix track SQL...")
-                        ai_fixed = _ai_fix_sql(sql, last_error)
-                        if ai_fixed != sql:
-                            sql = ai_fixed
-                            # Re-apply autocorrect on AI output
-                            recorrected, _ = _autocorrect_sql(sql)
-                            if recorrected != sql:
-                                sql = recorrected
-                        else:
-                            break  # AI couldn't fix it either
-                    else:
-                        break
+                    continue
+                # Deterministic fix didn't help — try AI fix
+                print(f"     🤖 Asking AI to fix track SQL...")
+                ai_fixed = _ai_fix_sql(sql, last_error)
+                if ai_fixed and ai_fixed != sql:
+                    sql = ai_fixed
+                    # Re-apply autocorrect on AI output
+                    recorrected, _ = _autocorrect_sql(sql)
+                    if recorrected != sql:
+                        sql = recorrected
+                    continue
+                # Both fixes returned same SQL — retry anyway (AI may produce different fix next time)
+                print(f"     ⚠ Fix attempts returned same SQL — retrying with error context...")
+                continue
 
         if not success:
             print(f"     ⚠ Failed after {max_retries} attempts: {last_error[:150]}")
@@ -3414,17 +3414,27 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
             return "Yesterday's trading briefing is ready."
         # Find terms that match h3 driver headings in the content
         driver_headings = re.findall(r'<h3 id="driver-([^"]+)">(.*?)</h3>', html_body)
-        linked = text
+        linked_words = set()  # track which character positions are already linked
+        result = text
         for slug, heading_html in driver_headings[:3]:  # top 3 drivers
             driver_name = re.sub(r'<[^>]+>', '', heading_html).strip()
-            # Try to find this driver name (or close match) in the headline text
-            for word_chunk in [driver_name] + driver_name.split():
-                if len(word_chunk) > 4 and word_chunk.lower() in linked.lower():
-                    idx = linked.lower().find(word_chunk.lower())
-                    original = linked[idx:idx+len(word_chunk)]
-                    linked = linked[:idx] + f'<a href="#driver-{slug}" class="hl-keyword">{original}</a>' + linked[idx+len(word_chunk):]
+            # Try meaningful multi-word chunks first, then individual words
+            candidates = [driver_name] + [w for w in driver_name.split() if len(w) > 4]
+            for word_chunk in candidates:
+                # Search only in the original plain text, not in inserted HTML
+                pattern = re.compile(re.escape(word_chunk), re.IGNORECASE)
+                match = pattern.search(text)
+                if match and match.start() not in linked_words:
+                    original = text[match.start():match.end()]
+                    replacement = f'<a href="#driver-{slug}" class="hl-keyword">{original}</a>'
+                    # Replace in result string — find the original word (not inside an HTML tag)
+                    result = re.sub(
+                        r'(?<!["\w])' + re.escape(original) + r'(?!["\w])',
+                        replacement, result, count=1
+                    )
+                    linked_words.add(match.start())
                     break
-        return linked
+        return result
 
     headline_html = _linkify_headline(headline_text)
     also_html = " &middot; ".join(also_items) if also_items else ""
@@ -3448,7 +3458,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trading Covered &mdash; by Holiday Extras &mdash; {today_str}</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ── Custom Properties — HX Brand ── */
 :root{{
@@ -3480,7 +3490,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 *{{box-sizing:border-box;margin:0;padding:0}}
 html{{scroll-behavior:smooth;overflow-x:hidden;overflow-y:auto;height:auto}}
 body{{
-  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  font-family:'Nunito',system-ui,-apple-system,sans-serif;
   background:var(--bg);
   background-image:var(--bg-gradient);
   color:var(--text);
@@ -3823,44 +3833,40 @@ body::after{{
 .trail-toggle svg{{animation:arrow-bounce 2s ease-in-out infinite}}
 .trail-toggle.open svg{{animation:none;transform:rotate(180deg)}}
 
-/* ── Header ── */
+/* ── Banner ── */
+.banner-wrap{{
+  margin:-36px -28px 0;
+  position:relative;
+  overflow:hidden;
+}}
+.banner-img{{
+  width:100%;
+  display:block;
+  height:auto;
+  object-fit:cover;
+}}
+.banner-date{{
+  position:absolute;
+  bottom:12px;right:20px;
+  font-size:12px;font-weight:600;
+  color:rgba(255,255,255,0.7);
+  text-shadow:0 1px 4px rgba(0,0,0,0.5);
+  letter-spacing:.3px;
+}}
+
+/* ── Sticky toolbar ── */
 .hdr{{
   display:flex;
-  justify-content:space-between;
+  justify-content:flex-end;
   align-items:center;
-  margin-bottom:12px;
-  padding:10px 28px;
+  padding:8px 28px;
   border-bottom:1px solid var(--border);
   position:sticky;top:0;z-index:1000;
   background:rgba(15,18,30,0.92);
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
   margin-left:-28px;margin-right:-28px;
+  margin-bottom:12px;
 }}
-.sticky-section-label{{
-  display:inline-block;
-  font-size:12px;
-  color:var(--muted);
-  font-weight:600;
-  overflow:hidden;
-  height:18px;
-  vertical-align:middle;
-  margin-left:12px;
-}}
-.sticky-section-label span{{
-  display:block;
-  transition:transform 0.3s cubic-bezier(.16,1,.3,1), opacity 0.3s ease;
-}}
-.sticky-section-label span.roll-out{{
-  transform:translateY(-100%);
-  opacity:0;
-}}
-.sticky-section-label span.roll-in{{
-  transform:translateY(100%);
-  opacity:0;
-}}
-.hdr h1{{font-size:18px;font-weight:800;letter-spacing:-.6px;line-height:1.2}}
-.hdr h1 span{{color:var(--yellow)}}
-.hdr .dt{{color:var(--muted);font-size:11px;margin-top:2px}}
 /* (badge CSS removed — replaced by .refresh-btn above) */
 .inv-badge{{
   background:rgba(255,95,104,0.10);color:#FF8A91;
@@ -4358,8 +4364,10 @@ body::after{{
   .nar table{{font-size:11px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}}
   .nar th,.nar td{{padding:8px 10px;white-space:nowrap}}
   .chart-container{{height:130px;padding-top:80px}}
-  .hdr{{flex-direction:column;align-items:flex-start;gap:8px;margin-left:-16px;margin-right:-16px;padding:8px 16px}}
-  .hdr>div:last-child{{flex-wrap:wrap;gap:6px}}
+  .banner-wrap{{margin:-20px -16px 0}}
+  .banner-date{{font-size:10px;bottom:8px;right:12px}}
+  .hdr{{margin-left:-16px;margin-right:-16px;padding:6px 16px}}
+  .hdr>div{{flex-wrap:wrap;gap:6px}}
   .c{{padding:20px 16px;overflow-x:hidden}}
   .card .val{{font-size:22px}}
   .pcard .pv{{font-size:20px}}
@@ -4371,15 +4379,19 @@ body::after{{
   .headline-tile .hl-also{{font-size:11px}}
   .inv-badge{{padding:4px 10px 4px 18px;font-size:9px}}
   .archive-btn,.refresh-btn{{font-size:10px;padding:5px 10px}}
-  .sticky-section-label{{display:none}}
 }}
 </style></head><body>
 <div class="c">
 
-<!-- Header — always visible, no scroll animation -->
+<!-- Banner -->
+<div class="banner-wrap">
+<img src="tradingCoveredBanner.png" alt="Trading Covered by Holiday Extras" class="banner-img">
+<div class="banner-date">{day_name}</div>
+</div>
+
+<!-- Sticky toolbar — buttons only -->
 <div class="hdr">
-<div style="display:flex;align-items:center;gap:10px"><img src="https://dmy0b9oeprz0f.cloudfront.net/holidayextras.co.uk/brand-guidelines/logo-tags/png/microchip.png" alt="HX" style="width:28px;height:28px;filter:drop-shadow(0 0 8px rgba(84,46,145,0.5))"><div><h1><span>Trading Covered</span> <i style="font-weight:400;font-size:0.6em;opacity:0.7">by Holiday Extras</i></h1><div class="dt">{day_name}</div></div><span id="stickySection" class="sticky-section-label"></span></div>
-<div style="display:flex;align-items:center;gap:8px"><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button>{"<span class='inv-badge' onclick='document.querySelector(\".trail-section\").scrollIntoView({behavior:\"smooth\"});if(!document.getElementById(\"trailBody\").classList.contains(\"open\")){toggleTrail()}'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
+<div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end"><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button>{"<span class='inv-badge' onclick='document.querySelector(\".trail-section\").scrollIntoView({behavior:\"smooth\"});if(!document.getElementById(\"trailBody\").classList.contains(\"open\")){toggleTrail()}'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
 </div>
 
 <!-- Headline Tile — one-sentence takeaway -->
@@ -4771,40 +4783,7 @@ function toggleTrail(){{
   }},{{passive:true}});
 }})();
 
-/* Sticky header — section name roll */
-(function(){{
-  const label=document.getElementById('stickySection');
-  if(!label)return;
-  let currentSection='';
-  function setSection(name){{
-    if(name===currentSection)return;
-    currentSection=name;
-    const old=label.querySelector('span');
-    if(old){{
-      old.classList.add('roll-out');
-      setTimeout(()=>{{old.remove();}},300);
-    }}
-    const s=document.createElement('span');
-    s.textContent=name;
-    s.classList.add('roll-in');
-    label.appendChild(s);
-    requestAnimationFrame(()=>{{
-      requestAnimationFrame(()=>{{
-        s.classList.remove('roll-in');
-      }});
-    }});
-  }}
-  const titles=document.querySelectorAll('.section-title');
-  if(!titles.length)return;
-  const secObs=new IntersectionObserver((entries)=>{{
-    entries.forEach(e=>{{
-      if(e.isIntersecting){{
-        setSection(e.target.textContent.trim());
-      }}
-    }});
-  }},{{threshold:0,rootMargin:'-80px 0px -70% 0px'}});
-  titles.forEach(t=>secObs.observe(t));
-}})();
+/* (Sticky section label removed — replaced by banner) */
 
 /* Refresh button — cascading collapse animation */
 function triggerRefresh(){{
