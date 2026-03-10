@@ -2402,7 +2402,7 @@ tracks, and specify follow-up questions for gaps. Output as JSON per the system 
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
     response = client.chat.completions.create(
         model=MODEL,
-        max_completion_tokens=16384,
+        max_completion_tokens=32768,
         messages=[
             {"role": "system", "content": ANALYSIS_SYSTEM},
             {"role": "user", "content": prompt},
@@ -2410,58 +2410,114 @@ tracks, and specify follow-up questions for gaps. Output as JSON per the system 
     )
 
     analysis_text = response.choices[0].message.content or ""
-    print(f"  ✓ Analysis complete ({len(analysis_text)} chars)")
+    finish_reason = response.choices[0].finish_reason
+    print(f"  ✓ Analysis complete ({len(analysis_text)} chars, finish_reason={finish_reason})")
+
+    if finish_reason == "length":
+        print("  ⚠ WARNING: Analysis was TRUNCATED — output hit token limit!")
 
     # Parse the JSON findings — handle code fences and common JSON issues
     analysis = _parse_llm_json(analysis_text)
+
+    # Diagnostic: check if material_movers was captured
+    movers = analysis.get("material_movers", [])
+    if not movers:
+        print(f"  ⚠ WARNING: No material_movers found in parsed analysis!")
+        print(f"  ⚠ Parsed keys: {list(analysis.keys())}")
+        # If we got raw_analysis back, the JSON parse failed entirely
+        if "raw_analysis" in analysis:
+            print(f"  ⚠ JSON parsing failed — got raw_analysis fallback. First 500 chars: {analysis_text[:500]}")
+    else:
+        print(f"  ✓ Found {len(movers)} material movers")
+
     return analysis
 
 
 def _parse_llm_json(text: str) -> dict:
     """Parse JSON from LLM output, handling code fences, formatting issues, and truncation."""
     import re
+
+    def _fix_common_issues(s):
+        """Fix common LLM JSON formatting issues."""
+        s = re.sub(r':\s*\+(\d)', r': \1', s)  # +2500 → 2500
+        s = re.sub(r':\s*(-?\d{1,3}),(\d{3}),(\d{3})', r': \1\2\3', s)  # 1,234,567 → 1234567
+        s = re.sub(r':\s*(-?\d{1,3}),(\d{3})', r': \1\2', s)  # -3,487 → -3487
+        s = re.sub(r',\s*}', '}', s)  # trailing commas
+        s = re.sub(r',\s*]', ']', s)  # trailing commas in arrays
+        return s
+
+    def _try_repair(s):
+        """Try to repair truncated JSON by closing open brackets."""
+        repair = s.rstrip()
+        # Remove trailing partial key-value (after last complete value)
+        repair = re.sub(r',\s*"[^"]*"?\s*:?\s*"?[^"{}[\]]*$', '', repair)
+        # Close any open strings
+        if repair.count('"') % 2 == 1:
+            repair += '"'
+        # Count and close open brackets/braces
+        open_brackets = repair.count('[') - repair.count(']')
+        open_braces = repair.count('{') - repair.count('}')
+        repair += ']' * max(0, open_brackets)
+        repair += '}' * max(0, open_braces)
+        repair = re.sub(r',\s*}', '}', repair)
+        repair = re.sub(r',\s*]', ']', repair)
+        return repair
+
     # Strip markdown code fences
     cleaned = text.replace("```json", "").replace("```", "")
+
     # Find the outermost JSON object
     start = cleaned.find("{")
     end = cleaned.rfind("}") + 1
-    if start < 0 or end <= start:
-        # Truncated — try to repair by closing brackets
-        if start >= 0:
-            json_str = cleaned[start:]
-        else:
-            return {"status": "analyzed", "raw_analysis": text}
-    else:
-        json_str = cleaned[start:end]
-    # Fix common LLM JSON issues
-    json_str = re.sub(r':\s*\+(\d)', r': \1', json_str)  # +2500 → 2500
-    json_str = re.sub(r':\s*(-?\d{1,3}),(\d{3}),(\d{3})', r': \1\2\3', json_str)  # 1,234,567 → 1234567
-    json_str = re.sub(r':\s*(-?\d{1,3}),(\d{3})', r': \1\2', json_str)  # -3,487 → -3487
-    json_str = re.sub(r',\s*}', '}', json_str)  # trailing commas
-    json_str = re.sub(r',\s*]', ']', json_str)  # trailing commas in arrays
+    if start < 0:
+        return {"status": "analyzed", "raw_analysis": text}
+
+    if end > start:
+        json_str = _fix_common_issues(cleaned[start:end])
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+        # Try repair
+        try:
+            return json.loads(_try_repair(json_str))
+        except json.JSONDecodeError:
+            pass
+
+    # If we get here, the full object didn't parse — likely truncated.
+    # Try to repair from the start of the JSON to the end of text.
+    json_str = _fix_common_issues(cleaned[start:])
     try:
-        return json.loads(json_str)
+        repaired = _try_repair(json_str)
+        return json.loads(repaired)
     except json.JSONDecodeError:
         pass
-    # Attempt repair of truncated JSON — close open brackets/braces
-    repair = json_str.rstrip()
-    # Remove trailing partial key-value (after last complete value)
-    repair = re.sub(r',\s*"[^"]*"?\s*:?\s*"?[^"{}[\]]*$', '', repair)
-    # Count open/close brackets
-    open_braces = repair.count('{') - repair.count('}')
-    open_brackets = repair.count('[') - repair.count(']')
-    # Close any open strings
-    if repair.count('"') % 2 == 1:
-        repair += '"'
-    repair += ']' * max(0, open_brackets)
-    repair += '}' * max(0, open_braces)
-    # Clean trailing commas again after repair
-    repair = re.sub(r',\s*}', '}', repair)
-    repair = re.sub(r',\s*]', ']', repair)
-    try:
-        return json.loads(repair)
-    except json.JSONDecodeError:
-        return {"status": "analyzed", "raw_analysis": text}
+
+    # Last resort: try to extract material_movers array directly from the text.
+    # Even if the full JSON is broken, the movers array at the top might be complete.
+    movers_match = re.search(r'"material_movers"\s*:\s*(\[.*?\])\s*,\s*"', cleaned, re.DOTALL)
+    if movers_match:
+        try:
+            movers_str = _fix_common_issues(movers_match.group(1))
+            movers = json.loads(movers_str)
+            print(f"  ⚠ Full JSON parse failed but extracted {len(movers)} material_movers directly")
+            return {"status": "analyzed", "material_movers": movers, "raw_analysis": text}
+        except json.JSONDecodeError:
+            pass
+
+    # Try an even more aggressive extraction — find all complete mover objects
+    mover_objects = []
+    for m in re.finditer(r'\{\s*"driver"\s*:.*?"persistence"\s*:\s*"[^"]*"\s*\}', cleaned, re.DOTALL):
+        try:
+            obj = json.loads(_fix_common_issues(m.group()))
+            mover_objects.append(obj)
+        except json.JSONDecodeError:
+            continue
+    if mover_objects:
+        print(f"  ⚠ Extracted {len(mover_objects)} mover objects via regex fallback")
+        return {"status": "analyzed", "material_movers": mover_objects, "raw_analysis": text}
+
+    return {"status": "analyzed", "raw_analysis": text}
 
 
 def run_ai_follow_ups(analysis, baseline_data, run_date):
@@ -2850,6 +2906,20 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         html_body
     )
 
+    # Add section IDs to h2 tags for deep linking from headline tile
+    def _add_section_id(match):
+        heading_text = re.sub(r'<[^>]+>', '', match.group(1))  # strip inner HTML tags
+        slug = re.sub(r'[^a-z0-9]+', '-', heading_text.lower().strip()).strip('-')
+        return f'<h2 id="section-{slug}">{match.group(1)}</h2>'
+    html_body = re.sub(r'<h2>(.*?)</h2>', _add_section_id, html_body)
+
+    # Also add IDs to h3 (driver) headings for linking to specific movers
+    def _add_driver_id(match):
+        heading_text = re.sub(r'<[^>]+>', '', match.group(1))
+        slug = re.sub(r'[^a-z0-9]+', '-', heading_text.lower().strip()).strip('-')
+        return f'<h3 id="driver-{slug}">{match.group(1)}</h3>'
+    html_body = re.sub(r'<h3>(.*?)</h3>', _add_driver_id, html_body)
+
     ty = next((r for r in trading_data if r["period"] == "yesterday"), {})
     ly = next((r for r in trading_data if r["period"] == "yesterday_ly"), {})
     w_ty = next((r for r in trading_data if r["period"] == "trailing_7d"), {})
@@ -3035,10 +3105,20 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
                 f"Here they are, ranked by how much money they represent:"
             )
         else:
-            narrative = (
-                "The analysis completed but the structured mover data wasn't captured properly. "
-                "Check the investigation JSON for the full findings."
-            )
+            # Show a useful summary even when structured movers weren't parsed
+            raw = analysis_data.get("raw_analysis", "")
+            if raw:
+                # Extract a readable snippet from the raw analysis
+                snippet = raw[:600].replace("<", "&lt;").replace(">", "&gt;")
+                narrative = (
+                    "The AI completed its analysis but the structured data couldn't be fully parsed from the response. "
+                    f"Here's what the AI found:<br><br><em style='font-size:0.9em;opacity:0.85'>{snippet}...</em>"
+                )
+            else:
+                narrative = (
+                    "The analysis completed but the structured mover data wasn't captured properly. "
+                    "Check the investigation JSON for the full findings."
+                )
 
         movers_html = ""
         for rank, mv in enumerate(movers[:8], 1):
@@ -3304,6 +3384,66 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
             '</div>'
         )
 
+    # ── Build Headline Tile ──
+    # Extract the headline (first h2 in the briefing — this is the one-sentence summary)
+    headline_match = re.search(r'<h2[^>]*>(.*?)</h2>', html_body)
+    headline_text = ""
+    if headline_match:
+        headline_text = re.sub(r'<[^>]+>', '', headline_match.group(1)).strip()
+
+    # Extract At a Glance items for the "Also..." section
+    glance_items = re.findall(r'<li>(.*?)</li>', html_body[:html_body.find('</ul>') + 6] if '</ul>' in html_body else html_body)
+    # Build "also" items from glance items (skip the first one which is the headline topic)
+    also_items = []
+    for item in glance_items[1:5]:  # take items 2-5
+        clean = re.sub(r'<[^>]+>', '', item).strip()
+        # Try to find the bold keyword for linking
+        bold_match = re.search(r'<strong[^>]*>(.*?)</strong>', item)
+        if bold_match:
+            keyword = re.sub(r'<[^>]+>', '', bold_match.group(1)).strip()
+            slug = re.sub(r'[^a-z0-9]+', '-', keyword.lower()).strip('-')
+            # Try to link to a driver heading
+            also_items.append(f'<a href="#driver-{slug}">{clean}</a>')
+        else:
+            also_items.append(clean)
+
+    # Build headline HTML with key terms bolded and linked
+    def _linkify_headline(text):
+        """Turn the headline into HTML where key terms are interactive."""
+        if not text:
+            return "Yesterday's trading briefing is ready."
+        # Find terms that match h3 driver headings in the content
+        driver_headings = re.findall(r'<h3 id="driver-([^"]+)">(.*?)</h3>', html_body)
+        linked = text
+        for slug, heading_html in driver_headings[:3]:  # top 3 drivers
+            driver_name = re.sub(r'<[^>]+>', '', heading_html).strip()
+            # Try to find this driver name (or close match) in the headline text
+            for word_chunk in [driver_name] + driver_name.split():
+                if len(word_chunk) > 4 and word_chunk.lower() in linked.lower():
+                    idx = linked.lower().find(word_chunk.lower())
+                    original = linked[idx:idx+len(word_chunk)]
+                    linked = linked[:idx] + f'<a href="#driver-{slug}" class="hl-keyword">{original}</a>' + linked[idx+len(word_chunk):]
+                    break
+        return linked
+
+    headline_html = _linkify_headline(headline_text)
+    also_html = " &middot; ".join(also_items) if also_items else ""
+
+    # Link to main sections
+    section_links = []
+    for sid, label in [("section-at-a-glance", "At a Glance"), ("section-what-s-driving-this", "What's Driving This"),
+                       ("section-customer-search-intent", "Search Intent"), ("section-actions", "Actions")]:
+        if f'id="{sid}"' in html_body:
+            section_links.append(f'<a href="#{sid}">{label}</a>')
+
+    headline_tile_html = f"""<div class="section-gap">
+<div class="headline-tile glass-card" data-animate="card">
+<div class="hl-main">{headline_html}</div>
+{f'<div class="hl-also"><strong>Also:</strong> {also_html}</div>' if also_html else ''}
+{f'<div class="hl-also" style="margin-top:6px;font-size:11px;opacity:0.6">Jump to: {" &middot; ".join(section_links)}</div>' if section_links else ''}
+</div>
+</div>"""
+
     return f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -3364,7 +3504,7 @@ body::before{{
   z-index:0;
 }}
 
-.c{{max-width:1140px;margin:0 auto;padding:36px 28px 120px;position:relative;z-index:1}}
+.c{{max-width:1140px;margin:0 auto;padding:36px 28px 120px;position:relative;z-index:1;overflow-x:hidden}}
 
 /* ── Glass morphism card base ── */
 .glass-card{{
@@ -3918,6 +4058,53 @@ body::after{{
 .chg-fl{{background:rgba(245,158,11,0.1);color:var(--amber)}}
 .card .sub{{font-size:11px;color:var(--muted);margin-top:6px}}
 
+/* ── Headline tile (full-width hero above key metrics) ── */
+.headline-tile{{
+  padding:28px 32px;
+  margin-bottom:20px;
+  position:relative;
+  overflow:hidden;
+}}
+.headline-tile::before{{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(84,46,145,0.15) 0%,rgba(253,220,6,0.04) 100%);
+  pointer-events:none;
+}}
+.headline-tile .hl-main{{
+  font-size:17px;font-weight:700;line-height:1.6;color:var(--text);
+  position:relative;z-index:1;
+}}
+.headline-tile .hl-main a{{
+  color:var(--text);text-decoration:none;
+  border-bottom:1px dotted rgba(253,220,6,0.3);
+  transition:border-color 0.2s;
+}}
+.headline-tile .hl-main a:hover{{border-bottom-color:var(--yellow)}}
+.hl-keyword{{
+  color:var(--yellow);
+  font-weight:800;
+  display:inline-block;
+  cursor:pointer;
+  transition:transform 0.25s cubic-bezier(.16,1,.3,1),text-shadow 0.25s ease,filter 0.25s ease;
+  text-decoration:none;
+}}
+.hl-keyword:hover{{
+  transform:scale(1.08);
+  text-shadow:0 0 12px rgba(253,220,6,0.5),0 0 24px rgba(253,220,6,0.2);
+  filter:brightness(1.15);
+}}
+.headline-tile .hl-also{{
+  font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7;
+  position:relative;z-index:1;
+}}
+.headline-tile .hl-also strong{{color:#b8a9d4}}
+.headline-tile .hl-also a{{
+  color:var(--muted);text-decoration:none;
+  border-bottom:1px dotted rgba(184,169,212,0.3);
+  transition:color 0.2s,border-color 0.2s;
+}}
+.headline-tile .hl-also a:hover{{color:var(--text);border-bottom-color:var(--text)}}
+
 /* ── Period cards (3-col) ── */
 .grid3{{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}}
 .pcard{{
@@ -4067,7 +4254,7 @@ body::after{{
 .trail-section{{margin-bottom:24px}}
 .trail-toggle{{
   background:rgba(84,46,145,0.08);
-  color:var(--accent);
+  color:#E2E0EB;
   border:1px solid rgba(84,46,145,0.2);
   border-radius:12px;padding:12px 24px;
   font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
@@ -4080,6 +4267,7 @@ body::after{{
   background:rgba(84,46,145,0.15);
   border-color:rgba(84,46,145,0.4);
   box-shadow:0 0 20px rgba(84,46,145,0.1);
+  color:#fff;
 }}
 .trail-toggle svg{{transition:transform .3s ease-out}}
 .trail-toggle.open svg{{transform:rotate(180deg)}}
@@ -4161,14 +4349,29 @@ body::after{{
 @media(max-width:1024px){{
   .grid4{{grid-template-columns:repeat(2,1fr)}}
   .grid3{{grid-template-columns:repeat(2,1fr)}}
+  .headline-tile{{padding:24px 22px}}
 }}
 @media(max-width:640px){{
   .grid4{{grid-template-columns:1fr}}
   .grid3{{grid-template-columns:1fr}}
-  .nar{{padding:22px 20px}}
+  .nar{{padding:22px 16px}}
+  .nar table{{font-size:11px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}}
+  .nar th,.nar td{{padding:8px 10px;white-space:nowrap}}
   .chart-container{{height:130px;padding-top:80px}}
   .hdr{{flex-direction:column;align-items:flex-start;gap:8px;margin-left:-16px;margin-right:-16px;padding:8px 16px}}
-  .c{{padding:20px 16px}}
+  .hdr>div:last-child{{flex-wrap:wrap;gap:6px}}
+  .c{{padding:20px 16px;overflow-x:hidden}}
+  .card .val{{font-size:22px}}
+  .pcard .pv{{font-size:20px}}
+  .trail-step{{padding-left:32px}}
+  .trail-body{{padding-left:8px}}
+  .dig-wrap pre{{font-size:10px}}
+  .headline-tile{{padding:20px 16px}}
+  .headline-tile .hl-main{{font-size:15px;line-height:1.5}}
+  .headline-tile .hl-also{{font-size:11px}}
+  .inv-badge{{padding:4px 10px 4px 18px;font-size:9px}}
+  .archive-btn,.refresh-btn{{font-size:10px;padding:5px 10px}}
+  .sticky-section-label{{display:none}}
 }}
 </style></head><body>
 <div class="c">
@@ -4178,6 +4381,9 @@ body::after{{
 <div style="display:flex;align-items:center;gap:10px"><img src="https://dmy0b9oeprz0f.cloudfront.net/holidayextras.co.uk/brand-guidelines/logo-tags/png/microchip.png" alt="HX" style="width:28px;height:28px;filter:drop-shadow(0 0 8px rgba(84,46,145,0.5))"><div><h1><span>Trading Covered</span> <i style="font-weight:400;font-size:0.6em;opacity:0.7">by Holiday Extras</i></h1><div class="dt">{day_name}</div></div><span id="stickySection" class="sticky-section-label"></span></div>
 <div style="display:flex;align-items:center;gap:8px"><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button>{"<span class='inv-badge' onclick='document.querySelector(\".trail-section\").scrollIntoView({behavior:\"smooth\"});if(!document.getElementById(\"trailBody\").classList.contains(\"open\")){toggleTrail()}'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
 </div>
+
+<!-- Headline Tile — one-sentence takeaway -->
+{headline_tile_html}
 
 <!-- Key Metrics — cards animate individually, parent wrapper does NOT -->
 <div class="section-gap">
