@@ -3499,6 +3499,24 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         return result
 
     headline_html = _linkify_headline(headline_text)
+
+    # Colour-code directional terms in the headline for clarity
+    # Negative/bad indicators → red
+    for pat in [r'(down\s+£[\d,.]+k?)', r'(fell\s+[\d,.]+%?)', r'(dropped?\s+[\d,.]+%?)',
+                r'(lost?\s+£[\d,.]+k?)', r'(negative\s+margins?)', r'(squeeze)', r'(shrink\w*)',
+                r'(worse)', r'(decline\w*)', r'(losing)']:
+        headline_html = re.sub(pat, r'<span class="hl-down">\1</span>', headline_html, flags=re.IGNORECASE)
+    # Positive/good indicators → green
+    for pat in [r'(up\s+£[\d,.]+k?)', r'(rose\s+[\d,.]+%?)', r'(grew\s+[\d,.]+%?)',
+                r'(growth)', r'(rising\s+fast)', r'(record\s+\w+)', r'(rising)',
+                r'(strong\w*)', r'(gain\w*)', r'(improving)']:
+        headline_html = re.sub(pat, r'<span class="hl-up">\1</span>', headline_html, flags=re.IGNORECASE)
+    # Neutral/watch indicators → amber
+    for pat in [r'(despite)', r'(flat)', r'(mixed)', r'(watch\w*)']:
+        headline_html = re.sub(pat, r'<span class="hl-neutral">\1</span>', headline_html, flags=re.IGNORECASE)
+    # Bold monetary amounts that aren't already wrapped
+    headline_html = re.sub(r'(?<!>)(£[\d,.]+k?)', r'<strong>\1</strong>', headline_html)
+
     also_html = " &middot; ".join(also_items) if also_items else ""
 
     # Link to main sections
@@ -3896,17 +3914,21 @@ body::after{{
 .trail-toggle svg{{animation:arrow-bounce 2s ease-in-out infinite}}
 .trail-toggle.open svg{{animation:none;transform:rotate(180deg)}}
 
-/* ── Banner ── */
+/* ── Banner — floating with rounded edges ── */
 .banner-wrap{{
-  margin:-36px -28px 0;
+  margin:0 0 16px;
   position:relative;
   overflow:hidden;
+  border-radius:16px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4),0 0 20px rgba(84,46,145,0.2);
+  border:1px solid rgba(146,95,255,0.15);
 }}
 .banner-img{{
   width:100%;
   display:block;
   height:auto;
   object-fit:cover;
+  border-radius:16px;
 }}
 .banner-date{{
   position:absolute;
@@ -4154,13 +4176,64 @@ body::after{{
   font-weight:800;
   display:inline-block;
   cursor:pointer;
-  transition:transform 0.25s cubic-bezier(.16,1,.3,1),text-shadow 0.25s ease,filter 0.25s ease;
+  transition:transform 0.2s ease-out,text-shadow 0.2s ease,filter 0.2s ease,box-shadow 0.2s ease;
   text-decoration:none;
+  padding:1px 4px;
+  border-radius:4px;
+  position:relative;
 }}
 .hl-keyword:hover{{
-  transform:scale(1.08);
-  text-shadow:0 0 12px rgba(253,220,6,0.5),0 0 24px rgba(253,220,6,0.2);
-  filter:brightness(1.15);
+  transform:translateY(-3px) scale(1.1);
+  text-shadow:0 0 16px rgba(253,220,6,0.6),0 0 30px rgba(253,220,6,0.3);
+  filter:brightness(1.2);
+  background:rgba(253,220,6,0.08);
+  box-shadow:0 4px 16px rgba(253,220,6,0.15);
+}}
+/* Directional colour coding in headline */
+.hl-up{{
+  color:var(--green-bright);
+  font-weight:800;
+  display:inline-block;
+  padding:1px 4px;
+  border-radius:4px;
+  cursor:default;
+  transition:transform 0.2s ease-out,text-shadow 0.2s ease,background 0.2s ease,box-shadow 0.2s ease;
+}}
+.hl-up:hover{{
+  transform:translateY(-3px) scale(1.1);
+  text-shadow:0 0 16px rgba(0,212,200,0.6),0 0 30px rgba(0,212,200,0.3);
+  background:rgba(0,176,166,0.1);
+  box-shadow:0 4px 16px rgba(0,176,166,0.15);
+}}
+.hl-down{{
+  color:var(--red-bright);
+  font-weight:800;
+  display:inline-block;
+  padding:1px 4px;
+  border-radius:4px;
+  cursor:default;
+  transition:transform 0.2s ease-out,text-shadow 0.2s ease,background 0.2s ease,box-shadow 0.2s ease;
+}}
+.hl-down:hover{{
+  transform:translateY(-3px) scale(1.1);
+  text-shadow:0 0 16px rgba(255,95,104,0.6),0 0 30px rgba(255,95,104,0.3);
+  background:rgba(255,95,104,0.1);
+  box-shadow:0 4px 16px rgba(255,95,104,0.15);
+}}
+.hl-neutral{{
+  color:var(--amber);
+  font-weight:800;
+  display:inline-block;
+  padding:1px 4px;
+  border-radius:4px;
+  cursor:default;
+  transition:transform 0.2s ease-out,text-shadow 0.2s ease,background 0.2s ease,box-shadow 0.2s ease;
+}}
+.hl-neutral:hover{{
+  transform:translateY(-3px) scale(1.1);
+  text-shadow:0 0 16px rgba(255,181,95,0.6);
+  background:rgba(255,181,95,0.1);
+  box-shadow:0 4px 16px rgba(255,181,95,0.15);
 }}
 .headline-tile .hl-also{{
   font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7;
@@ -4188,10 +4261,10 @@ body::after{{
 .pcard .pv{{font-size:26px;font-weight:800;letter-spacing:-1px;margin:8px 0}}
 
 /* ── Interactive chart ── */
-.chart-wrap{{padding:24px;margin-bottom:24px;position:relative;overflow:visible}}
+.chart-wrap{{padding:24px;margin-bottom:24px;position:relative;overflow:hidden}}
 .chart-wrap .st{{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px}}
-.chart-container{{position:relative;height:180px;display:flex;align-items:flex-end;gap:4px;overflow:visible;min-width:0;padding-top:80px}}
-.bar-col{{flex:1 0 40px;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;min-width:40px}}
+.chart-container{{position:relative;height:180px;display:flex;align-items:flex-end;gap:4px;overflow:hidden;min-width:0;padding-top:80px}}
+.bar-col{{flex:1 1 0;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;min-width:0}}
 .bar{{
   border-radius:6px 6px 0 0;width:80%;min-width:14px;
   transition:opacity .15s,transform .15s;
@@ -4242,8 +4315,8 @@ body::after{{
 .tooltip .tt-yoy-up{{color:#00D4C8;font-weight:600}}
 .tooltip .tt-yoy-down{{color:#FF5F68;font-weight:600}}
 /* YoY Growth chart */
-.yoy-chart-container{{position:relative;height:120px;display:flex;align-items:center;gap:4px;overflow:visible;min-width:0}}
-.yoy-bar-col{{flex:1 0 40px;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;min-width:40px;height:100%}}
+.yoy-chart-container{{position:relative;height:120px;display:flex;align-items:center;gap:4px;overflow:hidden;min-width:0}}
+.yoy-bar-col{{flex:1 1 0;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;min-width:0;height:100%}}
 .yoy-bar-area{{position:relative;flex:1;width:100%;display:flex;flex-direction:column;align-items:center}}
 .yoy-bar{{width:80%;min-width:14px;border-radius:4px;position:absolute;transform-origin:center}}
 .yoy-bar.animate-in{{animation:bar-grow 0.6s ease-out forwards}}
@@ -4426,8 +4499,13 @@ body::after{{
   .nar{{padding:22px 16px}}
   .nar table{{font-size:11px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}}
   .nar th,.nar td{{padding:8px 10px;white-space:nowrap}}
-  .chart-container{{height:130px;padding-top:80px}}
-  .banner-wrap{{margin:-20px -16px 0}}
+  .chart-container{{height:130px;padding-top:60px}}
+  .chart-wrap{{padding:16px;overflow:hidden}}
+  .chart-wrap .st{{font-size:10px;letter-spacing:.5px;margin-bottom:10px}}
+  .yoy-chart-container{{height:90px}}
+  .bar-col .tooltip{{display:none !important}}
+  .banner-wrap{{margin:0 0 10px;border-radius:12px}}
+  .banner-img{{border-radius:12px}}
   .banner-date{{font-size:10px;bottom:8px;right:12px}}
   .hdr{{margin-left:-16px;margin-right:-16px;padding:6px 16px}}
   .hdr>div{{flex-wrap:wrap;gap:6px}}
