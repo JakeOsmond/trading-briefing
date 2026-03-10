@@ -1819,13 +1819,33 @@ annual policies as a problem, concern, or action item.
 Instead focus on: VOLUME trends, SINGLE TRIP losses, CONVERSION changes,
 MIX SHIFTS, MARKET CONTEXT, COMMISSION changes.
 
+## TRAFFIC & CONVERSION — ALWAYS DECOMPOSE
+
+For EVERY growth or decline you identify, decompose the movement into its traffic and
+conversion components. Traffic is often the dominant driver, so never attribute a change
+purely to pricing, mix, or margin without first checking whether traffic moved.
+
+- **Traffic**: Sessions/visits YoY and WoW by channel (direct, aggregator, renewal).
+  If traffic is up or down significantly, say so prominently — it usually explains a
+  large portion of volume and GP changes.
+- **Conversion**: Search-to-book rate, session-to-search rate, quote-to-buy rate.
+  If conversion shifted, quantify it and explain what drove the change (device mix,
+  medical screening, cover level, etc.).
+- **The bridge**: Always think Traffic × Conversion × Average GP = Total GP.
+  When explaining a mover, state which of these three levers moved and by how much.
+  e.g. "Direct single-trip GP fell £8k — mostly traffic (sessions down 12% YoY) with
+  conversion flat and average GP slightly up."
+
 ## YOUR TASK
 
 1. **MATERIAL MOVERS**: You MUST ALWAYS identify exactly 8 movers — the 8 segments with the
    largest absolute weekly GP impact. There is NO minimum threshold — even if the movement is
    small, list it. NEVER return an empty material_movers list. Rank by absolute £ impact. For each:
    - Quantify the exact £ impact
-   - Identify the root cause (volume? price? mix? commission? conversion?)
+   - **ALWAYS decompose into traffic × conversion × average GP** — state which lever(s) moved
+   - Traffic changes are often the biggest driver — never skip this. Quote session/visit YoY %
+   - If conversion moved, explain why (device mix, medical screening, funnel changes, etc.)
+   - Identify the root cause (volume? price? mix? commission? conversion? traffic?)
    - Cross-reference with market intelligence data
    - Explain whether this is temporary or structural
    - **PERSISTENCE CHECK**: Compare the 7-day trend to the 28-day trend. If the issue shows
@@ -2069,6 +2089,10 @@ to know: what happened, is it good or bad, and what should I do about it.
   Annual volume growth is ALWAYS good news. NEVER flag annual negative margins as a problem or suggest repricing annuals.
 - Single trip losses have no renewal pathway. These ARE problems worth flagging.
 - Frame annual growth as: "We're investing in future renewal income."
+- **TRAFFIC & CONVERSION are primary levers.** When explaining any growth or decline, always
+  reference whether traffic (sessions/visits) and/or conversion rates contributed. Traffic is
+  usually the biggest factor — if sessions are up 15% YoY, say so prominently. Don't just say
+  "volume is up" without explaining whether that's traffic-driven or conversion-driven.
 
 ## OUTPUT FORMAT
 
@@ -2111,8 +2135,8 @@ that need deeper attention over one-off movements._
 
 ### {Driver name} `RECURRING` or `NEW`
 
-{Sentence 1: What happened, in plain English, with rounded numbers and YOY/WOW context.}
-{Sentence 2: Why it happened — the cause, not just the symptom. For RECURRING issues, also note how long this has been going on (e.g. "This is the third straight week of decline").}
+{Sentence 1: What happened, in plain English, with rounded numbers and YOY/WOW context. ALWAYS mention traffic and/or conversion if they contributed — e.g. "sessions were up 15% but conversion dipped" or "traffic drove most of this, up 20% YoY".}
+{Sentence 2: Why it happened — the cause, not just the symptom. Decompose into traffic × conversion × avg GP where relevant. For RECURRING issues, also note how long this has been going on (e.g. "This is the third straight week of decline").}
 
 ```sql-dig
 {SQL query using real date literals, fully qualified table names, correct aggregation rules}
