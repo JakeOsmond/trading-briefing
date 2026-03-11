@@ -3389,8 +3389,8 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     _track_results = investigation_log.get("track_results", {}) if isinstance(investigation_log, dict) else {}
     _follow_up_log = investigation_log.get("follow_up_log", []) if isinstance(investigation_log, dict) else []
     inv_count = len(_track_results) + len(_follow_up_log) if (_track_results or _follow_up_log) else 0
-    display_date = run_date if run_date else date.today()
-    day_name = display_date.strftime("%A %d %B %Y")
+    # Banner date is set dynamically via JS to always show today's date when viewed
+    day_name = ""
     now_str = datetime.datetime.now().strftime("%H:%M %d %b %Y")
 
     # Build investigation trail HTML — human-readable story of the investigation
@@ -5238,7 +5238,8 @@ body::after{{
 <!-- Banner -->
 <div class="banner-wrap">
 <img src="tradingCoveredBanner.png" alt="Trading Covered by Holiday Extras" class="banner-img">
-<div class="banner-date">{day_name}</div>
+<div class="banner-date" id="banner-date"></div>
+<script>!function(){{var d=new Date(),days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],months=['January','February','March','April','May','June','July','August','September','October','November','December'];document.getElementById('banner-date').textContent=days[d.getDay()]+' '+d.getDate()+' '+months[d.getMonth()]+' '+d.getFullYear()}}()</script>
 </div>
 
 <!-- Sticky toolbar — buttons only -->
@@ -6564,8 +6565,9 @@ def main():
     total_queries = len(track_results) + len(follow_up_log)
     print(f"\n  📋 Investigation: {len(track_results)} tracks + {len(follow_up_log)} follow-ups = {total_queries} total queries")
 
-    # Save everything
-    today_str = run_date.strftime("%Y-%m-%d")
+    # Save everything — use today's date (report date), not run_date (yesterday's trading day)
+    report_date = run_date + timedelta(days=1)
+    today_str = report_date.strftime("%Y-%m-%d")
     briefings_dir = str(Path(__file__).resolve().parent / "briefings")
     os.makedirs(briefings_dir, exist_ok=True)
 
