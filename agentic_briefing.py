@@ -5231,6 +5231,8 @@ body::after{{
   .ask-input{{font-size:12px;padding:8px 10px}}
 }}
 </style></head><body>
+<div id="staging-banner" style="display:none;background:linear-gradient(90deg,#f59e0b,#f97316);color:#000;text-align:center;padding:6px 12px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;position:sticky;top:0;z-index:9999;">&#9888; Staging Environment &mdash; Changes here are not live</div>
+<script>if(location.hostname.includes('staging.'))document.getElementById('staging-banner').style.display='block';</script>
 <div class="c">
 
 <!-- Banner -->
