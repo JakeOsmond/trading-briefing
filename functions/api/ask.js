@@ -230,6 +230,38 @@ const BUSINESS_CONTEXT = `
 `;
 
 
+// ── Answer verification (anti-hallucination) ─────────────────────────────
+
+async function verifyAnswer(answer, sqlQueries, apiKey) {
+  // Only verify if we have actual SQL results to check against
+  const successfulQueries = sqlQueries.filter(q => q.success);
+  if (!successfulQueries.length) return answer;
+
+  // Build a summary of what the SQL actually returned
+  const evidenceSummary = successfulQueries.map((q, i) =>
+    `Query ${i + 1}: ${q.sql}\nReturned ${q.rows} row(s).`
+  ).join('\n\n');
+
+  try {
+    const checkResponse = await callOpenAI([
+      { role: 'system', content: `You are a fact-checker for a trading analyst's answer. You have access to the SQL queries that were run and their row counts.
+
+Your job:
+1. Check if the answer contains any numbers, percentages, or claims that could NOT have come from the SQL queries listed.
+2. If the answer looks grounded in the data, return it UNCHANGED.
+3. If you spot a claim that seems fabricated or unsupported by the queries, add a brief ⚠️ caveat inline next to that specific claim, e.g. "⚠️ (not confirmed by query data)".
+4. Do NOT rewrite the answer. Only add inline warnings where needed. Keep the original formatting and tone.
+5. If everything checks out, return the exact original answer with no changes.` },
+      { role: 'user', content: `## SQL EVIDENCE\n${evidenceSummary}\n\n## ANSWER TO CHECK\n${answer}` },
+    ], null, apiKey, 4096);
+    return checkResponse.choices?.[0]?.message?.content || answer;
+  } catch {
+    // If verification fails, return original answer
+    return answer;
+  }
+}
+
+
 // ── Main Q&A engine ───────────────────────────────────────────────────────
 
 async function handleQuestion({ question, driverContext, conversationHistory, mode, trendSQL }, env) {
@@ -268,7 +300,10 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
 4. State timeframes explicitly (e.g. "over the last 7 days", "yesterday vs same day last year").
 5. Round numbers: £892.67→"about £900", £10,864→"£11k".
 6. You can run up to 4 rounds of investigation. Each round, decide if you need more data or can answer.
-7. If SQL fails, fix it and retry. You have up to 25 attempts per query.`;
+7. If SQL fails, fix it and retry. You have up to 25 attempts per query.
+8. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
+9. If the user asks something ambiguous or that requires a dimension/field you're unsure about, use the ask_clarification tool BEFORE writing SQL. Always provide examples of real values from the data to help the user choose. For example: "Do you mean broken down by cover_level_name? Examples in the data: Bronze, Classic, Silver, Gold, Deluxe, Elite."
+10. When you give your final answer, cite which SQL query produced each number. If a number didn't come from a query, don't include it.`;
 
   const tools = [{
     type: 'function',
@@ -279,6 +314,19 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
         type: 'object',
         properties: { sql: { type: 'string', description: 'The SQL query' } },
         required: ['sql'],
+      },
+    },
+  }, {
+    type: 'function',
+    function: {
+      name: 'ask_clarification',
+      description: 'Ask the user a clarifying question before running SQL. Use when the question is ambiguous, refers to a field/dimension you need to confirm, or could be interpreted multiple ways. ALWAYS include examples of real data values to help the user.',
+      parameters: {
+        type: 'object',
+        properties: {
+          question: { type: 'string', description: 'The clarifying question to ask the user, including examples of values/fields' },
+        },
+        required: ['question'],
       },
     },
   }];
@@ -306,10 +354,12 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
     const msg = choice.message;
     messages.push(msg);
 
-    // If no tool calls, we have our answer
+    // If no tool calls, we have our answer — verify it first
     if (choice.finish_reason === 'stop' || !msg.tool_calls || msg.tool_calls.length === 0) {
+      const rawAnswer = msg.content || 'No answer generated.';
+      const verified = await verifyAnswer(rawAnswer, sqlQueries, apiKey);
       return {
-        answer: msg.content || 'No answer generated.',
+        answer: verified,
         sql_queries: sqlQueries,
         rounds: round + 1,
       };
@@ -317,6 +367,19 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
 
     // Process tool calls
     for (const tc of msg.tool_calls) {
+      // Handle clarification requests — return immediately so user can respond
+      if (tc.function.name === 'ask_clarification') {
+        let clarQ;
+        try { clarQ = JSON.parse(tc.function.arguments).question; }
+        catch { clarQ = 'Could you clarify your question?'; }
+        return {
+          answer: clarQ,
+          needs_clarification: true,
+          sql_queries: sqlQueries,
+          rounds: round + 1,
+        };
+      }
+
       if (tc.function.name === 'run_sql') {
         let args;
         try {
@@ -380,9 +443,10 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
 
   // If we exhausted rounds, get final answer
   const finalResponse = await callOpenAI(messages, null, apiKey);
-  const finalContent = finalResponse.choices?.[0]?.message?.content || 'Investigation complete but no clear answer emerged.';
+  const rawContent = finalResponse.choices?.[0]?.message?.content || 'Investigation complete but no clear answer emerged.';
+  const verified = await verifyAnswer(rawContent, sqlQueries, apiKey);
   return {
-    answer: finalContent,
+    answer: verified,
     sql_queries: sqlQueries,
     rounds: MAX_ROUNDS,
   };

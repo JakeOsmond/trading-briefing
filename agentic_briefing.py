@@ -4876,6 +4876,12 @@ body::after{{
   border-radius:8px;padding:10px;max-height:100px;overflow-y:auto;
 }}
 .ask-response .ask-error{{color:#FF5F68}}
+.ask-clarification{{
+  display:block;color:#FFB55F;font-style:italic;
+  padding:8px 12px;background:rgba(255,181,95,0.06);
+  border-left:3px solid rgba(255,181,95,0.4);border-radius:4px;
+  margin:4px 0;line-height:1.5;
+}}
 
 /* ── Chat panel ── */
 .chat-panel{{
@@ -5763,7 +5769,9 @@ function submitDriverAsk(id){{
     stopAILoadingStepper(loader);
     loadingWrap.remove();
     let content=data.answer||data.error||'No response';
-    if(data.sql_queries&&data.sql_queries.length>0){{
+    if(data.needs_clarification){{
+      content='<span class="ask-clarification">🤔 '+content+'</span>';
+    }} else if(data.sql_queries&&data.sql_queries.length>0){{
       content+='<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
     }}
     addDriverMessage(responseDiv,'assistant',content);
@@ -5820,7 +5828,9 @@ function submitDriverReply(btn,id){{
     stopAILoadingStepper(loader);
     loadingWrap.remove();
     let content=data.answer||data.error||'No response';
-    if(data.sql_queries&&data.sql_queries.length>0){{
+    if(data.needs_clarification){{
+      content='<span class="ask-clarification">🤔 '+content+'</span>';
+    }} else if(data.sql_queries&&data.sql_queries.length>0){{
       content+='<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
     }}
     addDriverMessage(responseDiv,'assistant',content);
@@ -5894,7 +5904,9 @@ function submitChat(){{
     const assistantMsg=document.createElement('div');
     assistantMsg.className='chat-msg assistant';
     let content=data.answer||data.error||'No response';
-    if(data.sql_queries&&data.sql_queries.length>0){{
+    if(data.needs_clarification){{
+      content='<span class="ask-clarification">🤔 '+content+'</span>';
+    }} else if(data.sql_queries&&data.sql_queries.length>0){{
       content+='\\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
     }}
     assistantMsg.innerHTML=content;
@@ -5973,7 +5985,9 @@ function submitChatReply(btn){{
     const assistantMsg=document.createElement('div');
     assistantMsg.className='chat-msg assistant';
     let content=data.answer||data.error||'No response';
-    if(data.sql_queries&&data.sql_queries.length>0){{
+    if(data.needs_clarification){{
+      content='<span class="ask-clarification">🤔 '+content+'</span>';
+    }} else if(data.sql_queries&&data.sql_queries.length>0){{
       content+='\\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
     }}
     assistantMsg.innerHTML=content;
