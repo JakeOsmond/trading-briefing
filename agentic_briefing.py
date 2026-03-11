@@ -41,6 +41,15 @@ def _load_env():
 
 _load_env()
 
+# Load trading context file (business knowledge for AI prompts)
+def _load_trading_context():
+    ctx_path = Path(__file__).parent / "trading_context.md"
+    if ctx_path.exists():
+        return ctx_path.read_text()
+    return ""
+
+TRADING_CONTEXT = _load_trading_context()
+
 BQ_PROJECT = "hx-data-production"
 MARKET_SHEET_ID = "1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg"
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
@@ -1848,10 +1857,12 @@ purely to pricing, mix, or margin without first checking whether traffic moved.
    - Identify the root cause (volume? price? mix? commission? conversion? traffic?)
    - Cross-reference with market intelligence data
    - Explain whether this is temporary or structural
-   - **PERSISTENCE CHECK**: Compare the 7-day trend to the 28-day trend. If the issue shows
-     in BOTH the trailing 7d AND trailing 28d data (same direction, similar magnitude), mark it
-     as "recurring". If it only appears in the 7d data or reversed direction in 28d, mark as "new".
-     Recurring issues need deeper investigation — they get 5 drill-downs instead of 3.
+   - **PERSISTENCE CHECK**: Look at the last 10 trading days for this metric. Count how many
+     days the movement was in the same direction (e.g. GP below last year on 8 of 10 days):
+     - **RECURRING** (7+ of last 10 days consistent): A persistent pattern. Gets 5 drill-downs.
+     - **EMERGING** (5-6 of last 10 days consistent): Building momentum, not yet entrenched. Gets 4 drill-downs.
+     - **NEW** (fewer than 5 of last 10 days): A recent shift or one-off. Gets 3 drill-downs.
+     State the count explicitly in your detail, e.g. "This has been negative on 8 of the last 10 days."
 
 2. **CROSS-REFERENCES**: Look for connections between tracks:
    - Does a mix shift in one track explain a margin change in another?
@@ -1862,8 +1873,9 @@ purely to pricing, mix, or margin without first checking whether traffic moved.
    - 1 scan_drive call to check for recent pricing/campaign/release docs (insurance only)
    - 1 web_search for external market context
    - **RECURRING movers** (persistence="recurring"): 5 SQL drill-down queries each
+   - **EMERGING movers** (persistence="emerging"): 4 SQL drill-down queries each
    - **NEW movers** (persistence="new"): 3 SQL drill-down queries each
-   This means if 4 movers are recurring and 4 are new, you need 4×5 + 4×3 = 32 SQL queries.
+   For example: 3 recurring + 3 emerging + 2 new = 3×5 + 3×4 + 2×3 = 33 SQL queries.
    Each SQL drill for a mover must explore a DIFFERENT dimension. Label them:
    `-- Mover N drill M: [what you're investigating]`
    Choose dimensions from: cover_level_name, scheme_name, booking_source (web vs phone),
@@ -1890,7 +1902,9 @@ Use negative numbers for negative values (not +2500, just 2500 or -2500).
       "evidence": "Which tracks proved this",
       "cross_references": "How this connects to other findings",
       "temporary_or_structural": "temporary / structural",
-      "persistence": "new / recurring"
+      "persistence": "new / recurring / emerging",
+      "segment_filter": "SQL WHERE clause that isolates this segment, e.g. distribution_channel='Direct' AND policy_type='Single Trip'",
+      "metric": "The primary metric being tracked, e.g. 'gp' or 'policy_count' or 'avg_gp'"
     }
   ],
   "conversion": {
@@ -1940,7 +1954,7 @@ Use negative numbers for negative values (not +2500, just 2500 or -2500).
     "conversion_gp_bridge": "..."
   }
 }
-""") + SCHEMA_KNOWLEDGE
+""") + SCHEMA_KNOWLEDGE + ("\n\n## BUSINESS CONTEXT (from trading_context.md)\n" + TRADING_CONTEXT if TRADING_CONTEXT else "")
 
 
 FOLLOW_UP_SYSTEM = dedent("""\
@@ -1996,17 +2010,17 @@ Run remaining drill 3 for movers 5-8 (4+ queries)
 - Ensure every mover has exactly 3 completed drills
 - Cross-reference findings with market intelligence data
 
-### Round 5 — RECURRING DEEP DIVES (mandatory if any recurring movers exist)
-Run drills 4-5 for ALL recurring movers. These go deeper:
+### Round 5 — EMERGING + RECURRING DEEP DIVES (mandatory if any emerging/recurring movers exist)
+Run drill 4 for ALL emerging movers and drills 4-5 for ALL recurring movers:
 - Drill 4: Week-over-week trend for this specific segment (last 4-6 weeks) — is it getting worse?
-- Drill 5: Cross-dimensional cut to isolate the exact sub-segment driving it
+- Drill 5 (RECURRING only): Cross-dimensional cut to isolate the exact sub-segment driving it
 
 ### Round 6 — COMPLETE RECURRING DRILLS + RECONCILE
 - Finish any remaining drill 5s for recurring movers
 - Check reconciliation: >£2k unexplained GP residual?
 
 ### Round 7+ — RECONCILE AND OUTPUT
-- Check: every NEW mover has 3 drills? Every RECURRING mover has 5 drills?
+- Check: every NEW mover has 3 drills? Every EMERGING mover has 4 drills? Every RECURRING mover has 5 drills?
 - Output refined findings as JSON
 
 ## DRILL-DOWN DIMENSIONS (choose the most relevant for each mover)
@@ -2043,6 +2057,7 @@ Example for "Direct Single Trip margin drop":
 
 ## MINIMUM REQUIREMENTS BEFORE OUTPUT
 - Each NEW mover MUST have exactly 3 SQL drill-downs
+- Each EMERGING mover MUST have exactly 4 SQL drill-downs (3 standard + 1 deep)
 - Each RECURRING mover MUST have exactly 5 SQL drill-downs (3 standard + 2 deep)
 - ALL AI Insights from the market sheet must be read and incorporated
 - At least 1 scan_drive result incorporated
@@ -2063,7 +2078,7 @@ Example for "Direct Single Trip margin drop":
 ## LIFETIME VALUE NOTE
 Annual policy pricing is ALWAYS managed internally.
 Do NOT flag annual margins as problems. Single trip losses ARE problems.
-""") + SCHEMA_KNOWLEDGE
+""") + SCHEMA_KNOWLEDGE + ("\n\n## BUSINESS CONTEXT (from trading_context.md)\n" + TRADING_CONTEXT if TRADING_CONTEXT else "")
 
 
 SYNTHESIS_SYSTEM = dedent("""\
@@ -2082,6 +2097,11 @@ to know: what happened, is it good or bad, and what should I do about it.
    — say "fewer people are adding gadget cover or upgrades".
 5. **Short sentences.** If a sentence has a comma followed by another clause followed by another comma, break it up.
 6. **Never pad.** If a dimension had no meaningful movement, do not mention it at all. Silence means "nothing to report."
+7. **Every claim must state its timeframe.** Never say "GP dropped £11k" — say "GP dropped £11k
+   over the last 7 days vs the same week last year." Never say "volumes are up" — say "yesterday's
+   volumes were up 12% vs the same day last year." Valid timeframes: "yesterday vs same day last year",
+   "over the last 7 days vs same period last year", "trailing 28 days", "week-on-week". The reader
+   must always know WHEN you are talking about.
 
 ## CRITICAL BUSINESS CONTEXT
 
@@ -2107,7 +2127,8 @@ FORMAT (markdown):
 ## {HEADLINE}
 
 _One sentence. What is the single most important thing that happened? Write it like a newspaper
-headline expanded into one line. No emoji. No hedging._
+headline expanded into one line. No emoji. No hedging. MUST include the timeframe (e.g. "yesterday",
+"over the last week", "this week vs last year")._
 
 ---
 
@@ -2133,7 +2154,7 @@ of plain English plus a SQL dig block. **Order: RECURRING issues first (biggest 
 recurring), then NEW issues (biggest £ first within new).** This prioritises persistent problems
 that need deeper attention over one-off movements._
 
-### {Driver name} `RECURRING` or `NEW`
+### {Driver name} `RECURRING` or `EMERGING` or `NEW`
 
 {Sentence 1: What happened, in plain English, with rounded numbers and YOY/WOW context. ALWAYS mention traffic and/or conversion if they contributed — e.g. "sessions were up 15% but conversion dipped" or "traffic drove most of this, up 20% YoY".}
 {Sentence 2: Why it happened — the cause, not just the symptom. Decompose into traffic × conversion × avg GP where relevant. For RECURRING issues, also note how long this has been going on (e.g. "This is the third straight week of decline").}
@@ -2143,7 +2164,7 @@ that need deeper attention over one-off movements._
 ```
 
 _Repeat for ALL 8 material movers. Every mover gets a block — no exceptions.
-Each driver heading MUST include either `RECURRING` or `NEW` as a tag after the name._
+Each driver heading MUST include `RECURRING`, `EMERGING`, or `NEW` as a tag after the name._
 
 ---
 
@@ -2214,8 +2235,8 @@ If in doubt: does this change the reader's understanding or their next action? I
 
 ALWAYS cover ALL of these — there is NO minimum threshold:
 - The overall GP number (headline + At a Glance)
-- ALL 8 material movers: RECURRING first (by £ impact), then NEW (by £ impact)
-- Every mover gets a "What's Driving This" block with 2 sentences + SQL dig + RECURRING/NEW tag
+- ALL 8 material movers: RECURRING first (by £ impact), then EMERGING (by £ impact), then NEW (by £ impact)
+- Every mover gets a "What's Driving This" block with 2 sentences + SQL dig + RECURRING/EMERGING/NEW tag
 - The At a Glance section should have 5 bullets covering the top 5 movers
 
 ## SQL DIG BLOCK RULES
@@ -2244,7 +2265,7 @@ ALWAYS cover ALL of these — there is NO minimum threshold:
 The entire briefing, excluding SQL dig blocks, should be **under 600 words**. The extra allowance is for
 source citations in the Customer Search Intent and News & Market Context sections — these sections should
 be thorough and well-sourced. If you're over 600 words, cut from the What's Driving This descriptions first.
-""")
+""") + ("\n\n## BUSINESS CONTEXT (from trading_context.md)\n" + TRADING_CONTEXT if TRADING_CONTEXT else "")
 
 
 # ---------------------------------------------------------------------------
@@ -2850,7 +2871,7 @@ USE THESE DATE LITERALS in all sql-dig blocks (do NOT use a 'period' column — 
 Now produce the final briefing following the 3-tier format exactly:
 1. Headline (one sentence, like a newspaper)
 2. At a Glance (5 traffic light bullets, biggest £ first)
-3. What's Driving This (ALL 8 movers: RECURRING first by £, then NEW by £. Each needs RECURRING/NEW tag, 2 sentences + sql-dig)
+3. What's Driving This (ALL 8 movers: RECURRING first by £, then EMERGING by £, then NEW by £. Each needs RECURRING/EMERGING/NEW tag, 2 sentences + sql-dig)
 4. Customer Search Intent (Google Trends / search behaviour data)
 5. News & Market Context (AI Insights, competitor activity, external factors)
 6. Actions table (max 5, with £ values)
@@ -2891,6 +2912,7 @@ CHECK:
 6. SQL dig blocks use real dates ({week_start} to {yesterday}), not a "period" column
 7. Market intelligence is referenced with specific data points
 8. Renewal and medical/cruise findings are included if material
+9. Every numerical claim states an explicit timeframe (e.g. "over the last 7 days", "yesterday vs last year") — no orphaned numbers without a time reference
 
 Fix any issues and output the FINAL revised briefing in the same markdown format.
 If the draft is already good, output it unchanged."""
@@ -2909,10 +2931,86 @@ If the draft is already good, output it unchanged."""
 
 
 # ---------------------------------------------------------------------------
+# DRIVER TREND DATA — 14-day daily series per material mover
+# ---------------------------------------------------------------------------
+
+def collect_driver_trends(analysis, run_date):
+    """Run a 14-day daily GP query for each material mover to power inline trend charts."""
+    movers = analysis.get("material_movers", [])
+    if not movers:
+        return {}
+
+    driver_trends = {}
+    yesterday = run_date - datetime.timedelta(days=1)
+    start_date = yesterday - datetime.timedelta(days=13)  # 14 days
+    ly_start = start_date - datetime.timedelta(days=364)
+    ly_end = yesterday - datetime.timedelta(days=364)
+
+    for i, mover in enumerate(movers):
+        driver_name = mover.get("driver", f"Mover {i+1}")
+        seg_filter = mover.get("segment_filter", "")
+        metric = mover.get("metric", "gp")
+
+        # Build the metric expression
+        if metric == "policy_count":
+            metric_expr = "SUM(policy_count)"
+            metric_label = "Policies"
+        elif metric == "avg_gp":
+            metric_expr = "SUM(CAST(gp AS FLOAT64)) / NULLIF(SUM(policy_count), 0)"
+            metric_label = "Avg GP"
+        else:
+            metric_expr = "SUM(CAST(gp AS FLOAT64))"
+            metric_label = "GP"
+
+        # If no segment_filter, skip — we can't generate a meaningful trend
+        if not seg_filter:
+            print(f"  ⚠ No segment_filter for mover '{driver_name}' — skipping trend")
+            continue
+
+        sql = f"""
+SELECT
+  transaction_date AS dt,
+  {metric_expr} AS val
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '{start_date.strftime('%Y-%m-%d')}' AND '{yesterday.strftime('%Y-%m-%d')}'
+  AND {seg_filter}
+GROUP BY transaction_date
+ORDER BY transaction_date
+"""
+        sql_ly = f"""
+SELECT
+  transaction_date AS dt,
+  {metric_expr} AS val
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '{ly_start.strftime('%Y-%m-%d')}' AND '{ly_end.strftime('%Y-%m-%d')}'
+  AND {seg_filter}
+GROUP BY transaction_date
+ORDER BY transaction_date
+"""
+        try:
+            print(f"  📈 Trend for '{driver_name}'...")
+            ty_result = tool_run_sql(sql)
+            ly_result = tool_run_sql(sql_ly)
+            ty_rows = json.loads(ty_result.split("\n\n")[-1]) if "auto-corrected" in ty_result or "AI-corrected" in ty_result else json.loads(ty_result)
+            ly_rows = json.loads(ly_result.split("\n\n")[-1]) if "auto-corrected" in ly_result or "AI-corrected" in ly_result else json.loads(ly_result)
+            driver_trends[driver_name] = {
+                "ty": [{"dt": str(r.get("dt", "")), "val": float(r.get("val", 0))} for r in ty_rows],
+                "ly": [{"dt": str(r.get("dt", "")), "val": float(r.get("val", 0))} for r in ly_rows],
+                "metric_label": metric_label,
+            }
+        except Exception as e:
+            print(f"  ⚠ Trend query failed for '{driver_name}': {e}")
+            continue
+
+    print(f"  ✓ Collected trends for {len(driver_trends)} drivers")
+    return driver_trends
+
+
+# ---------------------------------------------------------------------------
 # HTML DASHBOARD (same as before but using the new data)
 # ---------------------------------------------------------------------------
 
-def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, investigation_log=None, run_date=None, trend_data_ly=None):
+def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, investigation_log=None, run_date=None, trend_data_ly=None, driver_trends=None):
     """Generate styled dark-mode dashboard with interactive charts and SQL dig buttons."""
     import re
 
@@ -2922,7 +3020,25 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         sql_counter[0] += 1
         sql = match.group(1).strip().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         btn_id = f"sql-{sql_counter[0]}"
-        return f'<div class="dig-wrap"><button class="dig-btn" onclick="toggleSQL(\'{btn_id}\')">Dig into this in GBQ</button><pre class="dig-sql" id="{btn_id}" style="display:none"><code>{sql}</code><button class="copy-btn" onclick="copySQL(\'{btn_id}\')">Copy</button></pre></div>'
+        ask_id = f"ask-{sql_counter[0]}"
+        return (
+            f'<div class="dig-wrap">'
+            f'<div class="dig-buttons">'
+            f'<button class="ask-driver-btn" onclick="openDriverAsk(\'{ask_id}\')">Ask about this</button>'
+            f'<button class="dig-btn" onclick="toggleSQL(\'{btn_id}\')">Dig into this in GBQ</button>'
+            f'</div>'
+            f'<pre class="dig-sql" id="{btn_id}" style="display:none"><code>{sql}</code>'
+            f'<button class="copy-btn" onclick="copySQL(\'{btn_id}\')">Copy</button></pre>'
+            f'<div class="driver-ask-panel" id="{ask_id}" style="display:none">'
+            f'<div class="ask-input-wrap">'
+            f'<input type="text" class="ask-input" placeholder="Ask a question about this driver..." '
+            f'onkeydown="if(event.key===\'Enter\')submitDriverAsk(\'{ask_id}\')">'
+            f'<button class="ask-submit" onclick="submitDriverAsk(\'{ask_id}\')">Go</button>'
+            f'</div>'
+            f'<div class="ask-response" id="{ask_id}-response"></div>'
+            f'</div>'
+            f'</div>'
+        )
 
     processed_md = re.sub(r'```sql-dig\n(.*?)```', replace_sql_dig, briefing_md, flags=re.DOTALL)
     # Strip any "review notes" / "checks against findings" appended by the LLM after the briefing
@@ -2977,6 +3093,11 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         '<span class="badge-new">New</span>',
         html_body
     )
+    html_body = re.sub(
+        r'<code>EMERGING</code>',
+        '<span class="badge-emerging">Emerging</span>',
+        html_body
+    )
     # Also handle if LLM outputs without backticks
     html_body = re.sub(
         r'(?<=</h3>)\s*RECURRING\b',
@@ -2984,14 +3105,24 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         html_body
     )
     html_body = re.sub(
+        r'(?<=</h3>)\s*EMERGING\b',
+        ' <span class="badge-emerging">Emerging</span>',
+        html_body
+    )
+    html_body = re.sub(
         r'(?<=</h3>)\s*NEW\b',
         ' <span class="badge-new">New</span>',
         html_body
     )
-    # Handle inline RECURRING/NEW within h3 tags
+    # Handle inline RECURRING/EMERGING/NEW within h3 tags
     html_body = re.sub(
         r'\s*RECURRING\s*</h3>',
         ' <span class="badge-recurring">Recurring</span></h3>',
+        html_body
+    )
+    html_body = re.sub(
+        r'\s*EMERGING\s*</h3>',
+        ' <span class="badge-emerging">Emerging</span></h3>',
         html_body
     )
     html_body = re.sub(
@@ -3008,11 +3139,48 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     html_body = re.sub(r'<h2>(.*?)</h2>', _add_section_id, html_body)
 
     # Also add IDs to h3 (driver) headings for linking to specific movers
+    _trend_counter = [0]
     def _add_driver_id(match):
         heading_text = re.sub(r'<[^>]+>', '', match.group(1))
         slug = re.sub(r'[^a-z0-9]+', '-', heading_text.lower().strip()).strip('-')
-        return f'<h3 id="driver-{slug}">{match.group(1)}</h3>'
+        h3_tag = f'<h3 id="driver-{slug}">{match.group(1)}'
+        # Add "View trend" button for recurring/emerging drivers
+        if 'badge-recurring' in match.group(1) or 'badge-emerging' in match.group(1):
+            tid = f'trend-{_trend_counter[0]}'
+            _trend_counter[0] += 1
+            h3_tag += (
+                f' <button class="view-trend-btn" onclick="fetchDriverTrend(\'{tid}\',this)" data-trend-id="{tid}">'
+                f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+                f'Trend</button>'
+            )
+            h3_tag += f'</h3><div id="{tid}" class="yoy-trend-container"></div>'
+        else:
+            h3_tag += '</h3>'
+        return h3_tag
     html_body = re.sub(r'<h3>(.*?)</h3>', _add_driver_id, html_body)
+
+    # Inject per-driver trend mini-charts after each driver heading
+    if driver_trends:
+        def _inject_trend_chart(match):
+            full_match = match.group(0)
+            heading_text = re.sub(r'<[^>]+>', '', match.group(1))
+            # Try to match this heading to a driver trend by fuzzy name match
+            best_key = None
+            best_score = 0
+            heading_words = set(heading_text.lower().split())
+            for key in driver_trends:
+                key_words = set(key.lower().split())
+                overlap = len(heading_words & key_words)
+                if overlap > best_score:
+                    best_score = overlap
+                    best_key = key
+            if best_key and best_score >= 2:
+                td = driver_trends[best_key]
+                trend_json = json.dumps(td).replace("'", "&#39;")
+                chart_div = f"<div class='driver-trend-chart' data-trend='{trend_json}'></div>"
+                return full_match + chart_div
+            return full_match
+        html_body = re.sub(r'<h3 id="driver-[^"]*">(.*?)</h3>', _inject_trend_chart, html_body)
 
     ty = next((r for r in trading_data if r["period"] == "yesterday"), {})
     ly = next((r for r in trading_data if r["period"] == "yesterday_ly"), {})
@@ -3183,6 +3351,40 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         movers = analysis_data.get("material_movers", [])
         track_coverage = analysis_data.get("track_coverage", {})
         reconciliation = analysis_data.get("reconciliation", {})
+
+        # If movers not at top level, try parsing from raw_analysis string
+        if not movers and "raw_analysis" in analysis_data:
+            import re as _re
+            raw_str = analysis_data["raw_analysis"]
+            def _fix_json(s):
+                """Fix common AI-generated JSON issues."""
+                s = _re.sub(r'(?<=\d),(?=\d{3})', '', s)  # -1,189 -> -1189
+                s = _re.sub(r'(?<=\d)_(?=\d)', '', s)     # -10_865 -> -10865
+                s = _re.sub(r',\s*([}\]])', r'\1', s)     # trailing commas
+                return s
+            # Try full JSON parse
+            try:
+                parsed = json.loads(_fix_json(raw_str))
+                movers = parsed.get("material_movers", movers)
+                track_coverage = parsed.get("track_coverage", track_coverage)
+                reconciliation = parsed.get("reconciliation", reconciliation)
+            except (json.JSONDecodeError, ValueError):
+                # Try extracting just the material_movers array
+                fixed = _fix_json(raw_str)
+                mm_match = _re.search(r'"material_movers"\s*:\s*\[', fixed)
+                if mm_match:
+                    start = mm_match.start()
+                    depth = 0
+                    for i, c in enumerate(fixed[start:]):
+                        if c == '[': depth += 1
+                        elif c == ']': depth -= 1
+                        if depth == 0 and i > 0:
+                            snippet = '{' + fixed[start:start+i+1] + '}'
+                            try:
+                                movers = json.loads(snippet).get("material_movers", [])
+                            except (json.JSONDecodeError, ValueError):
+                                pass
+                            break
 
         # Try to pull movers from follow-up results too if analysis didn't have them
         if not movers and follow_up_data:
@@ -3701,38 +3903,28 @@ body::before{{
 /* ── Scroll animations — bidirectional (in on scroll down, out on scroll up) ── */
 [data-animate]{{
   opacity:1;
-  transform:translateY(0);
+  transform:translateY(0) scale(1);
 }}
 [data-animate].animate-ready{{
   opacity:0;
-  transform:translateY(30px) scale(0.97);
-  filter:blur(2px);
-  transition:opacity 0.6s cubic-bezier(.16,1,.3,1),transform 0.6s cubic-bezier(.16,1,.3,1),filter 0.5s ease-out;
+  transform:translateY(18px);
+  transition:opacity 0.5s cubic-bezier(.16,1,.3,1),transform 0.5s cubic-bezier(.16,1,.3,1);
 }}
 [data-animate="card"].animate-ready{{
-  transform:translateY(24px) scale(0.96);
+  transform:translateY(14px);
 }}
 [data-animate].in-view{{
   opacity:1;
   transform:translateY(0) scale(1);
-  filter:blur(0);
 }}
-/* Edge-fade: ONLY when nearly off-screen (95%+ scrolled away) */
-[data-animate="card"].in-view.edge-fade{{
-  opacity:0.7;
-  filter:blur(0.5px);
-  transform:translateY(0) scale(0.98);
-}}
-/* When scrolled OUT of view (going back up or below) — slide back out */
+/* When scrolled OUT of view — stay fully visible, no hide/blur */
 [data-animate].out-view-top{{
-  opacity:0;
-  transform:translateY(-20px) scale(0.97);
-  filter:blur(2px);
+  opacity:1;
+  transform:translateY(0) scale(1);
 }}
 [data-animate].out-view-bottom{{
-  opacity:0;
-  transform:translateY(30px) scale(0.97);
-  filter:blur(2px);
+  opacity:1;
+  transform:translateY(0) scale(1);
 }}
 
 /* ── Subtle "alive" animations ── */
@@ -4077,8 +4269,8 @@ body::after{{
   100%{{background-position:-200% center}}
 }}
 @keyframes glance-amber-pulse{{
-  0%,100%{{opacity:1;text-shadow:0 0 0 transparent}}
-  50%{{opacity:0.85;text-shadow:0 0 6px rgba(255,181,95,0.5)}}
+  0%,100%{{color:#FFC44F}}
+  50%{{color:rgba(255,255,255,0.9)}}
 }}
 .glance-good{{
   background:linear-gradient(90deg,#00D4C8 0%,#5FFFF0 25%,#ffffff 50%,#5FFFF0 75%,#00D4C8 100%);
@@ -4089,21 +4281,20 @@ body::after{{
   animation:glance-shimmer 3s linear infinite;
   font-weight:800;
   font-size:1.05em;
-  filter:drop-shadow(0 0 8px rgba(0,212,200,0.5));
 }}
 .glance-bad{{
   color:#FF4F58;
-  animation:glance-flash 1.8s ease-in-out infinite;
+  animation:glance-flash 2.5s ease-in-out infinite;
   font-weight:800;
   font-size:1.05em;
 }}
 @keyframes glance-flash{{
-  0%,100%{{opacity:1;text-shadow:0 0 6px rgba(255,79,88,0.4)}}
-  50%{{opacity:0.6;text-shadow:0 0 16px rgba(255,79,88,0.8),0 0 30px rgba(255,79,88,0.4)}}
+  0%,100%{{color:#FF4F58}}
+  50%{{color:rgba(255,255,255,0.9)}}
 }}
 .glance-watch{{
   color:#FFC44F;
-  animation:glance-amber-pulse 2.5s ease-in-out infinite;
+  animation:glance-amber-pulse 3s ease-in-out infinite;
   font-weight:800;
   font-size:1.05em;
 }}
@@ -4117,6 +4308,14 @@ body::after{{
   padding:2px 8px;border-radius:10px;
   margin-left:8px;vertical-align:middle;
 }}
+.badge-emerging{{
+  display:inline-block;
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  background:rgba(255,181,95,0.12);color:#FFB55F;
+  border:1px solid rgba(255,181,95,0.25);
+  padding:2px 8px;border-radius:10px;
+  margin-left:8px;vertical-align:middle;
+}}
 .badge-new{{
   display:inline-block;
   font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
@@ -4125,6 +4324,83 @@ body::after{{
   padding:2px 8px;border-radius:10px;
   margin-left:8px;vertical-align:middle;
 }}
+/* ── View Trend button ── */
+.view-trend-btn{{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10px;font-weight:600;letter-spacing:.3px;
+  background:rgba(146,95,255,0.08);color:rgba(146,95,255,0.85);
+  border:1px solid rgba(146,95,255,0.2);border-radius:10px;
+  padding:3px 10px;margin-left:8px;vertical-align:middle;
+  cursor:pointer;font-family:inherit;transition:all 0.2s;
+}}
+.view-trend-btn:hover{{
+  background:rgba(146,95,255,0.15);border-color:rgba(146,95,255,0.4);
+  color:rgba(146,95,255,1);
+}}
+.view-trend-btn svg{{width:12px;height:12px}}
+/* YoY trend bar chart */
+.yoy-trend-wrap{{
+  margin:12px 0 16px;padding:14px 16px;
+  background:rgba(15,23,42,0.5);border:1px solid var(--border);
+  border-radius:12px;overflow:hidden;
+}}
+.yoy-trend-wrap.loading{{
+  border:2px solid transparent;
+  background:
+    rgba(15,23,42,0.5),
+    conic-gradient(from var(--ai-spin,0deg),transparent 40%,rgba(146,95,255,0.6) 70%,rgba(95,200,255,0.4) 85%,transparent 100%);
+  background-origin:border-box;
+  background-clip:padding-box,border-box;
+  animation:ai-border-spin 1.8s linear infinite;
+  min-height:60px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:var(--muted);font-style:italic;
+}}
+.yoy-trend-header{{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:10px;font-size:11px;color:var(--muted);
+}}
+.yoy-bar-row{{
+  display:flex;align-items:center;gap:8px;margin:3px 0;
+  font-size:10px;color:var(--muted);
+}}
+.yoy-bar-date{{width:36px;text-align:right;flex-shrink:0}}
+.yoy-bar-track{{flex:1;height:18px;background:rgba(255,255,255,0.03);border-radius:4px;overflow:hidden;position:relative}}
+.yoy-bar{{
+  height:100%;border-radius:4px;
+  transition:width 0.6s cubic-bezier(.16,1,.3,1);
+  min-width:2px;
+}}
+.yoy-bar.positive{{background:linear-gradient(90deg,rgba(0,176,166,0.5),rgba(0,176,166,0.8))}}
+.yoy-bar.negative{{background:linear-gradient(90deg,rgba(255,95,104,0.8),rgba(255,95,104,0.5))}}
+.yoy-bar-val{{width:52px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}}
+.yoy-bar-pct{{width:48px;text-align:right;flex-shrink:0;font-weight:600}}
+.yoy-bar-pct.positive{{color:#00B0A6}}
+.yoy-bar-pct.negative{{color:#FF5F68}}
+.yoy-trendline-wrap{{margin-top:10px;height:40px;position:relative}}
+.yoy-trendline-wrap canvas{{width:100%;height:100%}}
+/* ── Driver trend mini-charts ── */
+.driver-trend-chart{{
+  height:72px;margin:10px 0 16px;position:relative;
+  background:rgba(255,255,255,0.02);border:1px solid var(--border);
+  border-radius:10px;padding:8px 12px;overflow:hidden;
+}}
+.driver-trend-chart canvas{{width:100%;height:100%;display:block}}
+.driver-trend-label{{
+  position:absolute;top:6px;right:10px;font-size:9px;
+  color:var(--muted);letter-spacing:.5px;text-transform:uppercase;
+}}
+.driver-trend-legend{{
+  position:absolute;bottom:4px;left:12px;font-size:9px;color:var(--muted);
+  display:flex;gap:12px;
+}}
+.driver-trend-legend span::before{{
+  content:'';display:inline-block;width:12px;height:2px;
+  margin-right:4px;vertical-align:middle;
+}}
+.driver-trend-legend .dtl-ty::before{{background:var(--accent-light)}}
+.driver-trend-legend .dtl-ly::before{{background:rgba(255,255,255,0.2)}}
+
 .inv-badge:hover{{
   background:rgba(255,95,104,0.18);
   border-color:rgba(255,95,104,0.5);
@@ -4311,13 +4587,11 @@ body::after{{
   padding:1px 4px;
   border-radius:4px;
   cursor:default;
-  transition:transform 0.2s ease-out,text-shadow 0.2s ease,background 0.2s ease,box-shadow 0.2s ease;
+  transition:transform 0.2s ease-out,color 0.2s ease;
 }}
 .hl-down:hover{{
-  transform:translateY(-3px) scale(1.1);
-  text-shadow:0 0 16px rgba(255,95,104,0.6),0 0 30px rgba(255,95,104,0.3);
-  background:rgba(255,95,104,0.1);
-  box-shadow:0 4px 16px rgba(255,95,104,0.15);
+  transform:translateY(-2px) scale(1.05);
+  color:#fff;
 }}
 .hl-neutral{{
   color:var(--amber);
@@ -4326,13 +4600,11 @@ body::after{{
   padding:1px 4px;
   border-radius:4px;
   cursor:default;
-  transition:transform 0.2s ease-out,text-shadow 0.2s ease,background 0.2s ease,box-shadow 0.2s ease;
+  transition:transform 0.2s ease-out,color 0.2s ease;
 }}
 .hl-neutral:hover{{
-  transform:translateY(-3px) scale(1.1);
-  text-shadow:0 0 16px rgba(255,181,95,0.6);
-  background:rgba(255,181,95,0.1);
-  box-shadow:0 4px 16px rgba(255,181,95,0.15);
+  transform:translateY(-2px) scale(1.05);
+  color:#fff;
 }}
 .headline-tile .hl-also{{
   font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7;
@@ -4493,6 +4765,192 @@ body::after{{
 }}
 .copy-btn:hover{{color:var(--text);background:rgba(71,85,105,0.6)}}
 
+/* ── Dig button row ── */
+.dig-buttons{{display:flex;gap:8px;flex-wrap:wrap}}
+
+/* ── Ask-about-this driver panel ── */
+.ask-driver-btn{{
+  background:rgba(0,176,166,0.06);
+  color:#5FFFF0;
+  border:1px solid rgba(0,176,166,0.2);
+  border-radius:10px;padding:8px 16px;
+  font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;
+  transition:all .2s ease-out;
+  display:inline-flex;align-items:center;gap:6px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  letter-spacing:.2px;
+}}
+.ask-driver-btn:hover{{
+  background:rgba(0,176,166,0.15);border-color:rgba(0,176,166,0.4);
+  box-shadow:0 0 16px rgba(0,176,166,0.15);transform:translateY(-1px);
+}}
+.driver-ask-panel{{
+  margin-top:10px;padding:14px;
+  background:rgba(12,18,34,0.6);border:1px solid var(--border);
+  border-radius:12px;backdrop-filter:blur(12px);
+}}
+.ask-input-wrap{{display:flex;gap:8px}}
+.ask-input{{
+  flex:1;background:rgba(30,41,59,0.8);border:1px solid var(--border);
+  border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;
+  font-family:inherit;outline:none;transition:border-color 0.2s;
+}}
+.ask-input:focus{{border-color:rgba(0,176,166,0.5)}}
+.ask-submit{{
+  background:rgba(0,176,166,0.15);color:#5FFFF0;border:1px solid rgba(0,176,166,0.3);
+  border-radius:8px;padding:10px 18px;font-size:12px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:all 0.2s;
+}}
+.ask-submit:hover{{background:rgba(0,176,166,0.25);border-color:rgba(0,176,166,0.5)}}
+.ask-response{{
+  margin-top:12px;font-size:13px;color:#cbd5e1;line-height:1.7;
+  display:flex;flex-direction:column;gap:10px;
+}}
+.ask-response .ask-loading{{
+  color:var(--muted);font-style:italic;
+  padding:12px 16px;border-radius:12px;
+  border:2px solid transparent;
+  background:
+    rgba(30,41,59,0.6),
+    conic-gradient(from var(--ai-spin,0deg),transparent 40%,rgba(146,95,255,0.6) 70%,rgba(95,200,255,0.4) 85%,transparent 100%);
+  background-origin:border-box;
+  background-clip:padding-box,border-box;
+  animation:ai-border-spin 1.8s linear infinite;
+}}
+.ask-response .ask-answer{{white-space:pre-wrap}}
+.ask-response .ask-sql-used{{
+  margin-top:8px;font-size:11px;color:var(--muted);
+  background:rgba(12,18,34,0.5);border:1px solid var(--border);
+  border-radius:8px;padding:10px;max-height:100px;overflow-y:auto;
+}}
+.ask-response .ask-error{{color:#FF5F68}}
+
+/* ── Chat panel ── */
+.chat-panel{{
+  position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;
+  background:rgba(10,15,30,0.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border-left:1px solid rgba(146,95,255,0.2);
+  z-index:10000;display:flex;flex-direction:column;
+  box-shadow:-8px 0 40px rgba(0,0,0,0.5);
+  transition:transform 0.3s ease-out;
+}}
+.chat-header{{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:18px 20px;border-bottom:1px solid var(--border);
+}}
+.chat-title{{font-weight:700;font-size:15px;color:var(--text);letter-spacing:.3px}}
+.chat-close{{
+  background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;
+  padding:0 4px;transition:color 0.2s;
+}}
+.chat-close:hover{{color:var(--text)}}
+.chat-messages{{
+  flex:1;overflow-y:auto;padding:16px 20px;
+  display:flex;flex-direction:column;gap:14px;
+}}
+.chat-msg{{max-width:90%;padding:12px 16px;border-radius:12px;font-size:13px;line-height:1.7}}
+.chat-msg.user{{
+  align-self:flex-end;background:rgba(146,95,255,0.15);
+  color:var(--text);border:1px solid rgba(146,95,255,0.2);
+}}
+.chat-msg.assistant{{
+  align-self:flex-start;background:rgba(30,41,59,0.6);
+  color:#cbd5e1;border:1px solid var(--border);white-space:pre-wrap;
+}}
+.chat-msg.assistant .chat-sql-count{{
+  display:inline-block;margin-top:8px;font-size:10px;color:var(--muted);
+  background:rgba(51,65,85,0.4);padding:2px 8px;border-radius:6px;
+}}
+.chat-msg.loading{{
+  color:var(--muted);font-style:italic;
+  border:2px solid transparent;
+  background:
+    rgba(30,41,59,0.6),
+    conic-gradient(from var(--ai-spin,0deg),transparent 40%,rgba(146,95,255,0.6) 70%,rgba(95,200,255,0.4) 85%,transparent 100%);
+  background-origin:border-box;
+  background-clip:padding-box,border-box;
+  animation:ai-border-spin 1.8s linear infinite;
+}}
+@keyframes ai-border-spin{{
+  0%{{--ai-spin:0deg}}
+  100%{{--ai-spin:360deg}}
+}}
+@property --ai-spin{{
+  syntax:'<angle>';
+  inherits:false;
+  initial-value:0deg;
+}}
+/* AI loading stepper */
+.ai-loading-steps{{display:flex;flex-direction:column;gap:6px;}}
+.ai-step{{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;color:var(--muted);
+  opacity:0;transform:translateY(6px);
+  max-height:30px;overflow:hidden;
+  transition:opacity 0.4s ease,transform 0.4s ease,color 0.4s ease,max-height 0.3s ease;
+}}
+.ai-step.active{{opacity:1;transform:translateY(0);color:rgba(146,95,255,0.9);}}
+.ai-step.done{{opacity:0.5;transform:translateY(0);color:var(--muted);}}
+.ai-step-icon{{width:14px;height:14px;flex-shrink:0;}}
+.ai-step.active .ai-step-icon{{animation:ai-step-pulse 1.2s ease-in-out infinite;}}
+@keyframes ai-step-pulse{{
+  0%,100%{{opacity:0.5;transform:scale(0.9)}}
+  50%{{opacity:1;transform:scale(1.1)}}
+}}
+.ai-step.done .ai-step-icon svg{{stroke:rgba(95,255,200,0.6)}}
+.ai-step-dot{{
+  width:6px;height:6px;border-radius:50%;
+  background:rgba(146,95,255,0.6);
+  margin:0 4px;
+}}
+.ai-step.active .ai-step-dot{{animation:ai-dot-pulse 1s ease-in-out infinite;background:rgba(146,95,255,0.9);}}
+.ai-step.done .ai-step-dot{{background:rgba(95,255,200,0.4);}}
+@keyframes ai-dot-pulse{{
+  0%,100%{{transform:scale(1);opacity:0.6}}
+  50%{{transform:scale(1.4);opacity:1}}
+}}
+.chat-input-wrap{{
+  display:flex;gap:8px;padding:14px 20px;border-top:1px solid var(--border);
+  background:rgba(15,23,42,0.8);
+}}
+.chat-input{{
+  flex:1;background:rgba(30,41,59,0.8);border:1px solid var(--border);
+  border-radius:10px;padding:12px 16px;color:var(--text);font-size:13px;
+  font-family:inherit;outline:none;transition:border-color 0.2s;
+}}
+.chat-input:focus{{border-color:rgba(146,95,255,0.5)}}
+.chat-send{{
+  background:rgba(146,95,255,0.15);color:var(--accent-light);
+  border:1px solid rgba(146,95,255,0.3);border-radius:10px;
+  padding:12px 14px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;
+}}
+.chat-send:hover{{background:rgba(146,95,255,0.25);border-color:rgba(146,95,255,0.5)}}
+.chat-reply-wrap{{
+  display:flex;gap:8px;padding:8px 0;margin-top:8px;
+}}
+.chat-reply-input{{
+  flex:1;background:rgba(30,41,59,0.8);border:1px solid var(--border);
+  border-radius:10px;padding:10px 14px;color:var(--text);font-size:13px;
+  font-family:inherit;outline:none;transition:border-color 0.2s;
+}}
+.chat-reply-input:focus{{border-color:rgba(146,95,255,0.5)}}
+.chat-reply-send{{
+  background:rgba(146,95,255,0.15);color:var(--accent-light);
+  border:1px solid rgba(146,95,255,0.3);border-radius:10px;
+  padding:10px 14px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;
+}}
+.chat-toggle-btn{{
+  background:rgba(0,176,166,0.08);color:#5FFFF0;
+  border:1px solid rgba(0,176,166,0.2);border-radius:20px;
+  padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:all 0.2s;
+  display:inline-flex;align-items:center;gap:6px;
+}}
+.chat-toggle-btn:hover{{
+  background:rgba(0,176,166,0.15);border-color:rgba(0,176,166,0.4);
+  box-shadow:0 0 12px rgba(0,176,166,0.15);
+}}
+
 /* ── Investigation trail ── */
 .trail-section{{margin-bottom:24px}}
 .trail-toggle{{
@@ -4593,6 +5051,7 @@ body::after{{
   .grid4{{grid-template-columns:repeat(2,1fr)}}
   .grid3{{grid-template-columns:repeat(2,1fr)}}
   .headline-tile{{padding:24px 22px}}
+  .banner-wrap{{margin-top:48px}}
 }}
 @media(max-width:640px){{
   .grid4{{grid-template-columns:1fr}}
@@ -4605,7 +5064,7 @@ body::after{{
   .yoy-chart-container{{height:90px;overflow:hidden}}
   .chart-wrap .st{{font-size:10px;letter-spacing:.5px;margin-bottom:10px}}
   .bar-col .tooltip{{display:none !important}}
-  .banner-wrap{{margin:0 0 10px;border-radius:12px}}
+  .banner-wrap{{margin:52px 0 10px;border-radius:12px}}
   .banner-img{{border-radius:12px}}
   .banner-date{{font-size:10px;bottom:8px;right:12px}}
   .hdr{{top:8px;right:8px;padding:6px 14px;gap:6px}}
@@ -4620,7 +5079,10 @@ body::after{{
   .headline-tile .hl-main{{font-size:15px;line-height:1.5}}
   .headline-tile .hl-also{{font-size:11px}}
   .inv-badge{{padding:4px 10px 4px 18px;font-size:9px}}
-  .archive-btn,.refresh-btn{{font-size:10px;padding:5px 10px}}
+  .archive-btn,.refresh-btn,.chat-toggle-btn{{font-size:10px;padding:5px 10px}}
+  .chat-panel{{width:100vw}}
+  .driver-ask-panel{{padding:10px}}
+  .ask-input{{font-size:12px;padding:8px 10px}}
 }}
 </style></head><body>
 <div class="c">
@@ -4633,7 +5095,7 @@ body::after{{
 
 <!-- Sticky toolbar — buttons only -->
 <div class="hdr">
-<div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end"><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button>{"<span class='inv-badge' onclick='openInvestigations()'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
+<div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end"><button class="chat-toggle-btn" onclick="toggleChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Ask</button><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button>{"<span class='inv-badge' onclick='openInvestigations()'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
 </div>
 
 <!-- Headline Tile — one-sentence takeaway -->
@@ -4643,10 +5105,10 @@ body::after{{
 <div class="section-gap">
 <div class="section-title">Key Metrics &mdash; Yesterday vs Last Year</div>
 <div class="grid4">
-<div class="card glass-card" data-animate="card" style="transition-delay:0ms"><div class="lbl">Yesterday GP</div><div class="val" data-countup data-target="{ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{ty.get('total_gp',0):,.0f}</div><div class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gp_pct)} vs LY</div><div class="sub">LY: &pound;{ly.get('total_gp',0):,.0f}</div></div>
-<div class="card glass-card" data-animate="card" style="transition-delay:80ms"><div class="lbl">Policies Sold</div><div class="val" data-countup data-target="{ty.get('new_policies',0)}" data-prefix="">{ty.get('new_policies',0):,}</div><div class="chg {"chg-up" if vol_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(vol_pct)} vs LY</div><div class="sub">LY: {ly.get('new_policies',0):,}</div></div>
-<div class="card glass-card" data-animate="card" style="transition-delay:160ms"><div class="lbl">GP / Policy</div><div class="val" data-countup data-target="{ty.get('avg_gp_per_policy',0):.2f}" data-prefix="&pound;" data-decimals="2">&pound;{ty.get('avg_gp_per_policy',0):.2f}</div><div class="chg {"chg-up" if gppp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gppp_pct)} vs LY</div><div class="sub">LY: &pound;{ly.get('avg_gp_per_policy',0):.2f}</div></div>
-<div class="card glass-card" data-animate="card" style="transition-delay:240ms"><div class="lbl">Avg Price</div><div class="val" data-countup data-target="{ty.get('avg_customer_price',0):.0f}" data-prefix="&pound;">&pound;{ty.get('avg_customer_price',0):.0f}</div><div class="chg {"chg-fl" if abs(price_pct)<2 else ("chg-up" if price_pct>=0 else "chg-dn")}" data-metric>{fmt_pct(price_pct)} vs LY</div><div class="sub">LY: &pound;{ly.get('avg_customer_price',0):.0f}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:0ms"><div class="lbl">Yesterday's GP</div><div class="val" data-countup data-target="{ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{ty.get('total_gp',0):,.0f}</div><div class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('total_gp',0):,.0f}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:80ms"><div class="lbl">Yesterday's Policies</div><div class="val" data-countup data-target="{ty.get('new_policies',0)}" data-prefix="">{ty.get('new_policies',0):,}</div><div class="chg {"chg-up" if vol_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(vol_pct)} vs same day LY</div><div class="sub">Same day LY: {ly.get('new_policies',0):,}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:160ms"><div class="lbl">Yesterday's GP / Policy</div><div class="val" data-countup data-target="{ty.get('avg_gp_per_policy',0):.2f}" data-prefix="&pound;" data-decimals="2">&pound;{ty.get('avg_gp_per_policy',0):.2f}</div><div class="chg {"chg-up" if gppp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gppp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('avg_gp_per_policy',0):.2f}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:240ms"><div class="lbl">Yesterday's Avg Price</div><div class="val" data-countup data-target="{ty.get('avg_customer_price',0):.0f}" data-prefix="&pound;">&pound;{ty.get('avg_customer_price',0):.0f}</div><div class="chg {"chg-fl" if abs(price_pct)<2 else ("chg-up" if price_pct>=0 else "chg-dn")}" data-metric>{fmt_pct(price_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('avg_customer_price',0):.0f}</div></div>
 </div>
 </div>
 
@@ -4654,9 +5116,9 @@ body::after{{
 <div class="section-gap">
 <div class="section-title">Period Comparison &mdash; GP vs Last Year</div>
 <div class="grid3">
-<div class="pcard glass-card" data-animate="card" style="transition-delay:0ms"><div class="pl">Yesterday</div><div class="pv" data-countup data-target="{ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}">{fmt_pct(gp_pct)}</div></div>
-<div class="pcard glass-card" data-animate="card" style="transition-delay:80ms"><div class="pl">Trailing 7 Days</div><div class="pv" data-countup data-target="{w_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{w_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(w_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if w_gp_pct>=0 else "chg-dn"}">{fmt_pct(w_gp_pct)}</div></div>
-<div class="pcard glass-card" data-animate="card" style="transition-delay:160ms"><div class="pl">Trailing 28 Days</div><div class="pv" data-countup data-target="{m_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{m_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(m_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if m_gp_pct>=0 else "chg-dn"}">{fmt_pct(m_gp_pct)}</div></div>
+<div class="pcard glass-card" data-animate="card" style="transition-delay:0ms"><div class="pl">Yesterday</div><div class="pv" data-countup data-target="{ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}">{fmt_pct(gp_pct)} YoY</div></div>
+<div class="pcard glass-card" data-animate="card" style="transition-delay:80ms"><div class="pl">Trailing 7 Days</div><div class="pv" data-countup data-target="{w_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{w_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(w_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if w_gp_pct>=0 else "chg-dn"}">{fmt_pct(w_gp_pct)} vs same 7d LY</div></div>
+<div class="pcard glass-card" data-animate="card" style="transition-delay:160ms"><div class="pl">Trailing 28 Days</div><div class="pv" data-countup data-target="{m_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{m_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(m_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if m_gp_pct>=0 else "chg-dn"}">{fmt_pct(m_gp_pct)} vs same 28d LY</div></div>
 </div>
 </div>
 
@@ -4823,6 +5285,581 @@ function copySQL(id){{
   }});
 }}
 
+/* ── Ask about this driver ── */
+/* ── Animated AI loading stepper ── */
+const AI_STEPS=[
+  'Understanding your question…',
+  'Writing SQL query…',
+  'Running query against BigQuery…',
+  'Checking results…',
+  'Rewriting SQL…',
+  'Running refined query…',
+  'Analysing results…',
+  'Digging deeper…',
+  'Running follow-up query…',
+  'Cross-referencing data…',
+  'Synthesising findings…',
+  'Preparing answer…'
+];
+
+function createAILoadingEl(){{
+  const container=document.createElement('div');
+  container.className='ai-loading-steps';
+  return container;
+}}
+
+function startAILoadingStepper(container){{
+  let stepIdx=0;
+  const MAX_VISIBLE=5;
+  const timings=[1200,2500,3000,4500,3500,3000,4000,3500,3000,3500,4000,6000];
+
+  function showStep(){{
+    if(container._stopped) return;
+    /* Mark previous as done */
+    const prev=container.querySelector('.ai-step.active');
+    if(prev){{prev.classList.remove('active');prev.classList.add('done');}}
+
+    /* Slide off oldest if over limit */
+    const steps=container.querySelectorAll('.ai-step');
+    if(steps.length>=MAX_VISIBLE){{
+      const oldest=steps[0];
+      oldest.style.opacity='0';
+      oldest.style.transform='translateY(-10px)';
+      oldest.style.maxHeight='0';
+      oldest.style.marginBottom='0';
+      oldest.style.paddingTop='0';
+      oldest.style.paddingBottom='0';
+      oldest.style.transition='all 0.3s ease';
+      setTimeout(()=>oldest.remove(),300);
+    }}
+
+    /* Create new step */
+    const step=document.createElement('div');
+    step.className='ai-step';
+    step.innerHTML='<span class="ai-step-dot"></span><span>'+AI_STEPS[stepIdx % AI_STEPS.length]+'</span>';
+    container.appendChild(step);
+
+    /* Trigger animation on next frame */
+    requestAnimationFrame(()=>requestAnimationFrame(()=>step.classList.add('active')));
+
+    /* Scroll parent into view */
+    const scrollParent=container.closest('.chat-messages')||container.closest('.ask-response');
+    if(scrollParent) scrollParent.scrollTop=scrollParent.scrollHeight;
+
+    stepIdx++;
+    const delay=timings[Math.min(stepIdx-1,timings.length-1)];
+    container._timer=setTimeout(showStep,delay);
+  }}
+
+  showStep();
+  return container;
+}}
+
+function stopAILoadingStepper(container){{
+  container._stopped=true;
+  if(container._timer) clearTimeout(container._timer);
+}}
+
+/* ── Fetch and render YoY trend bar chart for recurring/emerging drivers ── */
+function fetchDriverTrend(trendId, btn){{
+  const container=document.getElementById(trendId);
+  if(!container) return;
+
+  /* Toggle: if already shown, hide */
+  if(container.querySelector('.yoy-trend-wrap')&&!container.querySelector('.loading')){{
+    container.innerHTML='';
+    btn.textContent='Trend';
+    return;
+  }}
+
+  /* Get driver context from heading */
+  const h3=btn.closest('h3');
+  const headingText=h3?h3.textContent.replace('Trend','').trim():'';
+
+  /* Build dates: 14 days ending yesterday */
+  const now=new Date();
+  const yesterday=new Date(now);yesterday.setDate(now.getDate()-1);
+  const start=new Date(yesterday);start.setDate(yesterday.getDate()-13);
+  const lyEnd=new Date(yesterday);lyEnd.setDate(yesterday.getDate()-364);
+  const lyStart=new Date(start);lyStart.setDate(start.getDate()-364);
+
+  function fmt(d){{return d.toISOString().slice(0,10)}}
+
+  /* Ask AI to write the segment filter SQL for this driver */
+  container.innerHTML='<div class="yoy-trend-wrap loading">Loading trend data…</div>';
+  btn.textContent='Loading…';
+
+  /* Use the ask endpoint to get the AI to write + run a trend query */
+  fetch('/api/ask',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{
+      question:'Return ONLY a JSON object with a single key "segment_filter" containing a SQL WHERE clause fragment that isolates this segment: "'+headingText+'". Examples: "distribution_channel=\\'Direct\\' AND policy_type=\\'Single\\'", "cover_level_name=\\'Bronze\\'". Return ONLY valid JSON, no explanation.',
+      mode:'general'
+    }})
+  }})
+  .then(r=>r.json())
+  .then(data=>{{
+    /* Try to extract segment_filter from the AI response */
+    let segFilter='1=1';
+    try{{
+      const answer=data.answer||'';
+      const jsonMatch=answer.match(/\\{{[^{{}}]*"segment_filter"[^{{}}]*\\}}/);
+      if(jsonMatch){{
+        segFilter=JSON.parse(jsonMatch[0]).segment_filter||'1=1';
+      }}else{{
+        /* Try to find a WHERE clause fragment */
+        const whereMatch=answer.match(/(?:distribution_channel|policy_type|cover_level_name|insurance_group)[^"\\n]{{5,120}}/i);
+        if(whereMatch) segFilter=whereMatch[0].replace(/[`]/g,"'");
+      }}
+    }}catch(e){{}}
+
+    /* Now run the actual trend queries */
+    const tySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \\`hx-data-production.commercial_finance.insurance_policies_new\\` WHERE transaction_date BETWEEN '${{fmt(start)}}' AND '${{fmt(yesterday)}}' AND ${{segFilter}} GROUP BY transaction_date ORDER BY transaction_date`;
+    const lySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \\`hx-data-production.commercial_finance.insurance_policies_new\\` WHERE transaction_date BETWEEN '${{fmt(lyStart)}}' AND '${{fmt(lyEnd)}}' AND ${{segFilter}} GROUP BY transaction_date ORDER BY transaction_date`;
+
+    return fetch('/api/ask',{{
+      method:'POST',
+      headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify({{
+        mode:'trend',
+        trend_sql:{{ty:tySQL,ly:lySQL}}
+      }})
+    }});
+  }})
+  .then(r=>r.json())
+  .then(result=>{{
+    if(result.error){{
+      container.innerHTML='<div class="yoy-trend-wrap" style="padding:12px;font-size:12px;color:var(--muted)">Could not load trend: '+result.error+'</div>';
+      btn.textContent='Trend';
+      return;
+    }}
+    renderYoYTrend(container, result.trend, headingText);
+    btn.textContent='Hide trend';
+  }})
+  .catch(err=>{{
+    container.innerHTML='<div class="yoy-trend-wrap" style="padding:12px;font-size:12px;color:var(--muted)">Error: '+err.message+'</div>';
+    btn.textContent='Trend';
+  }});
+}}
+
+function renderYoYTrend(container, trendData, title){{
+  const tyRows=trendData.ty||[];
+  const lyRows=trendData.ly||[];
+  if(!tyRows.length){{
+    container.innerHTML='<div class="yoy-trend-wrap" style="padding:12px;font-size:12px;color:var(--muted)">No data returned.</div>';
+    return;
+  }}
+
+  /* Match TY and LY by index (both should be 14 days, aligned by day-of-week) */
+  const maxGP=Math.max(...tyRows.map(r=>Math.abs(parseFloat(r.gp)||0)),...lyRows.map(r=>Math.abs(parseFloat(r.gp)||0)),1);
+
+  let barsHTML='';
+  tyRows.forEach((row,i)=>{{
+    const dt=new Date(row.dt+'T00:00:00');
+    const dayLabel=(dt.getMonth()+1)+'/'+dt.getDate();
+    const tyGP=parseFloat(row.gp)||0;
+    const lyGP=(lyRows[i]&&parseFloat(lyRows[i].gp))||0;
+    const yoyPct=lyGP?((tyGP-lyGP)/Math.abs(lyGP))*100:0;
+    const isPos=tyGP>=lyGP;
+    const barW=Math.max((Math.abs(tyGP)/maxGP)*100,2);
+    const pctClass=isPos?'positive':'negative';
+
+    barsHTML+=
+      `<div class="yoy-bar-row">`+
+      `<div class="yoy-bar-date">${{dayLabel}}</div>`+
+      `<div class="yoy-bar-track"><div class="yoy-bar ${{pctClass}}" style="width:0%"></div></div>`+
+      `<div class="yoy-bar-val">£${{Math.round(tyGP).toLocaleString()}}</div>`+
+      `<div class="yoy-bar-pct ${{pctClass}}">${{isPos?'+':''}}${{yoyPct.toFixed(0)}}%</div>`+
+      `</div>`;
+  }});
+
+  /* Trendline canvas */
+  const wrap=document.createElement('div');
+  wrap.className='yoy-trend-wrap';
+  wrap.innerHTML=
+    `<div class="yoy-trend-header"><span>${{title}} — 14 day daily GP</span><span>YoY growth coloured</span></div>`+
+    barsHTML+
+    `<div class="yoy-trendline-wrap"><canvas></canvas></div>`;
+  container.innerHTML='';
+  container.appendChild(wrap);
+
+  /* Animate bars in */
+  requestAnimationFrame(()=>{{
+    const bars=wrap.querySelectorAll('.yoy-bar');
+    tyRows.forEach((row,i)=>{{
+      const tyGP=parseFloat(row.gp)||0;
+      const barW=Math.max((Math.abs(tyGP)/maxGP)*100,2);
+      if(bars[i]) bars[i].style.width=barW+'%';
+    }});
+  }});
+
+  /* Draw trend line on canvas */
+  const canvas=wrap.querySelector('canvas');
+  if(canvas){{
+    const ctx=canvas.getContext('2d');
+    const dpr=window.devicePixelRatio||1;
+    const rect=canvas.parentElement;
+    const w=rect.clientWidth;const h=40;
+    canvas.width=w*dpr;canvas.height=h*dpr;
+    canvas.style.width=w+'px';canvas.style.height=h+'px';
+    ctx.scale(dpr,dpr);
+
+    const vals=tyRows.map(r=>parseFloat(r.gp)||0);
+    const lyVals=lyRows.map(r=>parseFloat(r.gp)||0);
+    const allVals=[...vals,...lyVals];
+    const mn=Math.min(...allVals);const mx=Math.max(...allVals);
+    const range=mx-mn||1;
+
+    function drawTrendLine(data,color,width,dashed){{
+      if(!data.length) return;
+      ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=width;
+      ctx.setLineDash(dashed?[4,3]:[]);
+      const step=w/(data.length-1||1);
+      data.forEach((v,i)=>{{
+        const x=i*step;
+        const y=2+(1-(v-mn)/range)*(h-4);
+        if(i===0) ctx.moveTo(x,y);else ctx.lineTo(x,y);
+      }});
+      ctx.stroke();
+    }}
+
+    drawTrendLine(lyVals,'rgba(255,255,255,0.15)',1.5,true);
+    drawTrendLine(vals,'rgba(146,95,255,0.85)',2,false);
+
+    /* Dot on last TY value */
+    if(vals.length){{
+      const lastX=(vals.length-1)*(w/(vals.length-1||1));
+      const lastY=2+(1-(vals[vals.length-1]-mn)/range)*(h-4);
+      ctx.beginPath();
+      ctx.arc(lastX,lastY,3,0,Math.PI*2);
+      ctx.fillStyle='rgba(146,95,255,1)';ctx.fill();
+    }}
+  }}
+}}
+
+/* Per-driver conversation history — keyed by panel id */
+const driverHistory={{}};
+
+function openDriverAsk(id){{
+  const panel=document.getElementById(id);
+  if(!panel) return;
+  const isOpen=panel.style.display!=='none';
+  panel.style.display=isOpen?'none':'block';
+  if(!isOpen){{
+    panel.querySelector('.ask-input').focus();
+  }}
+}}
+
+function getDriverContext(panel){{
+  const wrap=panel.closest('.dig-wrap');
+  let ctx='';
+  if(wrap){{
+    let prev=wrap.previousElementSibling;
+    while(prev){{
+      if(prev.tagName==='H3'||prev.tagName==='P'){{
+        ctx+=prev.textContent+'\\n';
+      }}
+      if(prev.tagName==='H3') break;
+      prev=prev.previousElementSibling;
+    }}
+  }}
+  return ctx;
+}}
+
+function addDriverMessage(responseDiv,role,content){{
+  const msg=document.createElement('div');
+  msg.className='chat-msg '+role;
+  if(role==='assistant') msg.innerHTML=content;
+  else msg.textContent=content;
+  responseDiv.appendChild(msg);
+}}
+
+function addDriverReplyInput(responseDiv,id){{
+  /* Remove any existing reply inputs */
+  responseDiv.querySelectorAll('.chat-reply-wrap').forEach(el=>el.remove());
+  const wrap=document.createElement('div');
+  wrap.className='chat-reply-wrap';
+  wrap.innerHTML='<input type="text" class="chat-input chat-reply-input" placeholder="Ask a follow-up…">'
+    +'<button class="chat-send chat-reply-send" onclick="submitDriverReply(this,\\''+id+'\\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>';
+  responseDiv.appendChild(wrap);
+  const inp=wrap.querySelector('.chat-reply-input');
+  inp.addEventListener('keydown',function(e){{if(e.key==='Enter')submitDriverReply(wrap.querySelector('.chat-reply-send'),id)}});
+  inp.focus();
+}}
+
+function submitDriverAsk(id){{
+  const panel=document.getElementById(id);
+  const input=panel.querySelector('.ask-input');
+  const responseDiv=document.getElementById(id+'-response');
+  const question=input.value.trim();
+  if(!question) return;
+
+  /* Init history for this driver */
+  if(!driverHistory[id]) driverHistory[id]=[];
+  const driverContext=getDriverContext(panel);
+
+  /* Show user message */
+  addDriverMessage(responseDiv,'user',question);
+  input.value='';
+  input.style.display='none';
+  input.closest('.ask-input-wrap').querySelector('.ask-submit').style.display='none';
+
+  /* Loading stepper */
+  const loader=createAILoadingEl();
+  const loadingWrap=document.createElement('div');
+  loadingWrap.className='chat-msg assistant loading';
+  loadingWrap.appendChild(loader);
+  responseDiv.appendChild(loadingWrap);
+  startAILoadingStepper(loader);
+
+  driverHistory[id].push({{role:'user',content:question}});
+
+  fetch('/api/ask',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{
+      question:question,
+      driver_context:driverContext,
+      conversation_history:driverHistory[id].slice(-10),
+      mode:'driver'
+    }})
+  }})
+  .then(r=>r.json())
+  .then(data=>{{
+    stopAILoadingStepper(loader);
+    loadingWrap.remove();
+    let content=data.answer||data.error||'No response';
+    if(data.sql_queries&&data.sql_queries.length>0){{
+      content+='<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+    }}
+    addDriverMessage(responseDiv,'assistant',content);
+    driverHistory[id].push({{role:'assistant',content:data.answer||''}});
+    addDriverReplyInput(responseDiv,id);
+  }})
+  .catch(err=>{{
+    stopAILoadingStepper(loader);
+    loadingWrap.remove();
+    addDriverMessage(responseDiv,'assistant','<span class="ask-error">Failed to connect: '+err.message+'</span>');
+    addDriverReplyInput(responseDiv,id);
+  }});
+}}
+
+function submitDriverReply(btn,id){{
+  const wrap=btn.closest('.chat-reply-wrap');
+  const input=wrap.querySelector('.chat-reply-input');
+  const question=input.value.trim();
+  if(!question) return;
+
+  const responseDiv=document.getElementById(id+'-response');
+  const panel=document.getElementById(id);
+  const driverContext=getDriverContext(panel);
+
+  /* Convert reply input to user message */
+  const userMsg=document.createElement('div');
+  userMsg.className='chat-msg user';
+  userMsg.textContent=question;
+  wrap.replaceWith(userMsg);
+
+  /* Loading */
+  const loader=createAILoadingEl();
+  const loadingWrap=document.createElement('div');
+  loadingWrap.className='chat-msg assistant loading';
+  loadingWrap.appendChild(loader);
+  responseDiv.appendChild(loadingWrap);
+  startAILoadingStepper(loader);
+
+  if(!driverHistory[id]) driverHistory[id]=[];
+  driverHistory[id].push({{role:'user',content:question}});
+
+  fetch('/api/ask',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{
+      question:question,
+      driver_context:driverContext,
+      conversation_history:driverHistory[id].slice(-10),
+      mode:'driver'
+    }})
+  }})
+  .then(r=>r.json())
+  .then(data=>{{
+    stopAILoadingStepper(loader);
+    loadingWrap.remove();
+    let content=data.answer||data.error||'No response';
+    if(data.sql_queries&&data.sql_queries.length>0){{
+      content+='<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+    }}
+    addDriverMessage(responseDiv,'assistant',content);
+    driverHistory[id].push({{role:'assistant',content:data.answer||''}});
+    addDriverReplyInput(responseDiv,id);
+  }})
+  .catch(err=>{{
+    stopAILoadingStepper(loader);
+    loadingWrap.remove();
+    addDriverMessage(responseDiv,'assistant','<span class="ask-error">Connection error: '+err.message+'</span>');
+    addDriverReplyInput(responseDiv,id);
+  }});
+}}
+
+/* ── General chat panel ── */
+let chatHistory=[];
+function toggleChat(){{
+  const panel=document.getElementById('chatPanel');
+  const isOpen=panel.style.display!=='none';
+  panel.style.display=isOpen?'none':'flex';
+  if(!isOpen){{
+    /* Show input bar on first open */
+    const inputWrap=document.querySelector('.chat-input-wrap');
+    inputWrap.style.display='flex';
+    document.getElementById('chatInput').focus();
+  }}
+}}
+
+function submitChat(){{
+  const inputWrap=document.querySelector('.chat-input-wrap');
+  const input=document.getElementById('chatInput');
+  const messagesDiv=document.getElementById('chatMessages');
+  const question=input.value.trim();
+  if(!question) return;
+
+  /* Add user message bubble */
+  const userMsg=document.createElement('div');
+  userMsg.className='chat-msg user';
+  userMsg.textContent=question;
+  messagesDiv.appendChild(userMsg);
+
+  /* Hide the input bar — it becomes just a sent message */
+  inputWrap.style.display='none';
+  input.value='';
+
+  /* Add animated loading stepper */
+  const loadingMsg=document.createElement('div');
+  loadingMsg.className='chat-msg assistant loading';
+  const chatLoader=createAILoadingEl();
+  loadingMsg.appendChild(chatLoader);
+  startAILoadingStepper(chatLoader);
+  messagesDiv.appendChild(loadingMsg);
+  messagesDiv.scrollTop=messagesDiv.scrollHeight;
+
+  chatHistory.push({{role:'user',content:question}});
+
+  fetch('/api/ask',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{
+      question:question,
+      conversation_history:chatHistory.slice(-10),
+      mode:'general'
+    }})
+  }})
+  .then(r=>r.json())
+  .then(data=>{{
+    stopAILoadingStepper(chatLoader);
+    messagesDiv.removeChild(loadingMsg);
+
+    const assistantMsg=document.createElement('div');
+    assistantMsg.className='chat-msg assistant';
+    let content=data.answer||data.error||'No response';
+    if(data.sql_queries&&data.sql_queries.length>0){{
+      content+='\\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+    }}
+    assistantMsg.innerHTML=content;
+    messagesDiv.appendChild(assistantMsg);
+
+    chatHistory.push({{role:'assistant',content:data.answer||''}});
+
+    /* Add a new reply input inline at the bottom of the transcript */
+    addChatReplyInput(messagesDiv);
+    messagesDiv.scrollTop=messagesDiv.scrollHeight;
+  }})
+  .catch(err=>{{
+    messagesDiv.removeChild(loadingMsg);
+    const errMsg=document.createElement('div');
+    errMsg.className='chat-msg assistant';
+    errMsg.innerHTML='<span class="ask-error">Connection error: '+err.message+'</span>';
+    messagesDiv.appendChild(errMsg);
+    /* Still offer a reply input */
+    addChatReplyInput(messagesDiv);
+    messagesDiv.scrollTop=messagesDiv.scrollHeight;
+  }});
+}}
+
+function addChatReplyInput(container){{
+  /* Remove any existing inline reply inputs */
+  container.querySelectorAll('.chat-reply-wrap').forEach(el=>el.remove());
+
+  const wrap=document.createElement('div');
+  wrap.className='chat-reply-wrap';
+  wrap.innerHTML='<input type="text" class="chat-input chat-reply-input" placeholder="Ask a follow-up...">'
+    +'<button class="chat-send chat-reply-send" onclick="submitChatReply(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>';
+  container.appendChild(wrap);
+  const replyInput=wrap.querySelector('.chat-reply-input');
+  replyInput.addEventListener('keydown',function(e){{if(e.key==='Enter')submitChatReply(wrap.querySelector('.chat-reply-send'))}});
+  replyInput.focus();
+}}
+
+function submitChatReply(btn){{
+  const wrap=btn.closest('.chat-reply-wrap');
+  const input=wrap.querySelector('.chat-reply-input');
+  const question=input.value.trim();
+  if(!question) return;
+
+  const messagesDiv=document.getElementById('chatMessages');
+
+  /* Convert this reply input into a user message */
+  const userMsg=document.createElement('div');
+  userMsg.className='chat-msg user';
+  userMsg.textContent=question;
+  wrap.replaceWith(userMsg);
+
+  /* Animated loading stepper */
+  const loadingMsg=document.createElement('div');
+  loadingMsg.className='chat-msg assistant loading';
+  const replyLoader=createAILoadingEl();
+  loadingMsg.appendChild(replyLoader);
+  startAILoadingStepper(replyLoader);
+  messagesDiv.appendChild(loadingMsg);
+  messagesDiv.scrollTop=messagesDiv.scrollHeight;
+
+  chatHistory.push({{role:'user',content:question}});
+
+  fetch('/api/ask',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{
+      question:question,
+      conversation_history:chatHistory.slice(-10),
+      mode:'general'
+    }})
+  }})
+  .then(r=>r.json())
+  .then(data=>{{
+    stopAILoadingStepper(replyLoader);
+    messagesDiv.removeChild(loadingMsg);
+    const assistantMsg=document.createElement('div');
+    assistantMsg.className='chat-msg assistant';
+    let content=data.answer||data.error||'No response';
+    if(data.sql_queries&&data.sql_queries.length>0){{
+      content+='\\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+    }}
+    assistantMsg.innerHTML=content;
+    messagesDiv.appendChild(assistantMsg);
+    chatHistory.push({{role:'assistant',content:data.answer||''}});
+    addChatReplyInput(messagesDiv);
+    messagesDiv.scrollTop=messagesDiv.scrollHeight;
+  }})
+  .catch(err=>{{
+    messagesDiv.removeChild(loadingMsg);
+    const errMsg=document.createElement('div');
+    errMsg.className='chat-msg assistant';
+    errMsg.innerHTML='<span class="ask-error">Connection error: '+err.message+'</span>';
+    messagesDiv.appendChild(errMsg);
+    addChatReplyInput(messagesDiv);
+    messagesDiv.scrollTop=messagesDiv.scrollHeight;
+  }});
+}}
+
 /* ── Investigation trail toggle ── */
 function toggleTrail(){{
   const body=document.getElementById('trailBody');
@@ -4879,53 +5916,22 @@ function openInvestigations(){{
 
   let chartBuilt=false;
 
-  /* 1. MAIN BIDIRECTIONAL OBSERVER — elements slide in/out as they enter/leave viewport */
+  /* 1. MAIN OBSERVER — ONE-WAY reveal only, never hides content once visible */
+  const mainRevealed=new WeakSet();
   const mainObs=new IntersectionObserver((entries)=>{{
     entries.forEach(e=>{{
-      if(e.isIntersecting){{
-        /* Entering viewport — slide in */
+      if(e.isIntersecting&&!mainRevealed.has(e.target)){{
+        mainRevealed.add(e.target);
         e.target.classList.add('in-view');
-        e.target.classList.remove('out-view-top','out-view-bottom');
+        e.target.classList.remove('out-view-top','out-view-bottom','animate-ready');
         /* Build chart on first reveal */
         if(!chartBuilt&&e.target.querySelector('#trendChart')){{
           chartBuilt=true;buildChart();
         }}
-      }}else{{
-        /* Leaving viewport — slide out in the direction it left */
-        e.target.classList.remove('in-view');
-        const rect=e.target.getBoundingClientRect();
-        if(rect.top<0){{
-          e.target.classList.add('out-view-top');
-          e.target.classList.remove('out-view-bottom');
-        }}else{{
-          e.target.classList.add('out-view-bottom');
-          e.target.classList.remove('out-view-top');
-        }}
       }}
     }});
-  }},{{threshold:0.02,rootMargin:'0px 0px -2% 0px'}});
+  }},{{threshold:0.15,rootMargin:'0px 0px 60px 0px'}});
   document.querySelectorAll('[data-animate]').forEach(el=>mainObs.observe(el));
-
-  /* 2. Edge-fade: ONLY on individual cards, not large blocks */
-  let ticking=false;
-  function updateEdgeFade(){{
-    const vh=window.innerHeight;
-    const edgeTop=vh*0.02;
-    const edgeBot=vh*0.98;
-    document.querySelectorAll('[data-animate="card"].in-view').forEach(el=>{{
-      const rect=el.getBoundingClientRect();
-      const center=rect.top+rect.height/2;
-      if(center<edgeTop||center>edgeBot){{
-        el.classList.add('edge-fade');
-      }}else{{
-        el.classList.remove('edge-fade');
-      }}
-    }});
-    ticking=false;
-  }}
-  window.addEventListener('scroll',()=>{{
-    if(!ticking){{ticking=true;requestAnimationFrame(updateEdgeFade);}}
-  }},{{passive:true}});
 
   /* 3. Metric pulse on scroll — positive grows, negative sinks */
   const metricObs=new IntersectionObserver((entries)=>{{
@@ -4960,19 +5966,17 @@ function openInvestigations(){{
   }},{{threshold:0.2}});
   document.querySelectorAll('[data-countup]').forEach(el=>countObs.observe(el));
 
-  /* 5. Staggered reveal for narrative sub-elements — bidirectional */
+  /* 5. Staggered reveal for narrative sub-elements — ONE-WAY fade in only, never hides */
+  const narRevealed=new WeakSet();
   const narObs=new IntersectionObserver((entries)=>{{
     entries.forEach(e=>{{
-      if(e.isIntersecting){{
+      if(e.isIntersecting&&!narRevealed.has(e.target)){{
+        narRevealed.add(e.target);
         e.target.style.opacity='1';
         e.target.style.transform='translateY(0)';
-      }}else{{
-        e.target.style.opacity='0';
-        const rect=e.target.getBoundingClientRect();
-        e.target.style.transform=rect.top<0?'translateY(-10px)':'translateY(16px)';
       }}
     }});
-  }},{{threshold:0.01,rootMargin:'0px 0px 0px 0px'}});
+  }},{{threshold:0.01,rootMargin:'0px 0px 60px 0px'}});
   document.querySelectorAll('.nar h2,.nar blockquote,.nar table,.dig-wrap,.nar>p,.nar>ul,.nar>ol').forEach((el,i)=>{{
     el.style.opacity='0';
     el.style.transform='translateY(16px)';
@@ -4992,30 +5996,9 @@ function openInvestigations(){{
       const cc=document.getElementById('trendChart');
       if(cc&&cc.getBoundingClientRect().top<window.innerHeight){{chartBuilt=true;buildChart();}}
     }}
-    updateEdgeFade();
   }});
 
-  /* 7. Smooth parallax on scroll — subtle depth layers */
-  let lastY=window.scrollY;
-  const parallaxEls=document.querySelectorAll('.card.glass-card,.pcard.glass-card');
-  window.addEventListener('scroll',()=>{{
-    const y=window.scrollY;
-    const delta=y-lastY;
-    lastY=y;
-    parallaxEls.forEach((el,i)=>{{
-      if(!el.classList.contains('in-view')) return;
-      const depth=((i%4)+1)*0.15;
-      const shift=delta*depth;
-      el.style.transform=`translateY(${{-shift}}px)`;
-      /* Reset after micro-shift */
-      requestAnimationFrame(()=>{{
-        el.style.transition='transform 0.4s ease-out';
-        el.style.transform='translateY(0)';
-      }});
-    }});
-  }},{{passive:true}});
-
-  /* 8. Mouse-tracking hover ripple on cards */
+  /* 7. Mouse-tracking hover ripple on cards */
   document.querySelectorAll('.card,.pcard').forEach(el=>{{
     el.addEventListener('mousemove',(e)=>{{
       const rect=el.getBoundingClientRect();
@@ -5041,6 +6024,84 @@ function openInvestigations(){{
     const pct=(window.scrollY/(document.body.scrollHeight-window.innerHeight))*100;
     bar.style.width=pct+'%';
   }},{{passive:true}});
+
+  /* 10. Driver trend mini-charts — canvas line charts */
+  document.querySelectorAll('.driver-trend-chart').forEach(el=>{{
+    try{{
+      const data=JSON.parse(el.dataset.trend);
+      const tyVals=data.ty.map(d=>d.val);
+      const lyVals=data.ly.map(d=>d.val);
+      const label=data.metric_label||'GP';
+      if(!tyVals.length) return;
+
+      /* Add label + legend */
+      const labelEl=document.createElement('div');
+      labelEl.className='driver-trend-label';
+      labelEl.textContent=label+' — 14 days';
+      el.appendChild(labelEl);
+      const legend=document.createElement('div');
+      legend.className='driver-trend-legend';
+      legend.innerHTML='<span class="dtl-ty">This year</span><span class="dtl-ly">Last year</span>';
+      el.appendChild(legend);
+
+      /* Canvas */
+      const canvas=document.createElement('canvas');
+      el.appendChild(canvas);
+      const ctx=canvas.getContext('2d');
+      const dpr=window.devicePixelRatio||1;
+      const w=el.clientWidth-24;
+      const h=el.clientHeight-20;
+      canvas.width=w*dpr;canvas.height=h*dpr;
+      canvas.style.width=w+'px';canvas.style.height=h+'px';
+      ctx.scale(dpr,dpr);
+
+      const allVals=[...tyVals,...lyVals];
+      const mn=Math.min(...allVals);
+      const mx=Math.max(...allVals);
+      const range=mx-mn||1;
+      const pad=4;
+
+      function drawLine(vals,color,lineWidth,dashed){{
+        if(!vals.length) return;
+        ctx.beginPath();
+        ctx.strokeStyle=color;ctx.lineWidth=lineWidth;
+        if(dashed) ctx.setLineDash([4,3]);else ctx.setLineDash([]);
+        const step=w/(vals.length-1||1);
+        vals.forEach((v,i)=>{{
+          const x=i*step;
+          const y=pad+(1-(v-mn)/range)*(h-pad*2);
+          if(i===0) ctx.moveTo(x,y);else ctx.lineTo(x,y);
+        }});
+        ctx.stroke();
+      }}
+
+      /* Fill area under TY line */
+      function drawArea(vals,color){{
+        if(!vals.length) return;
+        ctx.beginPath();
+        const step=w/(vals.length-1||1);
+        vals.forEach((v,i)=>{{
+          const x=i*step;
+          const y=pad+(1-(v-mn)/range)*(h-pad*2);
+          if(i===0) ctx.moveTo(x,y);else ctx.lineTo(x,y);
+        }});
+        ctx.lineTo(w,h);ctx.lineTo(0,h);ctx.closePath();
+        const grad=ctx.createLinearGradient(0,0,0,h);
+        grad.addColorStop(0,color);grad.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=grad;ctx.fill();
+      }}
+
+      drawArea(tyVals,'rgba(146,95,255,0.15)');
+      drawLine(lyVals,'rgba(255,255,255,0.18)',1.5,true);
+      drawLine(tyVals,'rgba(146,95,255,0.8)',2,false);
+
+      /* Dot on last TY value */
+      const lastX=w;
+      const lastY=pad+(1-(tyVals[tyVals.length-1]-mn)/range)*(h-pad*2);
+      ctx.beginPath();ctx.arc(lastX,lastY,3,0,Math.PI*2);
+      ctx.fillStyle='#925FFF';ctx.fill();
+    }}catch(e){{}}
+  }});
 }})();
 
 /* (Sticky section label removed — replaced by banner) */
@@ -5109,6 +6170,22 @@ document.addEventListener('keydown', e => {{
       <button class="archive-close" onclick="toggleArchive()">&times;</button>
     </div>
     <div id="archiveList" class="archive-list"></div>
+  </div>
+</div>
+
+<!-- Chat Panel — Ask Trading Covered -->
+<div id="chatPanel" class="chat-panel" style="display:none">
+  <div class="chat-header">
+    <span class="chat-title">Ask Trading Covered</span>
+    <button class="chat-close" onclick="toggleChat()">&times;</button>
+  </div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input-wrap">
+    <input type="text" id="chatInput" class="chat-input" placeholder="Ask anything about today's trading data..."
+           onkeydown="if(event.key==='Enter')submitChat()">
+    <button class="chat-send" onclick="submitChat()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
   </div>
 </div>
 
@@ -5210,6 +6287,10 @@ def main():
     # Phase 5: Two-pass synthesis
     briefing = run_synthesis(baseline, analysis, follow_up_results, track_results, run_date)
 
+    # Phase 5b: Collect per-driver trend data for inline charts
+    print("\n📈 Phase 5b: Collecting driver trend data...")
+    driver_trends = collect_driver_trends(analysis, run_date)
+
     # Bundle investigation data for the trail
     inv_log = {
         "track_results": track_results,
@@ -5231,7 +6312,7 @@ def main():
     Path(f"{briefings_dir}/latest.md").write_text(Path(md_path).read_text())
 
     # HTML Dashboard
-    html = generate_dashboard_html(briefing, baseline["trading"], baseline["trend"], today_str, investigation_log=inv_log, run_date=run_date, trend_data_ly=baseline.get("trend_ly", []))
+    html = generate_dashboard_html(briefing, baseline["trading"], baseline["trend"], today_str, investigation_log=inv_log, run_date=run_date, trend_data_ly=baseline.get("trend_ly", []), driver_trends=driver_trends)
     Path(f"{briefings_dir}/{today_str}.html").write_text(html)
     Path(f"{briefings_dir}/latest.html").write_text(html)
 

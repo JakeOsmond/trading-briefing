@@ -10,3 +10,4 @@ schemas/
 *-command-*.txt
 *-this-session-*.txt
 .wrangler/
+.dev.vars
