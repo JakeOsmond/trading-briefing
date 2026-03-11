@@ -2934,6 +2934,61 @@ If the draft is already good, output it unchanged."""
 # DRIVER TREND DATA — 14-day daily series per material mover
 # ---------------------------------------------------------------------------
 
+def _infer_segment_filter(mover):
+    """Infer a SQL WHERE clause fragment from the mover name and description."""
+    name = (mover.get("driver", "") + " " + mover.get("detail", "")).lower()
+    parts = []
+
+    # Channel
+    if "aggregator" in name:
+        parts.append("distribution_channel='Aggregator'")
+    elif "direct" in name and "partner" not in name:
+        parts.append("distribution_channel='Direct'")
+    elif "partner" in name or "referral" in name:
+        parts.append("distribution_channel='Partner Referral'")
+    elif "renewal" in name:
+        parts.append("distribution_channel='Renewals'")
+
+    # Policy type
+    if "single" in name and "annual" not in name:
+        parts.append("policy_type='Single'")
+    elif "annual" in name and "single" not in name:
+        parts.append("policy_type='Annual'")
+
+    # Cover level
+    for level in ["Bronze", "Classic", "Silver", "Gold", "Deluxe", "Elite", "Adventure"]:
+        if level.lower() in name:
+            parts.append(f"cover_level_name='{level}'")
+            break
+
+    # Medical
+    if "medical" in name and "non-medical" not in name:
+        parts.append("medical_split='Medical'")
+
+    return " AND ".join(parts) if parts else ""
+
+
+def _compute_persistence(ty_vals, ly_vals, direction):
+    """Count how many of the last 10 days moved in the mover's direction.
+    Returns (count_consistent, total_days, label)."""
+    n = min(len(ty_vals), len(ly_vals), 10)
+    if n == 0:
+        return 0, 0, "new"
+    # Take last 10 days
+    ty_tail = ty_vals[-n:]
+    ly_tail = ly_vals[-n:]
+    if direction == "down":
+        consistent = sum(1 for t, l in zip(ty_tail, ly_tail) if t < l)
+    else:
+        consistent = sum(1 for t, l in zip(ty_tail, ly_tail) if t > l)
+    if consistent >= 7:
+        return consistent, n, "recurring"
+    elif consistent >= 5:
+        return consistent, n, "emerging"
+    else:
+        return consistent, n, "new"
+
+
 def collect_driver_trends(analysis, run_date):
     """Run a 14-day daily GP query for each material mover to power inline trend charts."""
     movers = analysis.get("material_movers", [])
@@ -2948,7 +3003,7 @@ def collect_driver_trends(analysis, run_date):
 
     for i, mover in enumerate(movers):
         driver_name = mover.get("driver", f"Mover {i+1}")
-        seg_filter = mover.get("segment_filter", "")
+        seg_filter = mover.get("segment_filter", "") or _infer_segment_filter(mover)
         metric = mover.get("metric", "gp")
 
         # Build the metric expression
@@ -2959,7 +3014,7 @@ def collect_driver_trends(analysis, run_date):
             metric_expr = "SUM(CAST(gp AS FLOAT64)) / NULLIF(SUM(policy_count), 0)"
             metric_label = "Avg GP"
         else:
-            metric_expr = "SUM(CAST(gp AS FLOAT64))"
+            metric_expr = "SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))"
             metric_label = "GP"
 
         # If no segment_filter, skip — we can't generate a meaningful trend
@@ -2993,10 +3048,22 @@ ORDER BY transaction_date
             ly_result = tool_run_sql(sql_ly)
             ty_rows = json.loads(ty_result.split("\n\n")[-1]) if "auto-corrected" in ty_result or "AI-corrected" in ty_result else json.loads(ty_result)
             ly_rows = json.loads(ly_result.split("\n\n")[-1]) if "auto-corrected" in ly_result or "AI-corrected" in ly_result else json.loads(ly_result)
+            ty_parsed = [{"dt": str(r.get("dt", "")), "val": float(r.get("val", 0))} for r in ty_rows]
+            ly_parsed = [{"dt": str(r.get("dt", "")), "val": float(r.get("val", 0))} for r in ly_rows]
+            direction = mover.get("direction", "down")
+            consistent, total, label = _compute_persistence(
+                [d["val"] for d in ty_parsed],
+                [d["val"] for d in ly_parsed],
+                direction
+            )
             driver_trends[driver_name] = {
-                "ty": [{"dt": str(r.get("dt", "")), "val": float(r.get("val", 0))} for r in ty_rows],
-                "ly": [{"dt": str(r.get("dt", "")), "val": float(r.get("val", 0))} for r in ly_rows],
+                "ty": ty_parsed,
+                "ly": ly_parsed,
                 "metric_label": metric_label,
+                "direction": direction,
+                "persistence": label,
+                "consistent_days": consistent,
+                "total_days": total,
             }
         except Exception as e:
             print(f"  ⚠ Trend query failed for '{driver_name}': {e}")
@@ -3139,48 +3206,44 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     html_body = re.sub(r'<h2>(.*?)</h2>', _add_section_id, html_body)
 
     # Also add IDs to h3 (driver) headings for linking to specific movers
-    _trend_counter = [0]
+    # Embed ALL driver trend data as a global JS object — matching happens client-side
+    _all_trends_for_js = {}
+    if driver_trends:
+        for key, td in driver_trends.items():
+            ty = td.get("ty", [])
+            ly = td.get("ly", [])
+            direction = td.get("direction", "down")
+            recovery = False
+            if len(ty) >= 2 and len(ly) >= 2:
+                ty_last2 = [ty[-2]["val"], ty[-1]["val"]]
+                ly_last2 = [ly[-2]["val"], ly[-1]["val"]]
+                if direction == "down":
+                    recovery = ty_last2[0] > ly_last2[0] and ty_last2[1] > ly_last2[1]
+                else:
+                    recovery = ty_last2[0] < ly_last2[0] and ty_last2[1] < ly_last2[1]
+            _all_trends_for_js[key] = {**td, "recovery": recovery}
+
+    _driver_idx = [0]
+
     def _add_driver_id(match):
         heading_text = re.sub(r'<[^>]+>', '', match.group(1))
         slug = re.sub(r'[^a-z0-9]+', '-', heading_text.lower().strip()).strip('-')
-        h3_tag = f'<h3 id="driver-{slug}">{match.group(1)}'
-        # Add "View trend" button for recurring/emerging drivers
-        if 'badge-recurring' in match.group(1) or 'badge-emerging' in match.group(1):
-            tid = f'trend-{_trend_counter[0]}'
-            _trend_counter[0] += 1
-            h3_tag += (
-                f' <button class="view-trend-btn" onclick="fetchDriverTrend(\'{tid}\',this)" data-trend-id="{tid}">'
-                f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
-                f'Trend</button>'
-            )
-            h3_tag += f'</h3><div id="{tid}" class="yoy-trend-container"></div>'
-        else:
-            h3_tag += '</h3>'
+        idx = _driver_idx[0]
+        _driver_idx[0] += 1
+        tid = f'trend-{idx}'
+        # Every driver heading gets an index and a hidden trend container.
+        # JS init will add/correct badges and show trend buttons based on computed data.
+        h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}">{match.group(1)}'
+        h3_tag += (
+            f' <button class="view-trend-btn" onclick="toggleMatchedTrend(\'{tid}\',this)" '
+            f'data-trend-id="{tid}" style="display:none">'
+            f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+            f'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+            f'Trend</button>'
+        )
+        h3_tag += f'</h3><div id="{tid}" class="yoy-trend-container"></div>'
         return h3_tag
     html_body = re.sub(r'<h3>(.*?)</h3>', _add_driver_id, html_body)
-
-    # Inject per-driver trend mini-charts after each driver heading
-    if driver_trends:
-        def _inject_trend_chart(match):
-            full_match = match.group(0)
-            heading_text = re.sub(r'<[^>]+>', '', match.group(1))
-            # Try to match this heading to a driver trend by fuzzy name match
-            best_key = None
-            best_score = 0
-            heading_words = set(heading_text.lower().split())
-            for key in driver_trends:
-                key_words = set(key.lower().split())
-                overlap = len(heading_words & key_words)
-                if overlap > best_score:
-                    best_score = overlap
-                    best_key = key
-            if best_key and best_score >= 2:
-                td = driver_trends[best_key]
-                trend_json = json.dumps(td).replace("'", "&#39;")
-                chart_div = f"<div class='driver-trend-chart' data-trend='{trend_json}'></div>"
-                return full_match + chart_div
-            return full_match
-        html_body = re.sub(r'<h3 id="driver-[^"]*">(.*?)</h3>', _inject_trend_chart, html_body)
 
     ty = next((r for r in trading_data if r["period"] == "yesterday"), {})
     ly = next((r for r in trading_data if r["period"] == "yesterday_ly"), {})
@@ -3253,6 +3316,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
                 "ly_gp": round(ly_gp, 0), "yoy_pct": yoy_pct, "yoy_abs": yoy_abs
             })
         chart_data_json = json.dumps(chart_items)
+
+    # Serialize all driver trends for client-side matching
+    driver_trends_json = json.dumps(_all_trends_for_js) if _all_trends_for_js else "{}"
 
     # Extract investigation data from the log dict
     _track_results = investigation_log.get("track_results", {}) if isinstance(investigation_log, dict) else {}
@@ -4273,12 +4339,7 @@ body::after{{
   50%{{color:rgba(255,255,255,0.9)}}
 }}
 .glance-good{{
-  background:linear-gradient(90deg,#00D4C8 0%,#5FFFF0 25%,#ffffff 50%,#5FFFF0 75%,#00D4C8 100%);
-  background-size:200% auto;
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-  background-clip:text;
-  animation:glance-shimmer 3s linear infinite;
+  color:#00D4C8;
   font-weight:800;
   font-size:1.05em;
 }}
@@ -4323,6 +4384,18 @@ body::after{{
   border:1px solid rgba(0,176,166,0.25);
   padding:2px 8px;border-radius:10px;
   margin-left:8px;vertical-align:middle;
+}}
+.badge-recovery{{
+  display:inline-block;
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  background:rgba(0,212,200,0.15);color:#00D4C8;
+  border:1px solid rgba(0,212,200,0.3);
+  padding:2px 8px;border-radius:10px;
+  margin-left:8px;vertical-align:middle;
+  animation:recovery-pulse 2s ease-in-out infinite;
+}}
+@keyframes recovery-pulse{{
+  0%,100%{{opacity:0.85}} 50%{{opacity:1;box-shadow:0 0 8px rgba(0,212,200,0.3)}}
 }}
 /* ── View Trend button ── */
 .view-trend-btn{{
@@ -4379,27 +4452,6 @@ body::after{{
 .yoy-bar-pct.negative{{color:#FF5F68}}
 .yoy-trendline-wrap{{margin-top:10px;height:40px;position:relative}}
 .yoy-trendline-wrap canvas{{width:100%;height:100%}}
-/* ── Driver trend mini-charts ── */
-.driver-trend-chart{{
-  height:72px;margin:10px 0 16px;position:relative;
-  background:rgba(255,255,255,0.02);border:1px solid var(--border);
-  border-radius:10px;padding:8px 12px;overflow:hidden;
-}}
-.driver-trend-chart canvas{{width:100%;height:100%;display:block}}
-.driver-trend-label{{
-  position:absolute;top:6px;right:10px;font-size:9px;
-  color:var(--muted);letter-spacing:.5px;text-transform:uppercase;
-}}
-.driver-trend-legend{{
-  position:absolute;bottom:4px;left:12px;font-size:9px;color:var(--muted);
-  display:flex;gap:12px;
-}}
-.driver-trend-legend span::before{{
-  content:'';display:inline-block;width:12px;height:2px;
-  margin-right:4px;vertical-align:middle;
-}}
-.driver-trend-legend .dtl-ty::before{{background:var(--accent-light)}}
-.driver-trend-legend .dtl-ly::before{{background:rgba(255,255,255,0.2)}}
 
 .inv-badge:hover{{
   background:rgba(255,95,104,0.18);
@@ -5131,15 +5183,6 @@ body::after{{
 </div>
 </div>
 
-<!-- YoY Growth Chart -->
-<div class="section-gap" data-animate="reveal">
-<div class="section-title">YoY GP Growth</div>
-<div class="chart-wrap glass-card">
-<div class="st">YoY GP Growth % &mdash; daily year-on-year change</div>
-<div class="yoy-chart-container" id="yoyChart"></div>
-</div>
-</div>
-
 <!-- Narrative / Analysis — simple reveal -->
 <div class="section-gap" data-animate="reveal">
 <div class="section-title">Trading Briefing</div>
@@ -5158,10 +5201,12 @@ body::after{{
 </div><!-- /.c -->
 
 <script>
+/* ── Pre-loaded driver trend data (keyed by driver name) ── */
+window.__driverTrends={driver_trends_json};
+
 /* ── Chart ── */
 const data={chart_data_json};
 const chart=document.getElementById('trendChart');
-const yoyChart=document.getElementById('yoyChart');
 let chartBuilt=false;
 
 function buildChart(){{
@@ -5214,45 +5259,6 @@ function buildChart(){{
     requestAnimationFrame(()=>{{avgLine.classList.add('animate-in')}});
   }});
 
-  /* ── YoY Growth % Chart ── */
-  if(yoyChart){{
-    const yoyVals=data.filter(d=>d.yoy_pct!==null).map(d=>d.yoy_pct);
-    if(yoyVals.length){{
-      const maxAbs=Math.max(...yoyVals.map(v=>Math.abs(v)),1);
-      const halfH=55; /* px for each half (positive/negative) */
-
-      /* Zero line */
-      const zeroLine=document.createElement('div');
-      zeroLine.className='yoy-zero-line';
-      yoyChart.appendChild(zeroLine);
-
-      data.forEach((d,i)=>{{
-        if(d.yoy_pct===null) return;
-        const col=document.createElement('div');col.className='yoy-bar-col';
-        const pct=d.yoy_pct;
-        const barH=Math.max(Math.abs(pct)/maxAbs*halfH,3);
-        const isUp=pct>=0;
-        const color=isUp?'#00B0A6':'#FF5F68';
-        const dateObj=new Date(d.date+'T00:00:00');
-        const dateLabel=dayNames[dateObj.getDay()]+' '+dateObj.getDate();
-        const fullDate=dayNames[dateObj.getDay()]+' '+dateObj.getDate()+' '+monthNames[dateObj.getMonth()];
-        const sign=pct>=0?'+':'';
-        /* Position: positive bars go up from center, negative go down */
-        const topPos=isUp?(halfH-barH)+'px':halfH+'px';
-        col.innerHTML=`
-          <div class="tooltip">
-            <div class="tt-date">${{fullDate}}</div>
-            <div class="tt-row">YoY: <span class="${{isUp?'tt-yoy-up':'tt-yoy-down'}}">${{sign}}${{pct}}%</span></div>
-            <div class="tt-row">TY: <span class="tt-val">&pound;${{d.gp.toLocaleString()}}</span> &middot; LY: <span class="tt-val">&pound;${{d.ly_gp?d.ly_gp.toLocaleString():'N/A'}}</span></div>
-          </div>
-          <div class="yoy-bar-area">
-            <div class="yoy-bar animate-in" style="height:${{barH}}px;top:${{topPos}};background:${{color}};animation-delay:${{i*60}}ms;transform:scaleY(0);border-radius:${{isUp?'4px 4px 0 0':'0 0 4px 4px'}}"></div>
-          </div>
-          <div class="bar-label">${{dateLabel}}</div>`;
-        yoyChart.appendChild(col);
-      }});
-    }}
-  }}
 }}
 
 /* ── SQL dig toggle/copy ── */
@@ -5360,6 +5366,78 @@ function stopAILoadingStepper(container){{
   if(container._timer) clearTimeout(container._timer);
 }}
 
+/* ── Fuzzy-match heading text to best driver trend key ── */
+const __trendUsed=new Set();
+function _matchTrend(headingText){{
+  const trends=window.__driverTrends||{{}};
+  const keys=Object.keys(trends);
+  if(!keys.length) return null;
+  const stop=new Set(['the','a','an','and','or','of','in','on','to','for','is','from','by','with','not','recurring','emerging','new','trend']);
+  function tokens(s){{
+    return s.toLowerCase().replace(/[^a-z0-9\s/]/g,' ').split(/\s+/)
+      .flatMap(w=>w.split('/')).filter(w=>w.length>1&&!stop.has(w));
+  }}
+  const hTokens=new Set(tokens(headingText));
+  let bestKey=null,bestScore=0;
+  for(const key of keys){{
+    if(__trendUsed.has(key)) continue;
+    const kTokens=new Set(tokens(key));
+    let overlap=0;
+    for(const t of hTokens) if(kTokens.has(t)) overlap++;
+    const score=overlap/Math.min(hTokens.size,kTokens.size);
+    if(score>bestScore&&overlap>=1){{bestScore=score;bestKey=key;}}
+  }}
+  if(bestKey&&bestScore>=0.25){{
+    __trendUsed.add(bestKey);
+    return trends[bestKey];
+  }}
+  return null;
+}}
+
+/* ── Toggle matched trend chart (pre-loaded, instant) ── */
+function toggleMatchedTrend(trendId, btn){{
+  const container=document.getElementById(trendId);
+  if(!container) return;
+
+  /* Toggle off */
+  if(container.querySelector('.yoy-trend-wrap')){{
+    container.innerHTML='';
+    return;
+  }}
+
+  /* Get heading text and match to trend data */
+  const h3=btn.closest('h3');
+  const heading=h3?h3.textContent.replace(/Trend.*/,'').replace(/Recovery/g,'').trim():'Driver';
+  let data=container._matchedData;
+  if(!data){{
+    data=_matchTrend(heading);
+    container._matchedData=data;
+  }}
+  if(!data){{
+    /* Fallback to live API fetch */
+    fetchDriverTrend(trendId,btn);
+    return;
+  }}
+  try{{
+    const trendResult={{ty:data.ty.map(d=>({{dt:d.dt,gp:d.val,vol:0}})),ly:data.ly.map(d=>({{dt:d.dt,gp:d.val,vol:0}}))}};
+    renderYoYTrend(container, trendResult, heading, data);
+    /* Update button with persistence info */
+    const cd=data.consistent_days||0;
+    const td=data.total_days||10;
+    btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend ('+cd+'/'+td+'d)';
+    /* Insert recovery badge if applicable */
+    if(data.recovery&&h3&&!h3.querySelector('.badge-recovery')){{
+      const badge=document.createElement('span');
+      badge.className='badge-recovery';
+      badge.textContent='Recovery';
+      const trendBtn=h3.querySelector('.view-trend-btn');
+      if(trendBtn) h3.insertBefore(badge,trendBtn);
+    }}
+  }}catch(e){{
+    container.innerHTML='<div class="yoy-trend-wrap" style="padding:12px;font-size:12px;color:var(--muted)">Error: '+e.message+'</div>';
+  }}
+}}
+
 /* ── Fetch and render YoY trend bar chart for recurring/emerging drivers ── */
 function fetchDriverTrend(trendId, btn){{
   const container=document.getElementById(trendId);
@@ -5434,7 +5512,7 @@ function fetchDriverTrend(trendId, btn){{
       btn.textContent='Trend';
       return;
     }}
-    renderYoYTrend(container, result.trend, headingText);
+    renderYoYTrend(container, result.trend, headingText, null);
     btn.textContent='Hide trend';
   }})
   .catch(err=>{{
@@ -5443,7 +5521,7 @@ function fetchDriverTrend(trendId, btn){{
   }});
 }}
 
-function renderYoYTrend(container, trendData, title){{
+function renderYoYTrend(container, trendData, title, meta){{
   const tyRows=trendData.ty||[];
   const lyRows=trendData.ly||[];
   if(!tyRows.length){{
@@ -5451,8 +5529,62 @@ function renderYoYTrend(container, trendData, title){{
     return;
   }}
 
+  /* Compute persistence from the data if not provided */
+  const direction=(meta&&meta.direction)||'down';
+  let consistentDays=meta&&meta.consistent_days;
+  let totalDays=meta&&meta.total_days;
+  let persistenceLabel=meta&&meta.persistence;
+
+  if(consistentDays==null){{
+    const n=Math.min(tyRows.length,lyRows.length,10);
+    const tyTail=tyRows.slice(-n);
+    const lyTail=lyRows.slice(-n);
+    let count=0;
+    for(let i=0;i<n;i++){{
+      const tv=parseFloat(tyTail[i].gp)||0;
+      const lv=parseFloat(lyTail[i].gp)||0;
+      if(direction==='down'?tv<lv:tv>lv) count++;
+    }}
+    consistentDays=count;totalDays=n;
+    persistenceLabel=count>=7?'recurring':count>=5?'emerging':'new';
+  }}
+
   /* Match TY and LY by index (both should be 14 days, aligned by day-of-week) */
   const maxGP=Math.max(...tyRows.map(r=>Math.abs(parseFloat(r.gp)||0)),...lyRows.map(r=>Math.abs(parseFloat(r.gp)||0)),1);
+
+  /* Detect recovery: last 2 days both improving vs LY */
+  const isRecovery=meta&&meta.recovery;
+  let recoveryDetected=isRecovery;
+  if(recoveryDetected==null&&tyRows.length>=2&&lyRows.length>=2){{
+    const ty1=parseFloat(tyRows[tyRows.length-2].gp)||0;
+    const ty2=parseFloat(tyRows[tyRows.length-1].gp)||0;
+    const ly1=parseFloat(lyRows[lyRows.length-2].gp)||0;
+    const ly2=parseFloat(lyRows[lyRows.length-1].gp)||0;
+    if(direction==='down') recoveryDetected=(ty1>ly1&&ty2>ly2);
+    else recoveryDetected=(ty1<ly1&&ty2<ly2);
+  }}
+
+  /* Persistence summary */
+  const persColor=persistenceLabel==='recurring'?'#FF8A91':persistenceLabel==='emerging'?'#FFB55F':'#5FFFF0';
+  const recoveryHTML=recoveryDetected?
+    `<div style="font-size:10px;font-weight:700;color:#00D4C8;padding:2px 8px;background:rgba(0,212,200,0.12);border:1px solid rgba(0,212,200,0.25);border-radius:10px;animation:recovery-pulse 2s ease-in-out infinite">⬆ Recovery — last 2 days improving</div>`:'';
+  const persHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border);flex-wrap:wrap">`+
+    `<div style="font-size:11px;color:var(--muted)">Persistence threshold</div>`+
+    `<div style="display:flex;gap:2px;align-items:center">`+
+    Array.from({{length:totalDays}},(_, i)=>{{
+      /* last N days: color each dot by whether it was consistent */
+      const idx=tyRows.length-totalDays+i;
+      const tv=idx>=0?parseFloat(tyRows[idx].gp)||0:0;
+      const lv=idx>=0&&lyRows[idx]?parseFloat(lyRows[idx].gp)||0:0;
+      const hit=direction==='down'?tv<lv:tv>lv;
+      const dotColor=hit?persColor:'rgba(255,255,255,0.12)';
+      return `<div style="width:8px;height:16px;border-radius:2px;background:${{dotColor}};transition:background 0.3s"></div>`;
+    }}).join('')+
+    `</div>`+
+    `<div style="font-size:11px;font-weight:700;color:${{persColor}}">${{consistentDays}}/${{totalDays}} days ${{direction}}</div>`+
+    `<div style="font-size:10px;color:var(--muted);margin-left:auto">`+
+    (persistenceLabel==='recurring'?'≥7 = Recurring':persistenceLabel==='emerging'?'5–6 = Emerging':'<5 = New')+
+    `</div>`+recoveryHTML+`</div>`;
 
   let barsHTML='';
   tyRows.forEach((row,i)=>{{
@@ -5479,6 +5611,7 @@ function renderYoYTrend(container, trendData, title){{
   wrap.className='yoy-trend-wrap';
   wrap.innerHTML=
     `<div class="yoy-trend-header"><span>${{title}} — 14 day daily GP</span><span>YoY growth coloured</span></div>`+
+    persHTML+
     barsHTML+
     `<div class="yoy-trendline-wrap"><canvas></canvas></div>`;
   container.innerHTML='';
@@ -6025,83 +6158,107 @@ function openInvestigations(){{
     bar.style.width=pct+'%';
   }},{{passive:true}});
 
-  /* 10. Driver trend mini-charts — canvas line charts */
-  document.querySelectorAll('.driver-trend-chart').forEach(el=>{{
-    try{{
-      const data=JSON.parse(el.dataset.trend);
-      const tyVals=data.ty.map(d=>d.val);
-      const lyVals=data.ly.map(d=>d.val);
-      const label=data.metric_label||'GP';
-      if(!tyVals.length) return;
+  /* 10. Init driver trend badges + buttons from computed data */
+  (function initDriverTrends(){{
+    const trends=window.__driverTrends||{{}};
+    const keys=Object.keys(trends);
+    if(!keys.length) return;
+    const headings=document.querySelectorAll('h3[data-driver-idx]');
 
-      /* Add label + legend */
-      const labelEl=document.createElement('div');
-      labelEl.className='driver-trend-label';
-      labelEl.textContent=label+' — 14 days';
-      el.appendChild(labelEl);
-      const legend=document.createElement('div');
-      legend.className='driver-trend-legend';
-      legend.innerHTML='<span class="dtl-ty">This year</span><span class="dtl-ly">Last year</span>';
-      el.appendChild(legend);
+    /* Weighted token matching — channel/product words score 3x more than generic */
+    const stop=new Set(['the','a','an','and','or','of','in','on','to','for','is','from','by','with','not','recurring','emerging','new','trend','gp','margin','drop','decline','fall','collapse','weakness','shift','lower']);
+    const highWeight=new Set(['direct','aggregator','partner','renewal','renewals','annual','annuals','single','bronze','classic','silver','gold','deluxe','elite','medical','med','cruise','scheme']);
+    function tokens(s){{
+      return s.toLowerCase().replace(/[^a-z0-9\s/]/g,' ').split(/\s+/)
+        .flatMap(w=>w.split('/')).filter(w=>w.length>1);
+    }}
 
-      /* Canvas */
-      const canvas=document.createElement('canvas');
-      el.appendChild(canvas);
-      const ctx=canvas.getContext('2d');
-      const dpr=window.devicePixelRatio||1;
-      const w=el.clientWidth-24;
-      const h=el.clientHeight-20;
-      canvas.width=w*dpr;canvas.height=h*dpr;
-      canvas.style.width=w+'px';canvas.style.height=h+'px';
-      ctx.scale(dpr,dpr);
+    function matchScore(hTokens,kTokens){{
+      let score=0,matches=0;
+      for(const t of hTokens){{
+        if(kTokens.has(t)){{
+          matches++;
+          score+=highWeight.has(t)?3:1;
+        }}
+      }}
+      return {{score,matches}};
+    }}
 
-      const allVals=[...tyVals,...lyVals];
-      const mn=Math.min(...allVals);
-      const mx=Math.max(...allVals);
-      const range=mx-mn||1;
-      const pad=4;
+    /* Phase 1: Compute all pairwise scores */
+    const allScores=[];
+    const hArr=Array.from(headings);
+    hArr.forEach((h3,hIdx)=>{{
+      const txt=h3.textContent.replace(/Trend.*/,'').replace(/Recurring|Emerging|New|Recovery/gi,'').trim();
+      const hTokens=new Set(tokens(txt));
+      keys.forEach((key,kIdx)=>{{
+        const kTokens=new Set(tokens(key));
+        const r=matchScore(hTokens,kTokens);
+        if(r.matches>=1&&(r.score>=3||r.matches>=2)){{
+          allScores.push({{hIdx,kIdx,score:r.score,matches:r.matches}});
+        }}
+      }});
+    }});
 
-      function drawLine(vals,color,lineWidth,dashed){{
-        if(!vals.length) return;
-        ctx.beginPath();
-        ctx.strokeStyle=color;ctx.lineWidth=lineWidth;
-        if(dashed) ctx.setLineDash([4,3]);else ctx.setLineDash([]);
-        const step=w/(vals.length-1||1);
-        vals.forEach((v,i)=>{{
-          const x=i*step;
-          const y=pad+(1-(v-mn)/range)*(h-pad*2);
-          if(i===0) ctx.moveTo(x,y);else ctx.lineTo(x,y);
-        }});
-        ctx.stroke();
+    /* Phase 2: Greedy-best assignment — highest score first, no reuse */
+    allScores.sort((a,b)=>b.score-a.score||(b.matches-a.matches));
+    const usedH=new Set(),usedK=new Set();
+    const assignments=new Map();
+    for(const s of allScores){{
+      if(usedH.has(s.hIdx)||usedK.has(s.kIdx)) continue;
+      usedH.add(s.hIdx);usedK.add(s.kIdx);
+      assignments.set(s.hIdx,s.kIdx);
+    }}
+
+    /* Phase 3: Apply badges and buttons */
+    hArr.forEach((h3,hIdx)=>{{
+      const btn=h3.querySelector('.view-trend-btn');
+      const tid=btn?btn.getAttribute('data-trend-id'):null;
+      if(!assignments.has(hIdx)) return;
+
+      const kIdx=assignments.get(hIdx);
+      const td=trends[keys[kIdx]];
+      const p=td.persistence||'new';
+      const cd=td.consistent_days||0;
+      const tot=td.total_days||10;
+      const recovery=td.recovery||false;
+
+      if(tid){{
+        const container=document.getElementById(tid);
+        if(container) container._matchedData=td;
       }}
 
-      /* Fill area under TY line */
-      function drawArea(vals,color){{
-        if(!vals.length) return;
-        ctx.beginPath();
-        const step=w/(vals.length-1||1);
-        vals.forEach((v,i)=>{{
-          const x=i*step;
-          const y=pad+(1-(v-mn)/range)*(h-pad*2);
-          if(i===0) ctx.moveTo(x,y);else ctx.lineTo(x,y);
-        }});
-        ctx.lineTo(w,h);ctx.lineTo(0,h);ctx.closePath();
-        const grad=ctx.createLinearGradient(0,0,0,h);
-        grad.addColorStop(0,color);grad.addColorStop(1,'rgba(0,0,0,0)');
-        ctx.fillStyle=grad;ctx.fill();
+      /* Remove old AI-written badge and replace with computed one */
+      const oldBadge=h3.querySelector('.badge-recurring,.badge-emerging,.badge-new');
+      if(oldBadge) oldBadge.remove();
+
+      if(p==='recurring'||p==='emerging'){{
+        const badge=document.createElement('span');
+        badge.className=p==='recurring'?'badge-recurring':'badge-emerging';
+        badge.textContent=p==='recurring'?'Recurring':'Emerging';
+        if(btn) h3.insertBefore(badge,btn);
+        else h3.appendChild(badge);
+
+        if(btn){{
+          btn.style.display='';
+          btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend ('+cd+'/'+tot+'d)';
+        }}
+
+        if(recovery){{
+          const recBadge=document.createElement('span');
+          recBadge.className='badge-recovery';
+          recBadge.textContent='Recovery';
+          if(btn) h3.insertBefore(recBadge,btn);
+          else h3.appendChild(recBadge);
+        }}
+      }} else {{
+        const badge=document.createElement('span');
+        badge.className='badge-new';
+        badge.textContent='New';
+        if(btn) h3.insertBefore(badge,btn);
+        else h3.appendChild(badge);
       }}
-
-      drawArea(tyVals,'rgba(146,95,255,0.15)');
-      drawLine(lyVals,'rgba(255,255,255,0.18)',1.5,true);
-      drawLine(tyVals,'rgba(146,95,255,0.8)',2,false);
-
-      /* Dot on last TY value */
-      const lastX=w;
-      const lastY=pad+(1-(tyVals[tyVals.length-1]-mn)/range)*(h-pad*2);
-      ctx.beginPath();ctx.arc(lastX,lastY,3,0,Math.PI*2);
-      ctx.fillStyle='#925FFF';ctx.fill();
-    }}catch(e){{}}
-  }});
+    }});
+  }})();
 }})();
 
 /* (Sticky section label removed — replaced by banner) */

@@ -445,12 +445,7 @@ body::after{
   50%{color:rgba(255,255,255,0.9)}
 }
 .glance-good{
-  background:linear-gradient(90deg,#00D4C8 0%,#5FFFF0 25%,#ffffff 50%,#5FFFF0 75%,#00D4C8 100%);
-  background-size:200% auto;
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-  background-clip:text;
-  animation:glance-shimmer 3s linear infinite;
+  color:#00D4C8;
   font-weight:800;
   font-size:1.05em;
 }
@@ -495,6 +490,18 @@ body::after{
   border:1px solid rgba(0,176,166,0.25);
   padding:2px 8px;border-radius:10px;
   margin-left:8px;vertical-align:middle;
+}
+.badge-recovery{
+  display:inline-block;
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  background:rgba(0,212,200,0.15);color:#00D4C8;
+  border:1px solid rgba(0,212,200,0.3);
+  padding:2px 8px;border-radius:10px;
+  margin-left:8px;vertical-align:middle;
+  animation:recovery-pulse 2s ease-in-out infinite;
+}
+@keyframes recovery-pulse{
+  0%,100%{opacity:0.85} 50%{opacity:1;box-shadow:0 0 8px rgba(0,212,200,0.3)}
 }
 /* ── View Trend button ── */
 .view-trend-btn{
@@ -551,27 +558,6 @@ body::after{
 .yoy-bar-pct.negative{color:#FF5F68}
 .yoy-trendline-wrap{margin-top:10px;height:40px;position:relative}
 .yoy-trendline-wrap canvas{width:100%;height:100%}
-/* ── Driver trend mini-charts ── */
-.driver-trend-chart{
-  height:72px;margin:10px 0 16px;position:relative;
-  background:rgba(255,255,255,0.02);border:1px solid var(--border);
-  border-radius:10px;padding:8px 12px;overflow:hidden;
-}
-.driver-trend-chart canvas{width:100%;height:100%;display:block}
-.driver-trend-label{
-  position:absolute;top:6px;right:10px;font-size:9px;
-  color:var(--muted);letter-spacing:.5px;text-transform:uppercase;
-}
-.driver-trend-legend{
-  position:absolute;bottom:4px;left:12px;font-size:9px;color:var(--muted);
-  display:flex;gap:12px;
-}
-.driver-trend-legend span::before{
-  content:'';display:inline-block;width:12px;height:2px;
-  margin-right:4px;vertical-align:middle;
-}
-.driver-trend-legend .dtl-ty::before{background:var(--accent-light)}
-.driver-trend-legend .dtl-ly::before{background:rgba(255,255,255,0.2)}
 
 .inv-badge:hover{
   background:rgba(255,95,104,0.18);
@@ -1273,8 +1259,8 @@ body::after{
 <!-- Headline Tile — one-sentence takeaway -->
 <div class="section-gap">
 <div class="headline-tile glass-card" data-animate="card">
-<div class="hl-main">Profits <span class="hl-down">down <span class="hl-down"><strong>£13k</strong></span></span> as <a href="#driver-bronze-main-single-med-hx-margin-drop-scheme-recurring" class="hl-keyword">margin</a> <span class="hl-down">squeeze</span> bites—<a href="#driver-direct-single-trip-margin-fall-recurring" class="hl-keyword">Single</a> Trip and aggregator deals drive volume but drain GP, even with <span class="hl-up">strong</span> market demand</div>
-<div class="hl-also"><strong>Also:</strong> <a href="#driver-direct-single-trip-margin-fall-recurring">Direct Single margins — GP down £3.8k (about 9%) on Single Trip direct; fewer sessions and deeper discounting are to blame.</a> &middot; <a href="#driver-partner-referral-single-trip-drop-new">Partner Referral Single slump — Lost £6.1k GP here (down 28%) as partner-site traffic dropped off sharply.</a> &middot; <a href="#driver-bronze-classic-cover-level-margin-mix-recurring">Bronze/Classic cover still under water — Mix shifted even more to low-value tiers, costing us £4.6k in GP this week.</a> &middot; <a href="#driver-annuals-direct-partner-renewal-new">Annual still a bright spot — Annuals grew in volume (up 2%), bringing in ~£1.5k more GP this week. This is future renewal income.</a></div>
+<div class="hl-main">Profits <span class="hl-down">down <span class="hl-down"><strong>£13k</strong></span></span> as margin <span class="hl-down">squeeze</span> bites—Single Trip and aggregator deals drive volume but drain GP, even with <span class="hl-up">strong</span> market demand</div>
+<div class="hl-also"><strong>Also:</strong> <a href="#section-what-s-driving-this">Direct Single margins — GP down £3.8k (about 9%) on Single Trip direct; fewer sessions and deeper discounting are to blame.</a> &middot; <a href="#section-what-s-driving-this">Partner Referral Single slump — Lost £6.1k GP here (down 28%) as partner-site traffic dropped off sharply.</a> &middot; <a href="#section-what-s-driving-this">Bronze/Classic cover still under water — Mix shifted even more to low-value tiers, costing us £4.6k in GP this week.</a> &middot; <a href="#section-what-s-driving-this">Annual still a bright spot — Annuals grew in volume (up 2%), bringing in ~£1.5k more GP this week. This is future renewal income.</a></div>
 <div class="hl-also" style="margin-top:6px;font-size:11px;opacity:0.6">Jump to: <a href="#section-at-a-glance">At a Glance</a> &middot; <a href="#section-what-s-driving-this">What's Driving This</a> &middot; <a href="#section-customer-search-intent">Search Intent</a> &middot; <a href="#section-actions">Actions</a></div>
 </div>
 </div>
@@ -1309,15 +1295,6 @@ body::after{
 </div>
 </div>
 
-<!-- YoY Growth Chart -->
-<div class="section-gap" data-animate="reveal">
-<div class="section-title">YoY GP Growth</div>
-<div class="chart-wrap glass-card">
-<div class="st">YoY GP Growth % &mdash; daily year-on-year change</div>
-<div class="yoy-chart-container" id="yoyChart"></div>
-</div>
-</div>
-
 <!-- Narrative / Analysis — simple reveal -->
 <div class="section-gap" data-animate="reveal">
 <div class="section-title">Trading Briefing</div>
@@ -1335,14 +1312,14 @@ body::after{
 </ul>
 <hr />
 <h2 id="section-what-s-driving-this">What's Driving This</h2>
-<h3 id="driver-overall-gp-decline-recurring">Overall GP decline <span class="badge-recurring">Recurring</span> <button class="view-trend-btn" onclick="fetchDriverTrend('trend-0',this)" data-trend-id="trend-0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-0" class="yoy-trend-container"></div>
+<h3 id="driver-overall-gp-decline-recurring" data-driver-idx="0">Overall GP decline <span class="badge-recurring">Recurring</span> <button class="view-trend-btn" onclick="toggleMatchedTrend('trend-0',this)" data-trend-id="trend-0" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-0" class="yoy-trend-container"></div>
 <p>GP is down £13k year-on-year—margin fell from £25 to £22 per policy despite policy count rising 4%. Most of the damage is from margin collapse in Single Trip, especially via aggregator and direct channels; this has been the trend since mid-February.</p>
 <div class="dig-wrap"><div class="dig-buttons"><button class="ask-driver-btn" onclick="openDriverAsk('ask-1')">Ask about this</button><button class="dig-btn" onclick="toggleSQL('sql-1')">Dig into this in GBQ</button></div><pre class="dig-sql" id="sql-1" style="display:none"><code>SELECT SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) as gp, SUM(policy_count) as policies, 
 SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))/NULLIF(SUM(policy_count),0) as avg_gp
 FROM `hx-data-production.commercial_finance.insurance_policies_new`
 WHERE transaction_date BETWEEN '2026-03-03' AND '2026-03-10'</code><button class="copy-btn" onclick="copySQL('sql-1')">Copy</button></pre><div class="driver-ask-panel" id="ask-1" style="display:none"><div class="ask-input-wrap"><input type="text" class="ask-input" placeholder="Ask a question about this driver..." onkeydown="if(event.key==='Enter')submitDriverAsk('ask-1')"><button class="ask-submit" onclick="submitDriverAsk('ask-1')">Go</button></div><div class="ask-response" id="ask-1-response"></div></div></div>
 
-<h3 id="driver-direct-single-trip-margin-fall-recurring">Direct Single Trip margin fall <span class="badge-recurring">Recurring</span> <button class="view-trend-btn" onclick="fetchDriverTrend('trend-1',this)" data-trend-id="trend-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-1" class="yoy-trend-container"></div>
+<h3 id="driver-direct-single-trip-margin-fall-recurring" data-driver-idx="1">Direct Single Trip margin fall <span class="badge-recurring">Recurring</span> <button class="view-trend-btn" onclick="toggleMatchedTrend('trend-1',this)" data-trend-id="trend-1" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-1" class="yoy-trend-container"></div>
 <p>Direct Single Trip GP dropped £3.8k—traffic fell nearly 10% YoY and customers skewed heavily to the lowest margin Bronze plans (avg GP now £18). This downward trend in margin has now run for six weeks.</p>
 <div class="dig-wrap"><div class="dig-buttons"><button class="ask-driver-btn" onclick="openDriverAsk('ask-2')">Ask about this</button><button class="dig-btn" onclick="toggleSQL('sql-2')">Dig into this in GBQ</button></div><pre class="dig-sql" id="sql-2" style="display:none"><code>SELECT cover_level_name, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)), 
 SUM(CAST(total_gross_inc_ipt AS FLOAT64))/NULLIF(SUM(policy_count),0) as avg_price
@@ -1350,7 +1327,7 @@ FROM `hx-data-production.commercial_finance.insurance_policies_new`
 WHERE transaction_date BETWEEN '2026-03-03' AND '2026-03-10' AND distribution_channel='Direct' AND policy_type='Single'
 GROUP BY cover_level_name</code><button class="copy-btn" onclick="copySQL('sql-2')">Copy</button></pre><div class="driver-ask-panel" id="ask-2" style="display:none"><div class="ask-input-wrap"><input type="text" class="ask-input" placeholder="Ask a question about this driver..." onkeydown="if(event.key==='Enter')submitDriverAsk('ask-2')"><button class="ask-submit" onclick="submitDriverAsk('ask-2')">Go</button></div><div class="ask-response" id="ask-2-response"></div></div></div>
 
-<h3 id="driver-bronze-main-single-med-hx-margin-drop-scheme-recurring">Bronze Main Single Med HX margin drop (scheme) <span class="badge-recurring">Recurring</span> <button class="view-trend-btn" onclick="fetchDriverTrend('trend-2',this)" data-trend-id="trend-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-2" class="yoy-trend-container"></div>
+<h3 id="driver-bronze-main-single-med-hx-margin-drop-scheme-recurring" data-driver-idx="2">Bronze Main Single Med HX margin drop (scheme) <span class="badge-recurring">Recurring</span> <button class="view-trend-btn" onclick="toggleMatchedTrend('trend-2',this)" data-trend-id="trend-2" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-2" class="yoy-trend-container"></div>
 <p>Bronze Main Single Med HX lost £2.6k in GP, with policies flooding in at heavy discounts (avg discount &gt;10%). Volume is up 11%, but GP per policy is down nearly 27%—this is the fourth week running we’ve seen this.</p>
 <div class="dig-wrap"><div class="dig-buttons"><button class="ask-driver-btn" onclick="openDriverAsk('ask-3')">Ask about this</button><button class="dig-btn" onclick="toggleSQL('sql-3')">Dig into this in GBQ</button></div><pre class="dig-sql" id="sql-3" style="display:none"><code>SELECT booking_source, SUM(policy_count), 
 SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))/NULLIF(SUM(policy_count),0) as avg_gp
@@ -1358,28 +1335,28 @@ FROM `hx-data-production.commercial_finance.insurance_policies_new`
 WHERE transaction_date BETWEEN '2026-03-03' AND '2026-03-10' AND scheme_name='Bronze Main Single Med HX'
 GROUP BY booking_source</code><button class="copy-btn" onclick="copySQL('sql-3')">Copy</button></pre><div class="driver-ask-panel" id="ask-3" style="display:none"><div class="ask-input-wrap"><input type="text" class="ask-input" placeholder="Ask a question about this driver..." onkeydown="if(event.key==='Enter')submitDriverAsk('ask-3')"><button class="ask-submit" onclick="submitDriverAsk('ask-3')">Go</button></div><div class="ask-response" id="ask-3-response"></div></div></div>
 
-<h3 id="driver-bronze-classic-cover-level-margin-mix-recurring">Bronze/Classic Cover Level margin mix <span class="badge-recurring">Recurring</span> <button class="view-trend-btn" onclick="fetchDriverTrend('trend-3',this)" data-trend-id="trend-3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-3" class="yoy-trend-container"></div>
+<h3 id="driver-bronze-classic-cover-level-margin-mix-recurring" data-driver-idx="3">Bronze/Classic Cover Level margin mix <span class="badge-recurring">Recurring</span> <button class="view-trend-btn" onclick="toggleMatchedTrend('trend-3',this)" data-trend-id="trend-3" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-3" class="yoy-trend-container"></div>
 <p>Too many buyers are picking Bronze or Classic, costing £4.6k in GP this week—Bronze margins down 19% and Classic GP/policy below £2. This squeeze has now become the norm, as more buyers focus on lowest-price covers.</p>
 <div class="dig-wrap"><div class="dig-buttons"><button class="ask-driver-btn" onclick="openDriverAsk('ask-4')">Ask about this</button><button class="dig-btn" onclick="toggleSQL('sql-4')">Dig into this in GBQ</button></div><pre class="dig-sql" id="sql-4" style="display:none"><code>SELECT cover_level_name, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
 FROM `hx-data-production.commercial_finance.insurance_policies_new`
 WHERE transaction_date BETWEEN '2026-03-03' AND '2026-03-10'
 GROUP BY cover_level_name</code><button class="copy-btn" onclick="copySQL('sql-4')">Copy</button></pre><div class="driver-ask-panel" id="ask-4" style="display:none"><div class="ask-input-wrap"><input type="text" class="ask-input" placeholder="Ask a question about this driver..." onkeydown="if(event.key==='Enter')submitDriverAsk('ask-4')"><button class="ask-submit" onclick="submitDriverAsk('ask-4')">Go</button></div><div class="ask-response" id="ask-4-response"></div></div></div>
 
-<h3 id="driver-partner-referral-single-trip-drop-new">Partner Referral Single Trip drop <span class="badge-new">New</span></h3>
+<h3 id="driver-partner-referral-single-trip-drop-new" data-driver-idx="4">Partner Referral Single Trip drop <span class="badge-new">New</span> <button class="view-trend-btn" onclick="toggleMatchedTrend('trend-4',this)" data-trend-id="trend-4" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-4" class="yoy-trend-container"></div>
 <p>Partner Referral Single Trip lost £6.1k (down 28%)—policies and traffic both down a quarter, price and conversion flat. The volume hit is broad-based: partnership sites are just sending fewer customers.</p>
 <div class="dig-wrap"><div class="dig-buttons"><button class="ask-driver-btn" onclick="openDriverAsk('ask-5')">Ask about this</button><button class="dig-btn" onclick="toggleSQL('sql-5')">Dig into this in GBQ</button></div><pre class="dig-sql" id="sql-5" style="display:none"><code>SELECT agent_name, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
 FROM `hx-data-production.commercial_finance.insurance_policies_new`
 WHERE transaction_date BETWEEN '2026-03-03' AND '2026-03-10' AND policy_type='Single' AND distribution_channel='Partner Referral'
 GROUP BY agent_name</code><button class="copy-btn" onclick="copySQL('sql-5')">Copy</button></pre><div class="driver-ask-panel" id="ask-5" style="display:none"><div class="ask-input-wrap"><input type="text" class="ask-input" placeholder="Ask a question about this driver..." onkeydown="if(event.key==='Enter')submitDriverAsk('ask-5')"><button class="ask-submit" onclick="submitDriverAsk('ask-5')">Go</button></div><div class="ask-response" id="ask-5-response"></div></div></div>
 
-<h3 id="driver-aggregator-single-margin-collapse-new">Aggregator Single margin collapse <span class="badge-new">New</span></h3>
+<h3 id="driver-aggregator-single-margin-collapse-new" data-driver-idx="5">Aggregator Single margin collapse <span class="badge-new">New</span> <button class="view-trend-btn" onclick="toggleMatchedTrend('trend-5',this)" data-trend-id="trend-5" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-5" class="yoy-trend-container"></div>
 <p>GP for Aggregator Single is down £600 (25%), even as sales jumped 43%—we're selling more but only at £1.70 per policy. Growing share among under-30s and heavier promo pricing plus a commission squeeze are wiping out gains; this emerged in the last two weeks.</p>
 <div class="dig-wrap"><div class="dig-buttons"><button class="ask-driver-btn" onclick="openDriverAsk('ask-6')">Ask about this</button><button class="dig-btn" onclick="toggleSQL('sql-6')">Dig into this in GBQ</button></div><pre class="dig-sql" id="sql-6" style="display:none"><code>SELECT cover_area, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
 FROM `hx-data-production.commercial_finance.insurance_policies_new`
 WHERE transaction_date BETWEEN '2026-03-03' AND '2026-03-10' AND policy_type='Single' AND distribution_channel='Aggregator'
 GROUP BY cover_area</code><button class="copy-btn" onclick="copySQL('sql-6')">Copy</button></pre><div class="driver-ask-panel" id="ask-6" style="display:none"><div class="ask-input-wrap"><input type="text" class="ask-input" placeholder="Ask a question about this driver..." onkeydown="if(event.key==='Enter')submitDriverAsk('ask-6')"><button class="ask-submit" onclick="submitDriverAsk('ask-6')">Go</button></div><div class="ask-response" id="ask-6-response"></div></div></div>
 
-<h3 id="driver-annuals-direct-partner-renewal-new">Annuals (Direct, Partner, Renewal) <span class="badge-new">New</span></h3>
+<h3 id="driver-annuals-direct-partner-renewal-new" data-driver-idx="6">Annuals (Direct, Partner, Renewal) <span class="badge-new">New</span> <button class="view-trend-btn" onclick="toggleMatchedTrend('trend-6',this)" data-trend-id="trend-6" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend</button></h3><div id="trend-6" class="yoy-trend-container"></div>
 <p>Annual policies grew 2%, bringing in around £1.5k more GP—growth is all on web, driven by Gold/Silver plans and older customers. This is one of our best future renewal drivers, and margin held up.</p>
 <div class="dig-wrap"><div class="dig-buttons"><button class="ask-driver-btn" onclick="openDriverAsk('ask-7')">Ask about this</button><button class="dig-btn" onclick="toggleSQL('sql-7')">Dig into this in GBQ</button></div><pre class="dig-sql" id="sql-7" style="display:none"><code>SELECT policy_type, distribution_channel, SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
 FROM `hx-data-production.commercial_finance.insurance_policies_new`
@@ -1875,17 +1852,19 @@ ORDER BY gp ASC;</code></div></details><div class="trail-result" style="margin-t
 
 <!-- Footer -->
 <div class="foot">
-<div>Generated 12:04 11 Mar 2026 &middot; 28 investigations (0 tracks + 28 follow-ups) via gpt-4.1 &middot; Data: BigQuery + Sheets + Drive + Web</div>
+<div>Generated 12:33 11 Mar 2026 &middot; 28 investigations (0 tracks + 28 follow-ups) via gpt-4.1 &middot; Data: BigQuery + Sheets + Drive + Web</div>
 <div class="foot-brand">Trading Covered &mdash; Powered by AI for Holiday Extras</div>
 </div>
 
 </div><!-- /.c -->
 
 <script>
+/* ── Pre-loaded driver trend data (keyed by driver name) ── */
+window.__driverTrends={"Aggregator Single Trip Margin Collapse": {"ty": [{"dt": "2026-02-25", "val": 181.74000000000004}, {"dt": "2026-02-26", "val": 246.52999999999997}, {"dt": "2026-02-27", "val": 108.66999999999999}, {"dt": "2026-02-28", "val": 429.19000000000005}, {"dt": "2026-03-01", "val": 647.9000000000001}, {"dt": "2026-03-02", "val": 430.2700000000001}, {"dt": "2026-03-03", "val": 267.03999999999996}, {"dt": "2026-03-04", "val": 224.98000000000002}, {"dt": "2026-03-05", "val": 217.91}, {"dt": "2026-03-06", "val": 135.49999999999994}, {"dt": "2026-03-07", "val": 267.41999999999996}, {"dt": "2026-03-08", "val": 242.0200000000001}, {"dt": "2026-03-09", "val": 291.0899999999999}, {"dt": "2026-03-10", "val": 205.15}], "ly": [{"dt": "2025-02-26", "val": 216.33999999999997}, {"dt": "2025-02-27", "val": 271.11999999999995}, {"dt": "2025-02-28", "val": 364.6799999999999}, {"dt": "2025-03-01", "val": 265.4}, {"dt": "2025-03-02", "val": 214.03000000000003}, {"dt": "2025-03-03", "val": 352.31000000000006}, {"dt": "2025-03-04", "val": 318.49999999999983}, {"dt": "2025-03-05", "val": 454.2499999999998}, {"dt": "2025-03-06", "val": 224.34999999999997}, {"dt": "2025-03-07", "val": 331.08}, {"dt": "2025-03-08", "val": 344.23}, {"dt": "2025-03-09", "val": 219.60999999999996}, {"dt": "2025-03-10", "val": 344.57000000000005}, {"dt": "2025-03-11", "val": 245.77000000000007}], "metric_label": "GP", "direction": "down", "persistence": "recurring", "consistent_days": 7, "total_days": 10, "recovery": false}, "Direct Single Trip GP Decline": {"ty": [{"dt": "2026-02-25", "val": 4867.159999999998}, {"dt": "2026-02-26", "val": 4236.830000000002}, {"dt": "2026-02-27", "val": 4376.889999999999}, {"dt": "2026-02-28", "val": 6533.19}, {"dt": "2026-03-01", "val": 4640.140000000002}, {"dt": "2026-03-02", "val": 7184.7999999999965}, {"dt": "2026-03-03", "val": 5765.729999999998}, {"dt": "2026-03-04", "val": 6446.7999999999965}, {"dt": "2026-03-05", "val": 4916.320000000001}, {"dt": "2026-03-06", "val": 5522.8899999999985}, {"dt": "2026-03-07", "val": 3075.7400000000007}, {"dt": "2026-03-08", "val": 4664.620000000001}, {"dt": "2026-03-09", "val": 4396.14}, {"dt": "2026-03-10", "val": 3869.5699999999997}], "ly": [{"dt": "2025-02-26", "val": 6514.059999999999}, {"dt": "2025-02-27", "val": 4930.549999999998}, {"dt": "2025-02-28", "val": 4937.130000000001}, {"dt": "2025-03-01", "val": 4725.959999999999}, {"dt": "2025-03-02", "val": 4404.09}, {"dt": "2025-03-03", "val": 5674.29}, {"dt": "2025-03-04", "val": 5537.240000000002}, {"dt": "2025-03-05", "val": 5766.61}, {"dt": "2025-03-06", "val": 4622.52}, {"dt": "2025-03-07", "val": 5938.039999999997}, {"dt": "2025-03-08", "val": 4078.990000000001}, {"dt": "2025-03-09", "val": 5250.839999999999}, {"dt": "2025-03-10", "val": 6591.969999999999}, {"dt": "2025-03-11", "val": 4664.460000000003}], "metric_label": "GP", "direction": "down", "persistence": "emerging", "consistent_days": 5, "total_days": 10, "recovery": false}, "Renewals GP Weakness": {"ty": [{"dt": "2026-02-25", "val": 8327.770000000004}, {"dt": "2026-02-26", "val": 8025.57}, {"dt": "2026-02-27", "val": 5851.900000000001}, {"dt": "2026-02-28", "val": 5519.72}, {"dt": "2026-03-01", "val": 5776.529999999999}, {"dt": "2026-03-02", "val": 8867.22}, {"dt": "2026-03-03", "val": 7270.0199999999995}, {"dt": "2026-03-04", "val": 6907.230000000001}, {"dt": "2026-03-05", "val": 6309.4299999999985}, {"dt": "2026-03-06", "val": 6338.160000000004}, {"dt": "2026-03-07", "val": 5731.9400000000005}, {"dt": "2026-03-08", "val": 4973.12}, {"dt": "2026-03-09", "val": 6556.810000000004}, {"dt": "2026-03-10", "val": 9685.18}], "ly": [{"dt": "2025-02-26", "val": 5277.23}, {"dt": "2025-02-27", "val": 5687.11}, {"dt": "2025-02-28", "val": 6324.759999999999}, {"dt": "2025-03-01", "val": 4425.299999999997}, {"dt": "2025-03-02", "val": 5034.58}, {"dt": "2025-03-03", "val": 8123.619999999999}, {"dt": "2025-03-04", "val": 6511.540000000003}, {"dt": "2025-03-05", "val": 6343.039999999998}, {"dt": "2025-03-06", "val": 6709.7300000000005}, {"dt": "2025-03-07", "val": 7573.85}, {"dt": "2025-03-08", "val": 4389.129999999999}, {"dt": "2025-03-09", "val": 4974.910000000001}, {"dt": "2025-03-10", "val": 9591.099999999991}, {"dt": "2025-03-11", "val": 6236.999999999997}], "metric_label": "GP", "direction": "down", "persistence": "new", "consistent_days": 4, "total_days": 10, "recovery": false}, "Partner Single Volume Drop": {"ty": [{"dt": "2026-02-25", "val": 1625.4400000000005}, {"dt": "2026-02-26", "val": 1336.4299999999998}, {"dt": "2026-02-27", "val": 2197.2599999999993}, {"dt": "2026-02-28", "val": 939.4399999999999}, {"dt": "2026-03-01", "val": 723.7499999999999}, {"dt": "2026-03-02", "val": 2454.9}, {"dt": "2026-03-03", "val": 2505.4900000000007}, {"dt": "2026-03-04", "val": 1685.9999999999998}, {"dt": "2026-03-05", "val": 1858.9200000000005}, {"dt": "2026-03-06", "val": 2498.770000000001}, {"dt": "2026-03-07", "val": 1222.41}, {"dt": "2026-03-08", "val": 1085.2999999999997}, {"dt": "2026-03-09", "val": 3127.230000000001}, {"dt": "2026-03-10", "val": 1517.99}], "ly": [{"dt": "2025-02-26", "val": 2737.940000000002}, {"dt": "2025-02-27", "val": 1870.8199999999997}, {"dt": "2025-02-28", "val": 3650.749999999999}, {"dt": "2025-03-01", "val": 2344.369999999999}, {"dt": "2025-03-02", "val": 1825.27}, {"dt": "2025-03-03", "val": 2265.4100000000008}, {"dt": "2025-03-04", "val": 2362.4699999999993}, {"dt": "2025-03-05", "val": 2566.1100000000006}, {"dt": "2025-03-06", "val": 2872.909999999999}, {"dt": "2025-03-07", "val": 2287.489999999999}, {"dt": "2025-03-08", "val": 1865.5299999999997}, {"dt": "2025-03-09", "val": 2341.1899999999987}, {"dt": "2025-03-10", "val": 3587.909999999999}, {"dt": "2025-03-11", "val": 3763.09}], "metric_label": "GP", "direction": "down", "persistence": "recurring", "consistent_days": 7, "total_days": 10, "recovery": false}, "Mix Shift to Bronze and Low GP": {"ty": [{"dt": "2026-02-25", "val": 5274.940000000003}, {"dt": "2026-02-26", "val": 3724.3499999999995}, {"dt": "2026-02-27", "val": 3427.060000000001}, {"dt": "2026-02-28", "val": 3902.9399999999996}, {"dt": "2026-03-01", "val": 3633.0700000000006}, {"dt": "2026-03-02", "val": 4383.950000000003}, {"dt": "2026-03-03", "val": 3569.2200000000007}, {"dt": "2026-03-04", "val": 5388.050000000001}, {"dt": "2026-03-05", "val": 3133.0699999999997}, {"dt": "2026-03-06", "val": 3524.069999999999}, {"dt": "2026-03-07", "val": 3200.3899999999985}, {"dt": "2026-03-08", "val": 3974.620000000002}, {"dt": "2026-03-09", "val": 3718.1800000000003}, {"dt": "2026-03-10", "val": 2398.9199999999983}], "ly": [{"dt": "2025-02-26", "val": 5792.409999999999}, {"dt": "2025-02-27", "val": 4161.7300000000005}, {"dt": "2025-02-28", "val": 4883.800000000001}, {"dt": "2025-03-01", "val": 3691.27}, {"dt": "2025-03-02", "val": 5430.599999999995}, {"dt": "2025-03-03", "val": 5512.649999999998}, {"dt": "2025-03-04", "val": 3902.4}, {"dt": "2025-03-05", "val": 5466.4}, {"dt": "2025-03-06", "val": 4419.780000000001}, {"dt": "2025-03-07", "val": 4289.85}, {"dt": "2025-03-08", "val": 2801.0799999999995}, {"dt": "2025-03-09", "val": 4409.71}, {"dt": "2025-03-10", "val": 5733.24}, {"dt": "2025-03-11", "val": 3488.8099999999995}], "metric_label": "GP", "direction": "down", "persistence": "recurring", "consistent_days": 9, "total_days": 10, "recovery": false}, "Aggregator Annual Policies (Negative Margin, Not a Concern)": {"ty": [{"dt": "2026-02-25", "val": -583.1700000000001}, {"dt": "2026-02-26", "val": -581.3000000000003}, {"dt": "2026-02-27", "val": -630.34}, {"dt": "2026-02-28", "val": -1011.8900000000001}, {"dt": "2026-03-01", "val": -1093.2600000000004}, {"dt": "2026-03-02", "val": -1547.07}, {"dt": "2026-03-03", "val": -1049.24}, {"dt": "2026-03-04", "val": -946.2400000000001}, {"dt": "2026-03-05", "val": -672.52}, {"dt": "2026-03-06", "val": -639.0000000000001}, {"dt": "2026-03-07", "val": -760.4200000000001}, {"dt": "2026-03-08", "val": -820.6199999999999}, {"dt": "2026-03-09", "val": -727.9500000000002}, {"dt": "2026-03-10", "val": -615.4799999999999}], "ly": [{"dt": "2025-02-26", "val": -610.6500000000001}, {"dt": "2025-02-27", "val": -559.1099999999999}, {"dt": "2025-02-28", "val": -676.9599999999996}, {"dt": "2025-03-01", "val": -737.3600000000001}, {"dt": "2025-03-02", "val": -874.2600000000003}, {"dt": "2025-03-03", "val": -434.53000000000003}, {"dt": "2025-03-04", "val": -864.3000000000004}, {"dt": "2025-03-05", "val": -943.5100000000002}, {"dt": "2025-03-06", "val": -797.7799999999997}, {"dt": "2025-03-07", "val": -1129.2599999999998}, {"dt": "2025-03-08", "val": -688.7399999999998}, {"dt": "2025-03-09", "val": -994.6799999999996}, {"dt": "2025-03-10", "val": -847.2599999999998}, {"dt": "2025-03-11", "val": -1111.2899999999995}], "metric_label": "GP", "direction": "down", "persistence": "emerging", "consistent_days": 5, "total_days": 10, "recovery": true}, "Direct Annual Policies Slight GP Drop": {"ty": [{"dt": "2026-02-25", "val": 7247.0199999999995}, {"dt": "2026-02-26", "val": 5368.340000000001}, {"dt": "2026-02-27", "val": 5195.850000000002}, {"dt": "2026-02-28", "val": 6153.06}, {"dt": "2026-03-01", "val": 7104.789999999996}, {"dt": "2026-03-02", "val": 9109.539999999999}, {"dt": "2026-03-03", "val": 7987.7300000000005}, {"dt": "2026-03-04", "val": 6803.01}, {"dt": "2026-03-05", "val": 5941.850000000001}, {"dt": "2026-03-06", "val": 4867.0700000000015}, {"dt": "2026-03-07", "val": 4526.140000000002}, {"dt": "2026-03-08", "val": 5629.43}, {"dt": "2026-03-09", "val": 7347.670000000001}, {"dt": "2026-03-10", "val": 4656.15}], "ly": [{"dt": "2025-02-26", "val": 9469.94}, {"dt": "2025-02-27", "val": 5394.250000000001}, {"dt": "2025-02-28", "val": 6203.529999999999}, {"dt": "2025-03-01", "val": 7004.609999999999}, {"dt": "2025-03-02", "val": 6553.169999999998}, {"dt": "2025-03-03", "val": 6736.200000000001}, {"dt": "2025-03-04", "val": 6326.940000000001}, {"dt": "2025-03-05", "val": 9843.309999999996}, {"dt": "2025-03-06", "val": 7315.939999999998}, {"dt": "2025-03-07", "val": 6253.100000000001}, {"dt": "2025-03-08", "val": 5999.399999999998}, {"dt": "2025-03-09", "val": 5940.539999999997}, {"dt": "2025-03-10", "val": 7064.490000000001}, {"dt": "2025-03-11", "val": 5238.350000000001}], "metric_label": "GP", "direction": "down", "persistence": "emerging", "consistent_days": 6, "total_days": 10, "recovery": false}, "GP Decline from Lower Trading Margin (Discounting)": {"ty": [{"dt": "2026-02-25", "val": 12114.180000000004}, {"dt": "2026-02-26", "val": 9605.169999999998}, {"dt": "2026-02-27", "val": 9572.740000000003}, {"dt": "2026-02-28", "val": 12686.249999999996}, {"dt": "2026-03-01", "val": 11744.929999999998}, {"dt": "2026-03-02", "val": 16294.340000000002}, {"dt": "2026-03-03", "val": 13753.460000000006}, {"dt": "2026-03-04", "val": 13249.81}, {"dt": "2026-03-05", "val": 10858.17}, {"dt": "2026-03-06", "val": 10389.959999999997}, {"dt": "2026-03-07", "val": 7601.879999999999}, {"dt": "2026-03-08", "val": 10294.050000000003}, {"dt": "2026-03-09", "val": 11743.810000000001}, {"dt": "2026-03-10", "val": 8525.72}], "ly": [{"dt": "2025-02-26", "val": 15984.000000000005}, {"dt": "2025-02-27", "val": 10324.800000000003}, {"dt": "2025-02-28", "val": 11140.660000000003}, {"dt": "2025-03-01", "val": 11730.569999999992}, {"dt": "2025-03-02", "val": 10957.259999999995}, {"dt": "2025-03-03", "val": 12410.489999999998}, {"dt": "2025-03-04", "val": 11864.180000000004}, {"dt": "2025-03-05", "val": 15609.92}, {"dt": "2025-03-06", "val": 11938.460000000003}, {"dt": "2025-03-07", "val": 12191.140000000007}, {"dt": "2025-03-08", "val": 10078.39}, {"dt": "2025-03-09", "val": 11191.380000000003}, {"dt": "2025-03-10", "val": 13656.460000000003}, {"dt": "2025-03-11", "val": 9902.809999999994}], "metric_label": "GP", "direction": "down", "persistence": "recurring", "consistent_days": 7, "total_days": 10, "recovery": false}};
+
 /* ── Chart ── */
 const data=[{"date": "2026-02-25", "gp": 23534.0, "policies": 895, "gppp": 26.3, "above_avg": true, "ly_gp": 25193.0, "yoy_pct": -6.6, "yoy_abs": -1659.0}, {"date": "2026-02-26", "gp": 19846.0, "policies": 765, "gppp": 25.94, "above_avg": false, "ly_gp": 18470.0, "yoy_pct": 7.5, "yoy_abs": 1377.0}, {"date": "2026-02-27", "gp": 19227.0, "policies": 818, "gppp": 23.5, "above_avg": false, "ly_gp": 22548.0, "yoy_pct": -14.7, "yoy_abs": -3321.0}, {"date": "2026-02-28", "gp": 19734.0, "policies": 988, "gppp": 19.97, "above_avg": false, "ly_gp": 18861.0, "yoy_pct": 4.6, "yoy_abs": 873.0}, {"date": "2026-03-01", "gp": 18324.0, "policies": 948, "gppp": 19.33, "above_avg": false, "ly_gp": 17742.0, "yoy_pct": 3.3, "yoy_abs": 582.0}, {"date": "2026-03-02", "gp": 27767.0, "policies": 1376, "gppp": 20.18, "above_avg": true, "ly_gp": 25445.0, "yoy_pct": 9.1, "yoy_abs": 2322.0}, {"date": "2026-03-03", "gp": 23782.0, "policies": 1030, "gppp": 23.09, "above_avg": true, "ly_gp": 21631.0, "yoy_pct": 9.9, "yoy_abs": 2152.0}, {"date": "2026-03-04", "gp": 22062.0, "policies": 1065, "gppp": 20.72, "above_avg": true, "ly_gp": 25159.0, "yoy_pct": -12.3, "yoy_abs": -3097.0}, {"date": "2026-03-05", "gp": 18947.0, "policies": 915, "gppp": 20.71, "above_avg": false, "ly_gp": 21533.0, "yoy_pct": -12.0, "yoy_abs": -2587.0}, {"date": "2026-03-06", "gp": 20597.0, "policies": 848, "gppp": 24.29, "above_avg": false, "ly_gp": 22778.0, "yoy_pct": -9.6, "yoy_abs": -2181.0}, {"date": "2026-03-07", "gp": 15776.0, "policies": 747, "gppp": 21.12, "above_avg": false, "ly_gp": 16397.0, "yoy_pct": -3.8, "yoy_abs": -621.0}, {"date": "2026-03-08", "gp": 17114.0, "policies": 898, "gppp": 19.06, "above_avg": false, "ly_gp": 18644.0, "yoy_pct": -8.2, "yoy_abs": -1531.0}, {"date": "2026-03-09", "gp": 22928.0, "policies": 907, "gppp": 25.28, "above_avg": true, "ly_gp": 28251.0, "yoy_pct": -18.8, "yoy_abs": -5323.0}, {"date": "2026-03-10", "gp": 20056.0, "policies": 857, "gppp": 23.4, "above_avg": false, "ly_gp": 20019.0, "yoy_pct": 0.2, "yoy_abs": 37.0}];
 const chart=document.getElementById('trendChart');
-const yoyChart=document.getElementById('yoyChart');
 let chartBuilt=false;
 
 function buildChart(){
@@ -1938,45 +1917,6 @@ function buildChart(){
     requestAnimationFrame(()=>{avgLine.classList.add('animate-in')});
   });
 
-  /* ── YoY Growth % Chart ── */
-  if(yoyChart){
-    const yoyVals=data.filter(d=>d.yoy_pct!==null).map(d=>d.yoy_pct);
-    if(yoyVals.length){
-      const maxAbs=Math.max(...yoyVals.map(v=>Math.abs(v)),1);
-      const halfH=55; /* px for each half (positive/negative) */
-
-      /* Zero line */
-      const zeroLine=document.createElement('div');
-      zeroLine.className='yoy-zero-line';
-      yoyChart.appendChild(zeroLine);
-
-      data.forEach((d,i)=>{
-        if(d.yoy_pct===null) return;
-        const col=document.createElement('div');col.className='yoy-bar-col';
-        const pct=d.yoy_pct;
-        const barH=Math.max(Math.abs(pct)/maxAbs*halfH,3);
-        const isUp=pct>=0;
-        const color=isUp?'#00B0A6':'#FF5F68';
-        const dateObj=new Date(d.date+'T00:00:00');
-        const dateLabel=dayNames[dateObj.getDay()]+' '+dateObj.getDate();
-        const fullDate=dayNames[dateObj.getDay()]+' '+dateObj.getDate()+' '+monthNames[dateObj.getMonth()];
-        const sign=pct>=0?'+':'';
-        /* Position: positive bars go up from center, negative go down */
-        const topPos=isUp?(halfH-barH)+'px':halfH+'px';
-        col.innerHTML=`
-          <div class="tooltip">
-            <div class="tt-date">${fullDate}</div>
-            <div class="tt-row">YoY: <span class="${isUp?'tt-yoy-up':'tt-yoy-down'}">${sign}${pct}%</span></div>
-            <div class="tt-row">TY: <span class="tt-val">&pound;${d.gp.toLocaleString()}</span> &middot; LY: <span class="tt-val">&pound;${d.ly_gp?d.ly_gp.toLocaleString():'N/A'}</span></div>
-          </div>
-          <div class="yoy-bar-area">
-            <div class="yoy-bar animate-in" style="height:${barH}px;top:${topPos};background:${color};animation-delay:${i*60}ms;transform:scaleY(0);border-radius:${isUp?'4px 4px 0 0':'0 0 4px 4px'}"></div>
-          </div>
-          <div class="bar-label">${dateLabel}</div>`;
-        yoyChart.appendChild(col);
-      });
-    }
-  }
 }
 
 /* ── SQL dig toggle/copy ── */
@@ -2084,6 +2024,78 @@ function stopAILoadingStepper(container){
   if(container._timer) clearTimeout(container._timer);
 }
 
+/* ── Fuzzy-match heading text to best driver trend key ── */
+const __trendUsed=new Set();
+function _matchTrend(headingText){
+  const trends=window.__driverTrends||{};
+  const keys=Object.keys(trends);
+  if(!keys.length) return null;
+  const stop=new Set(['the','a','an','and','or','of','in','on','to','for','is','from','by','with','not','recurring','emerging','new','trend']);
+  function tokens(s){
+    return s.toLowerCase().replace(/[^a-z0-9\s/]/g,' ').split(/\s+/)
+      .flatMap(w=>w.split('/')).filter(w=>w.length>1&&!stop.has(w));
+  }
+  const hTokens=new Set(tokens(headingText));
+  let bestKey=null,bestScore=0;
+  for(const key of keys){
+    if(__trendUsed.has(key)) continue;
+    const kTokens=new Set(tokens(key));
+    let overlap=0;
+    for(const t of hTokens) if(kTokens.has(t)) overlap++;
+    const score=overlap/Math.min(hTokens.size,kTokens.size);
+    if(score>bestScore&&overlap>=1){bestScore=score;bestKey=key;}
+  }
+  if(bestKey&&bestScore>=0.25){
+    __trendUsed.add(bestKey);
+    return trends[bestKey];
+  }
+  return null;
+}
+
+/* ── Toggle matched trend chart (pre-loaded, instant) ── */
+function toggleMatchedTrend(trendId, btn){
+  const container=document.getElementById(trendId);
+  if(!container) return;
+
+  /* Toggle off */
+  if(container.querySelector('.yoy-trend-wrap')){
+    container.innerHTML='';
+    return;
+  }
+
+  /* Get heading text and match to trend data */
+  const h3=btn.closest('h3');
+  const heading=h3?h3.textContent.replace(/Trend.*/,'').replace(/Recovery/g,'').trim():'Driver';
+  let data=container._matchedData;
+  if(!data){
+    data=_matchTrend(heading);
+    container._matchedData=data;
+  }
+  if(!data){
+    /* Fallback to live API fetch */
+    fetchDriverTrend(trendId,btn);
+    return;
+  }
+  try{
+    const trendResult={ty:data.ty.map(d=>({dt:d.dt,gp:d.val,vol:0})),ly:data.ly.map(d=>({dt:d.dt,gp:d.val,vol:0}))};
+    renderYoYTrend(container, trendResult, heading, data);
+    /* Update button with persistence info */
+    const cd=data.consistent_days||0;
+    const td=data.total_days||10;
+    btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend ('+cd+'/'+td+'d)';
+    /* Insert recovery badge if applicable */
+    if(data.recovery&&h3&&!h3.querySelector('.badge-recovery')){
+      const badge=document.createElement('span');
+      badge.className='badge-recovery';
+      badge.textContent='Recovery';
+      const trendBtn=h3.querySelector('.view-trend-btn');
+      if(trendBtn) h3.insertBefore(badge,trendBtn);
+    }
+  }catch(e){
+    container.innerHTML='<div class="yoy-trend-wrap" style="padding:12px;font-size:12px;color:var(--muted)">Error: '+e.message+'</div>';
+  }
+}
+
 /* ── Fetch and render YoY trend bar chart for recurring/emerging drivers ── */
 function fetchDriverTrend(trendId, btn){
   const container=document.getElementById(trendId);
@@ -2158,7 +2170,7 @@ function fetchDriverTrend(trendId, btn){
       btn.textContent='Trend';
       return;
     }
-    renderYoYTrend(container, result.trend, headingText);
+    renderYoYTrend(container, result.trend, headingText, null);
     btn.textContent='Hide trend';
   })
   .catch(err=>{
@@ -2167,7 +2179,7 @@ function fetchDriverTrend(trendId, btn){
   });
 }
 
-function renderYoYTrend(container, trendData, title){
+function renderYoYTrend(container, trendData, title, meta){
   const tyRows=trendData.ty||[];
   const lyRows=trendData.ly||[];
   if(!tyRows.length){
@@ -2175,8 +2187,62 @@ function renderYoYTrend(container, trendData, title){
     return;
   }
 
+  /* Compute persistence from the data if not provided */
+  const direction=(meta&&meta.direction)||'down';
+  let consistentDays=meta&&meta.consistent_days;
+  let totalDays=meta&&meta.total_days;
+  let persistenceLabel=meta&&meta.persistence;
+
+  if(consistentDays==null){
+    const n=Math.min(tyRows.length,lyRows.length,10);
+    const tyTail=tyRows.slice(-n);
+    const lyTail=lyRows.slice(-n);
+    let count=0;
+    for(let i=0;i<n;i++){
+      const tv=parseFloat(tyTail[i].gp)||0;
+      const lv=parseFloat(lyTail[i].gp)||0;
+      if(direction==='down'?tv<lv:tv>lv) count++;
+    }
+    consistentDays=count;totalDays=n;
+    persistenceLabel=count>=7?'recurring':count>=5?'emerging':'new';
+  }
+
   /* Match TY and LY by index (both should be 14 days, aligned by day-of-week) */
   const maxGP=Math.max(...tyRows.map(r=>Math.abs(parseFloat(r.gp)||0)),...lyRows.map(r=>Math.abs(parseFloat(r.gp)||0)),1);
+
+  /* Detect recovery: last 2 days both improving vs LY */
+  const isRecovery=meta&&meta.recovery;
+  let recoveryDetected=isRecovery;
+  if(recoveryDetected==null&&tyRows.length>=2&&lyRows.length>=2){
+    const ty1=parseFloat(tyRows[tyRows.length-2].gp)||0;
+    const ty2=parseFloat(tyRows[tyRows.length-1].gp)||0;
+    const ly1=parseFloat(lyRows[lyRows.length-2].gp)||0;
+    const ly2=parseFloat(lyRows[lyRows.length-1].gp)||0;
+    if(direction==='down') recoveryDetected=(ty1>ly1&&ty2>ly2);
+    else recoveryDetected=(ty1<ly1&&ty2<ly2);
+  }
+
+  /* Persistence summary */
+  const persColor=persistenceLabel==='recurring'?'#FF8A91':persistenceLabel==='emerging'?'#FFB55F':'#5FFFF0';
+  const recoveryHTML=recoveryDetected?
+    `<div style="font-size:10px;font-weight:700;color:#00D4C8;padding:2px 8px;background:rgba(0,212,200,0.12);border:1px solid rgba(0,212,200,0.25);border-radius:10px;animation:recovery-pulse 2s ease-in-out infinite">⬆ Recovery — last 2 days improving</div>`:'';
+  const persHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border);flex-wrap:wrap">`+
+    `<div style="font-size:11px;color:var(--muted)">Persistence threshold</div>`+
+    `<div style="display:flex;gap:2px;align-items:center">`+
+    Array.from({length:totalDays},(_, i)=>{
+      /* last N days: color each dot by whether it was consistent */
+      const idx=tyRows.length-totalDays+i;
+      const tv=idx>=0?parseFloat(tyRows[idx].gp)||0:0;
+      const lv=idx>=0&&lyRows[idx]?parseFloat(lyRows[idx].gp)||0:0;
+      const hit=direction==='down'?tv<lv:tv>lv;
+      const dotColor=hit?persColor:'rgba(255,255,255,0.12)';
+      return `<div style="width:8px;height:16px;border-radius:2px;background:${dotColor};transition:background 0.3s"></div>`;
+    }).join('')+
+    `</div>`+
+    `<div style="font-size:11px;font-weight:700;color:${persColor}">${consistentDays}/${totalDays} days ${direction}</div>`+
+    `<div style="font-size:10px;color:var(--muted);margin-left:auto">`+
+    (persistenceLabel==='recurring'?'≥7 = Recurring':persistenceLabel==='emerging'?'5–6 = Emerging':'<5 = New')+
+    `</div>`+recoveryHTML+`</div>`;
 
   let barsHTML='';
   tyRows.forEach((row,i)=>{
@@ -2203,6 +2269,7 @@ function renderYoYTrend(container, trendData, title){
   wrap.className='yoy-trend-wrap';
   wrap.innerHTML=
     `<div class="yoy-trend-header"><span>${title} — 14 day daily GP</span><span>YoY growth coloured</span></div>`+
+    persHTML+
     barsHTML+
     `<div class="yoy-trendline-wrap"><canvas></canvas></div>`;
   container.innerHTML='';
@@ -2749,83 +2816,107 @@ function openInvestigations(){
     bar.style.width=pct+'%';
   },{passive:true});
 
-  /* 10. Driver trend mini-charts — canvas line charts */
-  document.querySelectorAll('.driver-trend-chart').forEach(el=>{
-    try{
-      const data=JSON.parse(el.dataset.trend);
-      const tyVals=data.ty.map(d=>d.val);
-      const lyVals=data.ly.map(d=>d.val);
-      const label=data.metric_label||'GP';
-      if(!tyVals.length) return;
+  /* 10. Init driver trend badges + buttons from computed data */
+  (function initDriverTrends(){
+    const trends=window.__driverTrends||{};
+    const keys=Object.keys(trends);
+    if(!keys.length) return;
+    const headings=document.querySelectorAll('h3[data-driver-idx]');
 
-      /* Add label + legend */
-      const labelEl=document.createElement('div');
-      labelEl.className='driver-trend-label';
-      labelEl.textContent=label+' — 14 days';
-      el.appendChild(labelEl);
-      const legend=document.createElement('div');
-      legend.className='driver-trend-legend';
-      legend.innerHTML='<span class="dtl-ty">This year</span><span class="dtl-ly">Last year</span>';
-      el.appendChild(legend);
+    /* Weighted token matching — channel/product words score 3x more than generic */
+    const stop=new Set(['the','a','an','and','or','of','in','on','to','for','is','from','by','with','not','recurring','emerging','new','trend','gp','margin','drop','decline','fall','collapse','weakness','shift','lower']);
+    const highWeight=new Set(['direct','aggregator','partner','renewal','renewals','annual','annuals','single','bronze','classic','silver','gold','deluxe','elite','medical','med','cruise','scheme']);
+    function tokens(s){
+      return s.toLowerCase().replace(/[^a-z0-9\s/]/g,' ').split(/\s+/)
+        .flatMap(w=>w.split('/')).filter(w=>w.length>1);
+    }
 
-      /* Canvas */
-      const canvas=document.createElement('canvas');
-      el.appendChild(canvas);
-      const ctx=canvas.getContext('2d');
-      const dpr=window.devicePixelRatio||1;
-      const w=el.clientWidth-24;
-      const h=el.clientHeight-20;
-      canvas.width=w*dpr;canvas.height=h*dpr;
-      canvas.style.width=w+'px';canvas.style.height=h+'px';
-      ctx.scale(dpr,dpr);
+    function matchScore(hTokens,kTokens){
+      let score=0,matches=0;
+      for(const t of hTokens){
+        if(kTokens.has(t)){
+          matches++;
+          score+=highWeight.has(t)?3:1;
+        }
+      }
+      return {score,matches};
+    }
 
-      const allVals=[...tyVals,...lyVals];
-      const mn=Math.min(...allVals);
-      const mx=Math.max(...allVals);
-      const range=mx-mn||1;
-      const pad=4;
+    /* Phase 1: Compute all pairwise scores */
+    const allScores=[];
+    const hArr=Array.from(headings);
+    hArr.forEach((h3,hIdx)=>{
+      const txt=h3.textContent.replace(/Trend.*/,'').replace(/Recurring|Emerging|New|Recovery/gi,'').trim();
+      const hTokens=new Set(tokens(txt));
+      keys.forEach((key,kIdx)=>{
+        const kTokens=new Set(tokens(key));
+        const r=matchScore(hTokens,kTokens);
+        if(r.matches>=1&&(r.score>=3||r.matches>=2)){
+          allScores.push({hIdx,kIdx,score:r.score,matches:r.matches});
+        }
+      });
+    });
 
-      function drawLine(vals,color,lineWidth,dashed){
-        if(!vals.length) return;
-        ctx.beginPath();
-        ctx.strokeStyle=color;ctx.lineWidth=lineWidth;
-        if(dashed) ctx.setLineDash([4,3]);else ctx.setLineDash([]);
-        const step=w/(vals.length-1||1);
-        vals.forEach((v,i)=>{
-          const x=i*step;
-          const y=pad+(1-(v-mn)/range)*(h-pad*2);
-          if(i===0) ctx.moveTo(x,y);else ctx.lineTo(x,y);
-        });
-        ctx.stroke();
+    /* Phase 2: Greedy-best assignment — highest score first, no reuse */
+    allScores.sort((a,b)=>b.score-a.score||(b.matches-a.matches));
+    const usedH=new Set(),usedK=new Set();
+    const assignments=new Map();
+    for(const s of allScores){
+      if(usedH.has(s.hIdx)||usedK.has(s.kIdx)) continue;
+      usedH.add(s.hIdx);usedK.add(s.kIdx);
+      assignments.set(s.hIdx,s.kIdx);
+    }
+
+    /* Phase 3: Apply badges and buttons */
+    hArr.forEach((h3,hIdx)=>{
+      const btn=h3.querySelector('.view-trend-btn');
+      const tid=btn?btn.getAttribute('data-trend-id'):null;
+      if(!assignments.has(hIdx)) return;
+
+      const kIdx=assignments.get(hIdx);
+      const td=trends[keys[kIdx]];
+      const p=td.persistence||'new';
+      const cd=td.consistent_days||0;
+      const tot=td.total_days||10;
+      const recovery=td.recovery||false;
+
+      if(tid){
+        const container=document.getElementById(tid);
+        if(container) container._matchedData=td;
       }
 
-      /* Fill area under TY line */
-      function drawArea(vals,color){
-        if(!vals.length) return;
-        ctx.beginPath();
-        const step=w/(vals.length-1||1);
-        vals.forEach((v,i)=>{
-          const x=i*step;
-          const y=pad+(1-(v-mn)/range)*(h-pad*2);
-          if(i===0) ctx.moveTo(x,y);else ctx.lineTo(x,y);
-        });
-        ctx.lineTo(w,h);ctx.lineTo(0,h);ctx.closePath();
-        const grad=ctx.createLinearGradient(0,0,0,h);
-        grad.addColorStop(0,color);grad.addColorStop(1,'rgba(0,0,0,0)');
-        ctx.fillStyle=grad;ctx.fill();
+      /* Remove old AI-written badge and replace with computed one */
+      const oldBadge=h3.querySelector('.badge-recurring,.badge-emerging,.badge-new');
+      if(oldBadge) oldBadge.remove();
+
+      if(p==='recurring'||p==='emerging'){
+        const badge=document.createElement('span');
+        badge.className=p==='recurring'?'badge-recurring':'badge-emerging';
+        badge.textContent=p==='recurring'?'Recurring':'Emerging';
+        if(btn) h3.insertBefore(badge,btn);
+        else h3.appendChild(badge);
+
+        if(btn){
+          btn.style.display='';
+          btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend ('+cd+'/'+tot+'d)';
+        }
+
+        if(recovery){
+          const recBadge=document.createElement('span');
+          recBadge.className='badge-recovery';
+          recBadge.textContent='Recovery';
+          if(btn) h3.insertBefore(recBadge,btn);
+          else h3.appendChild(recBadge);
+        }
+      } else {
+        const badge=document.createElement('span');
+        badge.className='badge-new';
+        badge.textContent='New';
+        if(btn) h3.insertBefore(badge,btn);
+        else h3.appendChild(badge);
       }
-
-      drawArea(tyVals,'rgba(146,95,255,0.15)');
-      drawLine(lyVals,'rgba(255,255,255,0.18)',1.5,true);
-      drawLine(tyVals,'rgba(146,95,255,0.8)',2,false);
-
-      /* Dot on last TY value */
-      const lastX=w;
-      const lastY=pad+(1-(tyVals[tyVals.length-1]-mn)/range)*(h-pad*2);
-      ctx.beginPath();ctx.arc(lastX,lastY,3,0,Math.PI*2);
-      ctx.fillStyle='#925FFF';ctx.fill();
-    }catch(e){}
-  });
+    });
+  })();
 })();
 
 /* (Sticky section label removed — replaced by banner) */
