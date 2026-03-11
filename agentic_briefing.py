@@ -5799,16 +5799,39 @@ function buildSqlButton(sqlQueries){{
   const successful=sqlQueries.filter(q=>q.success);
   if(!successful.length) return '';
   const uid='sql-'+Math.random().toString(36).slice(2,8);
-  let detail='<div id="'+uid+'" class="chat-sql-detail">';
+  let html='<button class="view-sql-btn" data-sql-uid="'+uid+'">View SQL</button>';
+  html+='<div id="'+uid+'" class="chat-sql-detail">';
   successful.forEach((q,i)=>{{
     const escaped=q.sql.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    detail+='<div class="sql-block"><div class="sql-label">Query '+(i+1)+' ('+q.rows+' row'+(q.rows===1?'':'s')+')'
-      +'<button class="sql-copy-btn" onclick="navigator.clipboard.writeText(this.closest(\\'.sql-block\\').querySelector(\\'pre\\').textContent).then(()=>{{this.textContent=\\'Copied!\\';setTimeout(()=>this.textContent=\\'Copy\\',1500)}})">Copy</button></div>'
+    html+='<div class="sql-block"><div class="sql-label">Query '+(i+1)+' ('+q.rows+' row'+(q.rows===1?'':'s')+')'
+      +'<button class="sql-copy-btn">Copy</button></div>'
       +'<pre>'+escaped+'</pre></div>';
   }});
-  detail+='</div>';
-  return '<button class="view-sql-btn" onclick="var d=document.getElementById(\\''+uid+"\\');d.classList.toggle(\\'open\\');this.textContent=d.classList.contains(\\'open\\')?'Hide SQL':'View SQL'\">View SQL</button>"+detail;
+  html+='</div>';
+  return html;
 }}
+
+/* Delegate click handlers for SQL view/copy buttons */
+document.addEventListener('click',function(e){{
+  const sqlBtn=e.target.closest('.view-sql-btn');
+  if(sqlBtn){{
+    const uid=sqlBtn.getAttribute('data-sql-uid');
+    const d=document.getElementById(uid);
+    if(d){{
+      d.classList.toggle('open');
+      sqlBtn.textContent=d.classList.contains('open')?'Hide SQL':'View SQL';
+    }}
+    return;
+  }}
+  const copyBtn=e.target.closest('.sql-copy-btn');
+  if(copyBtn){{
+    const pre=copyBtn.closest('.sql-block').querySelector('pre');
+    navigator.clipboard.writeText(pre.textContent).then(()=>{{
+      copyBtn.textContent='Copied!';
+      setTimeout(()=>copyBtn.textContent='Copy',1500);
+    }});
+  }}
+}});
 
 function addDriverMessage(responseDiv,role,content){{
   const msg=document.createElement('div');
