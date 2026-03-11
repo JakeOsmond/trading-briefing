@@ -68,8 +68,22 @@ jobs:
           Co-Authored-By: Trading Covered Bot <noreply@holidayextras.com>"
           git push
 
+      - name: Stage deployment (briefings + functions)
+        run: |
+          mkdir -p _deploy
+          cp -r briefings/* _deploy/
+          cp -r functions _deploy/functions
+
+      - name: Set Pages runtime secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "${{ secrets.OPENAI_API_KEY }}" | npx wrangler pages secret put OPENAI_API_KEY --project-name trading-covered 2>/dev/null || true
+          echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' | npx wrangler pages secret put GCP_SERVICE_ACCOUNT_KEY --project-name trading-covered 2>/dev/null || true
+
       - name: Deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler pages deploy briefings --project-name trading-covered --commit-dirty=true
+        run: npx wrangler pages deploy _deploy --project-name trading-covered --commit-dirty=true
