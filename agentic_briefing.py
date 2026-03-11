@@ -3223,7 +3223,71 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
                     recovery = ty_last2[0] < ly_last2[0] and ty_last2[1] < ly_last2[1]
             _all_trends_for_js[key] = {**td, "recovery": recovery}
 
+    # ── Python-side heading-to-trend matching (replaces JS fuzzy matching) ──
+    _trend_keys = list(_all_trends_for_js.keys()) if _all_trends_for_js else []
+    _high_weight = {'direct','aggregator','partner','renewal','renewals','annual','annuals',
+                    'single','bronze','classic','silver','gold','deluxe','elite','medical',
+                    'med','cruise','scheme','europe','worldwide','destination'}
+    _stop_words = {'the','a','an','in','on','of','for','and','is','are','was','gp','margin',
+                   'recurring','emerging','new','trend','overall','total','general','gross',
+                   'profit','fall','decline','drop','rise','increase','collapse','weakness',
+                   'not','concern','policies','policy','slight','from','lower','higher','trading'}
+
+    def _tokenize(text):
+        clean = re.sub(r'<[^>]+>', '', text).lower()
+        clean = re.sub(r'[^a-z0-9/\s-]', ' ', clean)
+        tokens = []
+        for w in clean.split():
+            for part in w.split('/'):
+                part = part.strip('-')
+                if len(part) > 1 and part not in _stop_words:
+                    tokens.append(part)
+        return tokens
+
+    def _match_score(heading_tokens, key_tokens):
+        h_set = set(heading_tokens)
+        k_set = set(key_tokens)
+        shared = h_set & k_set
+        if not shared:
+            return 0, 0
+        score = sum(3 if t in _high_weight else 1 for t in shared)
+        return score, len(shared)
+
+    # Compute all pairwise scores and do greedy-best assignment
+    _all_scores = []
+    # Pre-tokenize trend keys
+    _key_tokens = {k: _tokenize(k) for k in _trend_keys}
+
     _driver_idx = [0]
+    _heading_texts = []  # collect heading texts on first pass
+
+    def _collect_headings(match):
+        heading_text = re.sub(r'<[^>]+>', '', match.group(1))
+        _heading_texts.append(heading_text)
+        return match.group(0)  # return unchanged
+    re.sub(r'<h3>(.*?)</h3>', _collect_headings, html_body)
+
+    # Build heading tokens
+    _heading_tokens = [_tokenize(h) for h in _heading_texts]
+
+    # Compute all pairwise scores
+    for h_idx, h_toks in enumerate(_heading_tokens):
+        for k_idx, k in enumerate(_trend_keys):
+            score, matches = _match_score(h_toks, _key_tokens[k])
+            if matches >= 1 and (score >= 3 or matches >= 2):
+                _all_scores.append((score, matches, h_idx, k_idx))
+
+    # Sort by score desc, then matches desc
+    _all_scores.sort(key=lambda x: (-x[0], -x[1]))
+    _used_h = set()
+    _used_k = set()
+    _h_to_k = {}  # heading index -> trend key
+    for score, matches, h_idx, k_idx in _all_scores:
+        if h_idx in _used_h or k_idx in _used_k:
+            continue
+        _used_h.add(h_idx)
+        _used_k.add(k_idx)
+        _h_to_k[h_idx] = _trend_keys[k_idx]
 
     def _add_driver_id(match):
         heading_text = re.sub(r'<[^>]+>', '', match.group(1))
@@ -3231,9 +3295,10 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         idx = _driver_idx[0]
         _driver_idx[0] += 1
         tid = f'trend-{idx}'
-        # Every driver heading gets an index and a hidden trend container.
-        # JS init will add/correct badges and show trend buttons based on computed data.
-        h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}">{match.group(1)}'
+        # Embed matched trend key directly as data attribute
+        trend_key = _h_to_k.get(idx, '')
+        trend_attr = f' data-trend-key="{trend_key}"' if trend_key else ''
+        h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}"{trend_attr}>{match.group(1)}'
         h3_tag += (
             f' <button class="view-trend-btn" onclick="toggleMatchedTrend(\'{tid}\',this)" '
             f'data-trend-id="{tid}" style="display:none">'
@@ -4919,6 +4984,29 @@ body::after{{
   display:inline-block;margin-top:8px;font-size:10px;color:var(--muted);
   background:rgba(51,65,85,0.4);padding:2px 8px;border-radius:6px;
 }}
+.chat-msg.assistant .view-sql-btn{{
+  display:inline-block;margin-top:8px;margin-left:6px;font-size:10px;
+  color:#5fc8ff;background:rgba(95,200,255,0.1);border:1px solid rgba(95,200,255,0.3);
+  padding:2px 10px;border-radius:6px;cursor:pointer;font-family:inherit;
+  transition:all 0.2s;
+}}
+.chat-msg.assistant .view-sql-btn:hover{{background:rgba(95,200,255,0.2);}}
+.chat-sql-detail{{
+  display:none;margin-top:10px;background:rgba(15,23,42,0.8);border:1px solid var(--border);
+  border-radius:8px;padding:12px;font-size:11px;max-height:300px;overflow-y:auto;
+}}
+.chat-sql-detail.open{{display:block;}}
+.chat-sql-detail pre{{
+  margin:0;white-space:pre-wrap;word-break:break-all;color:#93c5fd;font-size:11px;line-height:1.5;
+}}
+.chat-sql-detail .sql-block{{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid rgba(148,163,184,0.15);}}
+.chat-sql-detail .sql-block:last-child{{border-bottom:none;margin-bottom:0;padding-bottom:0;}}
+.chat-sql-detail .sql-label{{font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}}
+.chat-sql-detail .sql-copy-btn{{
+  float:right;font-size:9px;color:#5fc8ff;background:none;border:1px solid rgba(95,200,255,0.3);
+  padding:1px 8px;border-radius:4px;cursor:pointer;font-family:inherit;
+}}
+.chat-sql-detail .sql-copy-btn:hover{{background:rgba(95,200,255,0.15);}}
 .chat-msg.loading{{
   color:var(--muted);font-style:italic;
   border:2px solid transparent;
@@ -5706,6 +5794,22 @@ function getDriverContext(panel){{
   return ctx;
 }}
 
+function buildSqlButton(sqlQueries){{
+  if(!sqlQueries||!sqlQueries.length) return '';
+  const successful=sqlQueries.filter(q=>q.success);
+  if(!successful.length) return '';
+  const uid='sql-'+Math.random().toString(36).slice(2,8);
+  let detail='<div id="'+uid+'" class="chat-sql-detail">';
+  successful.forEach((q,i)=>{{
+    const escaped=q.sql.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    detail+='<div class="sql-block"><div class="sql-label">Query '+(i+1)+' ('+q.rows+' row'+(q.rows===1?'':'s')+')'
+      +'<button class="sql-copy-btn" onclick="navigator.clipboard.writeText(this.closest(\\'.sql-block\\').querySelector(\\'pre\\').textContent).then(()=>{{this.textContent=\\'Copied!\\';setTimeout(()=>this.textContent=\\'Copy\\',1500)}})">Copy</button></div>'
+      +'<pre>'+escaped+'</pre></div>';
+  }});
+  detail+='</div>';
+  return '<button class="view-sql-btn" onclick="var d=document.getElementById(\\''+uid+"\\');d.classList.toggle(\\'open\\');this.textContent=d.classList.contains(\\'open\\')?'Hide SQL':'View SQL'\">View SQL</button>"+detail;
+}}
+
 function addDriverMessage(responseDiv,role,content){{
   const msg=document.createElement('div');
   msg.className='chat-msg '+role;
@@ -5773,6 +5877,7 @@ function submitDriverAsk(id){{
       content='<span class="ask-clarification">🤔 '+content+'</span>';
     }} else if(data.sql_queries&&data.sql_queries.length>0){{
       content+='<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+      content+=buildSqlButton(data.sql_queries);
     }}
     addDriverMessage(responseDiv,'assistant',content);
     driverHistory[id].push({{role:'assistant',content:data.answer||''}});
@@ -5832,6 +5937,7 @@ function submitDriverReply(btn,id){{
       content='<span class="ask-clarification">🤔 '+content+'</span>';
     }} else if(data.sql_queries&&data.sql_queries.length>0){{
       content+='<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+      content+=buildSqlButton(data.sql_queries);
     }}
     addDriverMessage(responseDiv,'assistant',content);
     driverHistory[id].push({{role:'assistant',content:data.answer||''}});
@@ -5908,6 +6014,7 @@ function submitChat(){{
       content='<span class="ask-clarification">🤔 '+content+'</span>';
     }} else if(data.sql_queries&&data.sql_queries.length>0){{
       content+='\\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+      content+=buildSqlButton(data.sql_queries);
     }}
     assistantMsg.innerHTML=content;
     messagesDiv.appendChild(assistantMsg);
@@ -5989,6 +6096,7 @@ function submitChatReply(btn){{
       content='<span class="ask-clarification">🤔 '+content+'</span>';
     }} else if(data.sql_queries&&data.sql_queries.length>0){{
       content+='\\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+      content+=buildSqlButton(data.sql_queries);
     }}
     assistantMsg.innerHTML=content;
     messagesDiv.appendChild(assistantMsg);
@@ -6175,62 +6283,18 @@ function openInvestigations(){{
   /* 10. Init driver trend badges + buttons from computed data */
   (function initDriverTrends(){{
     const trends=window.__driverTrends||{{}};
-    const keys=Object.keys(trends);
-    if(!keys.length) return;
+    if(!Object.keys(trends).length) return;
     const headings=document.querySelectorAll('h3[data-driver-idx]');
 
-    /* Weighted token matching — channel/product words score 3x more than generic */
-    const stop=new Set(['the','a','an','and','or','of','in','on','to','for','is','from','by','with','not','recurring','emerging','new','trend','gp','margin','drop','decline','fall','collapse','weakness','shift','lower']);
-    const highWeight=new Set(['direct','aggregator','partner','renewal','renewals','annual','annuals','single','bronze','classic','silver','gold','deluxe','elite','medical','med','cruise','scheme']);
-    function tokens(s){{
-      return s.toLowerCase().replace(/[^a-z0-9\s/]/g,' ').split(/\s+/)
-        .flatMap(w=>w.split('/')).filter(w=>w.length>1);
-    }}
-
-    function matchScore(hTokens,kTokens){{
-      let score=0,matches=0;
-      for(const t of hTokens){{
-        if(kTokens.has(t)){{
-          matches++;
-          score+=highWeight.has(t)?3:1;
-        }}
-      }}
-      return {{score,matches}};
-    }}
-
-    /* Phase 1: Compute all pairwise scores */
-    const allScores=[];
-    const hArr=Array.from(headings);
-    hArr.forEach((h3,hIdx)=>{{
-      const txt=h3.textContent.replace(/Trend.*/,'').replace(/Recurring|Emerging|New|Recovery/gi,'').trim();
-      const hTokens=new Set(tokens(txt));
-      keys.forEach((key,kIdx)=>{{
-        const kTokens=new Set(tokens(key));
-        const r=matchScore(hTokens,kTokens);
-        if(r.matches>=1&&(r.score>=3||r.matches>=2)){{
-          allScores.push({{hIdx,kIdx,score:r.score,matches:r.matches}});
-        }}
-      }});
-    }});
-
-    /* Phase 2: Greedy-best assignment — highest score first, no reuse */
-    allScores.sort((a,b)=>b.score-a.score||(b.matches-a.matches));
-    const usedH=new Set(),usedK=new Set();
-    const assignments=new Map();
-    for(const s of allScores){{
-      if(usedH.has(s.hIdx)||usedK.has(s.kIdx)) continue;
-      usedH.add(s.hIdx);usedK.add(s.kIdx);
-      assignments.set(s.hIdx,s.kIdx);
-    }}
-
-    /* Phase 3: Apply badges and buttons */
-    hArr.forEach((h3,hIdx)=>{{
+    headings.forEach(h3=>{{
+      const trendKey=h3.getAttribute('data-trend-key');
       const btn=h3.querySelector('.view-trend-btn');
       const tid=btn?btn.getAttribute('data-trend-id'):null;
-      if(!assignments.has(hIdx)) return;
 
-      const kIdx=assignments.get(hIdx);
-      const td=trends[keys[kIdx]];
+      /* No trend data for this heading — leave as-is */
+      if(!trendKey||!trends[trendKey]) return;
+
+      const td=trends[trendKey];
       const p=td.persistence||'new';
       const cd=td.consistent_days||0;
       const tot=td.total_days||10;

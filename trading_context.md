@@ -200,3 +200,7 @@ The briefing system draws on several external and internal data sources:
 - **Internal Google Drive docs** — recent pricing changes, campaign briefs, product releases (insurance only; Adventures/Shortbreaks docs are excluded).
 
 When the briefing cites external context, it should always attribute the source (e.g. "According to Google Trends data..." or a link to the article).
+
+## Financial Year
+
+Holiday Extras operates on a **Financial Year To Date (FYTD)** running from **1 April to 31 March**. When anyone asks for "year to date", "FYTD", "this financial year", or "YTD" performance, use 1 April of the current financial year as the start date. For example, if today is January 2026, the current FYTD runs from 2025-04-01 to today.

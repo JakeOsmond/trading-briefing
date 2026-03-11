@@ -178,12 +178,12 @@ function autocorrectSQL(sql) {
 
 // ── OpenAI chat with tool use ─────────────────────────────────────────────
 
-async function callOpenAI(messages, tools, apiKey, maxTokens = 4096) {
+async function callOpenAI(messages, tools, apiKey, maxTokens = 4096, model = 'gpt-5.4') {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-4.1',
+      model,
       messages,
       tools: tools || undefined,
       max_completion_tokens: maxTokens,
@@ -227,6 +227,8 @@ const BUSINESS_CONTEXT = `
 - Aggregators have no web journey data. Direct has full web data.
 - Use SUM(policy_count) for counts. Use SUM(CAST(col AS FLOAT64))/NULLIF(SUM(policy_count),0) for averages.
 - YoY comparison = 364-day offset to match day-of-week.
+- Financial Year To Date (FYTD) runs 1 April to 31 March. "YTD" or "FYTD" means from 1 April of the current financial year.
+- TODAY'S DATE: ${new Date().toISOString().slice(0, 10)}. Use this to determine correct date ranges for queries like "yesterday", "last week", "FYTD", etc.
 `;
 
 
@@ -235,28 +237,29 @@ const BUSINESS_CONTEXT = `
 async function verifyAnswer(answer, sqlQueries, apiKey) {
   // Only verify if we have actual SQL results to check against
   const successfulQueries = sqlQueries.filter(q => q.success);
-  if (!successfulQueries.length) return answer;
+  if (!successfulQueries.length) {
+    return answer + '\n\n💡 *No SQL queries succeeded for this answer. For verification, please speak with a member of the Commercial Finance team in Insurance.*';
+  }
 
-  // Build a summary of what the SQL actually returned
+  // Build evidence including actual row data (first 5 rows per query)
   const evidenceSummary = successfulQueries.map((q, i) =>
-    `Query ${i + 1}: ${q.sql}\nReturned ${q.rows} row(s).`
+    `Query ${i + 1}: ${q.sql}\nReturned ${q.rows} row(s).${q.sample_data ? '\nSample data: ' + q.sample_data : ''}`
   ).join('\n\n');
 
   try {
     const checkResponse = await callOpenAI([
-      { role: 'system', content: `You are a fact-checker for a trading analyst's answer. You have access to the SQL queries that were run and their row counts.
+      { role: 'system', content: `You are a fact-checker for a trading analyst's answer. You have the SQL queries that were run, their row counts, and sample data.
 
 Your job:
-1. Check if the answer contains any numbers, percentages, or claims that could NOT have come from the SQL queries listed.
+1. Check if the answer contains any numbers, percentages, or claims that could NOT have come from the SQL queries and data shown.
 2. If the answer looks grounded in the data, return it UNCHANGED.
-3. If you spot a claim that seems fabricated or unsupported by the queries, add a brief ⚠️ caveat inline next to that specific claim, e.g. "⚠️ (not confirmed by query data)".
-4. Do NOT rewrite the answer. Only add inline warnings where needed. Keep the original formatting and tone.
-5. If everything checks out, return the exact original answer with no changes.` },
+3. If you spot ANY claim that seems fabricated, unsupported, or inconsistent with the query results, REMOVE that claim entirely and replace it with: "For further detail on this point, please speak with a member of the Commercial Finance team in Insurance."
+4. Do NOT add warning symbols or caveats. Either the data supports it (keep it) or it doesn't (replace with the referral message above).
+5. Keep the original formatting and tone for all supported claims.` },
       { role: 'user', content: `## SQL EVIDENCE\n${evidenceSummary}\n\n## ANSWER TO CHECK\n${answer}` },
-    ], null, apiKey, 4096);
+    ], null, apiKey, 4096, 'gpt-5-mini');
     return checkResponse.choices?.[0]?.message?.content || answer;
   } catch {
-    // If verification fails, return original answer
     return answer;
   }
 }
@@ -298,7 +301,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
 2. After getting results, analyze them and provide a clear, grounded answer.
 3. NEVER speculate beyond what the SQL results show. If data doesn't answer the question, say so.
 4. State timeframes explicitly (e.g. "over the last 7 days", "yesterday vs same day last year").
-5. Round numbers: £892.67→"about £900", £10,864→"£11k".
+5. NEVER round numbers. Always give the exact figures from SQL results (e.g. £892.67, £10,864.23). The user wants precise data.
 6. You can run up to 4 rounds of investigation. Each round, decide if you need more data or can answer.
 7. If SQL fails, fix it and retry. You have up to 25 attempts per query.
 8. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
@@ -401,7 +404,8 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
             const rows = await runBQQuery(currentSQL, bqToken);
             result = JSON.stringify(rows.slice(0, 100), null, 2);
             if (rows.length > 100) result += `\n... (${rows.length} total rows, showing 100)`;
-            sqlQueries.push({ sql: currentSQL, rows: rows.length, success: true });
+            const sampleData = rows.slice(0, 5).map(r => JSON.stringify(r)).join('\n');
+            sqlQueries.push({ sql: currentSQL, rows: rows.length, success: true, sample_data: sampleData });
             break;
           } catch (e) {
             lastError = e.message;
@@ -410,7 +414,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
               const fixResponse = await callOpenAI([
                 { role: 'system', content: 'Fix this BigQuery SQL error. Return ONLY the corrected SQL, nothing else.' },
                 { role: 'user', content: `SQL:\n${currentSQL}\n\nError:\n${lastError}` },
-              ], null, apiKey, 2048);
+              ], null, apiKey, 2048, 'gpt-5-mini');
               const fixedSQL = fixResponse.choices?.[0]?.message?.content?.trim();
               if (fixedSQL && fixedSQL !== currentSQL) {
                 currentSQL = fixedSQL;
