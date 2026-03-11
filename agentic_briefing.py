@@ -5297,6 +5297,9 @@ body::after{{
 </div><!-- /.c -->
 
 <script>
+/* ── Staging: route API calls to production (preview deployments have no secrets) ── */
+window.__apiBase=location.hostname.includes('staging')?'https://trading-covered.pages.dev':'';
+
 /* ── Pre-loaded driver trend data (keyed by driver name) ── */
 window.__driverTrends={driver_trends_json};
 
@@ -5564,7 +5567,7 @@ function fetchDriverTrend(trendId, btn){{
   btn.textContent='Loading…';
 
   /* Use the ask endpoint to get the AI to write + run a trend query */
-  fetch('/api/ask',{{
+  fetch((window.__apiBase||'')+'/api/ask',{{
     method:'POST',
     headers:{{'Content-Type':'application/json'}},
     body:JSON.stringify({{
@@ -5592,7 +5595,7 @@ function fetchDriverTrend(trendId, btn){{
     const tySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \\`hx-data-production.commercial_finance.insurance_policies_new\\` WHERE transaction_date BETWEEN '${{fmt(start)}}' AND '${{fmt(yesterday)}}' AND ${{segFilter}} GROUP BY transaction_date ORDER BY transaction_date`;
     const lySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \\`hx-data-production.commercial_finance.insurance_policies_new\\` WHERE transaction_date BETWEEN '${{fmt(lyStart)}}' AND '${{fmt(lyEnd)}}' AND ${{segFilter}} GROUP BY transaction_date ORDER BY transaction_date`;
 
-    return fetch('/api/ask',{{
+    return fetch((window.__apiBase||'')+'/api/ask',{{
       method:'POST',
       headers:{{'Content-Type':'application/json'}},
       body:JSON.stringify({{
@@ -5883,7 +5886,7 @@ function submitDriverAsk(id){{
 
   driverHistory[id].push({{role:'user',content:question}});
 
-  fetch('/api/ask',{{
+  fetch((window.__apiBase||'')+'/api/ask',{{
     method:'POST',
     headers:{{'Content-Type':'application/json'}},
     body:JSON.stringify({{
@@ -5943,7 +5946,7 @@ function submitDriverReply(btn,id){{
   if(!driverHistory[id]) driverHistory[id]=[];
   driverHistory[id].push({{role:'user',content:question}});
 
-  fetch('/api/ask',{{
+  fetch((window.__apiBase||'')+'/api/ask',{{
     method:'POST',
     headers:{{'Content-Type':'application/json'}},
     body:JSON.stringify({{
@@ -6018,7 +6021,7 @@ function submitChat(){{
 
   chatHistory.push({{role:'user',content:question}});
 
-  fetch('/api/ask',{{
+  fetch((window.__apiBase||'')+'/api/ask',{{
     method:'POST',
     headers:{{'Content-Type':'application/json'}},
     body:JSON.stringify({{
@@ -6101,7 +6104,7 @@ function submitChatReply(btn){{
 
   chatHistory.push({{role:'user',content:question}});
 
-  fetch('/api/ask',{{
+  fetch((window.__apiBase||'')+'/api/ask',{{
     method:'POST',
     headers:{{'Content-Type':'application/json'}},
     body:JSON.stringify({{
