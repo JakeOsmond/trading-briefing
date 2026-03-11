@@ -87,3 +87,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler pages deploy _deploy --project-name trading-covered --commit-dirty=true
+
+      - name: Sync staging branch to main
+        run: |
+          git fetch origin staging 2>/dev/null || true
+          git push origin HEAD:staging --force
