@@ -6,6 +6,7 @@ on:
     paths:
       - 'functions/**'
       - 'briefings/**'
+      - '.github/workflows/deploy-production.yml'
   workflow_dispatch:
 
 concurrency:
