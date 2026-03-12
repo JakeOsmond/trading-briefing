@@ -5891,14 +5891,20 @@ function getDriverContext(panel){{
   const wrap=panel.closest('.dig-wrap');
   let ctx='';
   if(wrap){{
+    /* Collect all narrative paragraphs and heading above this dig-wrap */
+    const parts=[];
     let prev=wrap.previousElementSibling;
     while(prev){{
       if(prev.tagName==='H3'||prev.tagName==='P'){{
-        ctx+=prev.textContent+'\\n';
+        parts.unshift(prev.textContent);
       }}
       if(prev.tagName==='H3') break;
       prev=prev.previousElementSibling;
     }}
+    ctx=parts.join('\\n');
+    /* Also grab the SQL query if present — tells the AI exactly which table/filters apply */
+    const sqlCode=wrap.querySelector('pre.dig-sql code');
+    if(sqlCode) ctx+='\\n\\nOriginal SQL used for this driver:\\n'+sqlCode.textContent;
   }}
   return ctx;
 }}

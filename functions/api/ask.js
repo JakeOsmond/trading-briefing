@@ -401,7 +401,7 @@ ALWAYS use CURRENT_DATE() in your SQL for date calculations. Examples:
 NEVER hardcode date literals like DATE '2026-03-11'. ALWAYS use CURRENT_DATE() expressions so the query is always correct regardless of when it runs.
 If the driver context below mentions a specific date, IGNORE it for SQL purposes and use CURRENT_DATE() instead.
 ${fieldValuesContext}
-${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT for dates)\n${driverContext}\n` : ''}
+${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT for dates)\nThe user is asking about THIS specific driver. Assume all questions relate to it unless they explicitly say otherwise.\n${driverContext}\n` : ''}
 
 ## RULES
 1. Write SQL to answer the question. Use fully qualified table names.
@@ -412,10 +412,12 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 6. You can run up to 4 rounds of investigation. Each round, decide if you need more data or can answer.
 7. If SQL fails, fix it and retry. You have up to 10 attempts per query.
 8. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
-9. If the user asks something ambiguous or that requires a dimension/field you're unsure about, use the ask_clarification tool BEFORE writing SQL. Refer to the KNOWN FIELD VALUES section above for examples.
-10. When you give your final answer, cite which SQL query produced each number. If a number didn't come from a query, don't include it.
-11. CASE-INSENSITIVE FILTERING: When filtering by string fields, use LOWER() on both sides: WHERE LOWER(field) = LOWER('value').
-12. Use the KNOWN FIELD VALUES above to write correct filters. You already know the exact values — no need to run SELECT DISTINCT first.`;
+9. If DRIVER CONTEXT is provided, the user is asking about THAT driver. Do NOT ask for clarification about which metric, segment, or dimension — infer it from the driver context and its SQL. Only use ask_clarification if the question is truly impossible to answer from context.
+10. If DRIVER CONTEXT is NOT provided (general mode), and the question is genuinely ambiguous, use ask_clarification. Refer to the KNOWN FIELD VALUES section above for examples.
+11. SENSIBLE DEFAULTS: When the user asks about trends "over time" without specifying a timeframe, default to last 28 days with daily granularity and include Year-on-Year comparison (same period last year). Always include YoY comparison unless the user explicitly says not to.
+12. When you give your final answer, cite which SQL query produced each number. If a number didn't come from a query, don't include it.
+13. CASE-INSENSITIVE FILTERING: When filtering by string fields, use LOWER() on both sides: WHERE LOWER(field) = LOWER('value').
+14. Use the KNOWN FIELD VALUES above to write correct filters. You already know the exact values — no need to run SELECT DISTINCT first.`;
 
   const tools = [{
     type: 'function',
