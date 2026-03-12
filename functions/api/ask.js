@@ -348,6 +348,75 @@ async function handleQuestion({ question, driverContext, conversationHistory, mo
     // fallback to JS date — already set above
   }
 
+  // ── Step 1: One-time discovery of all categorical field values ──
+  let fieldValuesContext = '';
+  const discoverySQL_policies = `SELECT
+    ARRAY_AGG(DISTINCT policy_type IGNORE NULLS LIMIT 25) AS policy_type_vals,
+    ARRAY_AGG(DISTINCT distribution_channel IGNORE NULLS LIMIT 25) AS distribution_channel_vals,
+    ARRAY_AGG(DISTINCT channel IGNORE NULLS LIMIT 25) AS channel_vals,
+    ARRAY_AGG(DISTINCT scheme_name IGNORE NULLS LIMIT 40) AS scheme_name_vals,
+    ARRAY_AGG(DISTINCT cover_level_name IGNORE NULLS LIMIT 25) AS cover_level_name_vals,
+    ARRAY_AGG(DISTINCT booking_source IGNORE NULLS LIMIT 25) AS booking_source_vals,
+    ARRAY_AGG(DISTINCT device_type IGNORE NULLS LIMIT 25) AS device_type_vals,
+    ARRAY_AGG(DISTINCT medical_split IGNORE NULLS LIMIT 25) AS medical_split_vals,
+    ARRAY_AGG(DISTINCT max_medical_score_grouped IGNORE NULLS LIMIT 25) AS max_medical_score_grouped_vals,
+    ARRAY_AGG(DISTINCT customer_type IGNORE NULLS LIMIT 25) AS customer_type_vals,
+    ARRAY_AGG(DISTINCT trip_duration_band IGNORE NULLS LIMIT 25) AS trip_duration_band_vals,
+    ARRAY_AGG(DISTINCT days_to_travel IGNORE NULLS LIMIT 25) AS days_to_travel_vals,
+    ARRAY_AGG(DISTINCT max_age_at_purchase IGNORE NULLS LIMIT 25) AS max_age_at_purchase_vals,
+    ARRAY_AGG(DISTINCT insurance_group IGNORE NULLS LIMIT 40) AS insurance_group_vals
+  FROM \`hx-data-production.commercial_finance.insurance_policies_new\`
+  WHERE transaction_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)`;
+
+  const discoverySQL_web = `SELECT
+    ARRAY_AGG(DISTINCT device_type IGNORE NULLS LIMIT 25) AS device_type_vals,
+    ARRAY_AGG(DISTINCT booking_flow_stage IGNORE NULLS LIMIT 25) AS booking_flow_stage_vals,
+    ARRAY_AGG(DISTINCT page_type IGNORE NULLS LIMIT 40) AS page_type_vals,
+    ARRAY_AGG(DISTINCT event_name IGNORE NULLS LIMIT 40) AS event_name_vals,
+    ARRAY_AGG(DISTINCT customer_type IGNORE NULLS LIMIT 25) AS customer_type_vals,
+    ARRAY_AGG(DISTINCT med_session IGNORE NULLS LIMIT 10) AS med_session_vals,
+    ARRAY_AGG(DISTINCT Multiple_search IGNORE NULLS LIMIT 10) AS multiple_search_vals,
+    ARRAY_AGG(DISTINCT used_syd IGNORE NULLS LIMIT 10) AS used_syd_vals
+  FROM \`hx-data-production.commercial_finance.insurance_web_utm_4\`
+  WHERE session_start_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)`;
+
+  try {
+    const [policyVals, webVals] = await Promise.all([
+      runBQQuery(discoverySQL_policies, bqToken),
+      runBQQuery(discoverySQL_web, bqToken),
+    ]);
+
+    const formatVals = (row) => {
+      if (!row) return '';
+      return Object.entries(row).map(([key, val]) => {
+        const fieldName = key.replace('_vals', '');
+        if (!val) return `- ${fieldName}: (no values)`;
+        // BQ returns arrays as comma-separated or JSON — handle both
+        const values = typeof val === 'string' ? val : JSON.stringify(val);
+        return `- ${fieldName}: ${values}`;
+      }).join('\n');
+    };
+
+    const policyFields = policyVals.length > 0 ? formatVals(policyVals[0]) : '';
+    const webFields = webVals.length > 0 ? formatVals(webVals[0]) : '';
+
+    fieldValuesContext = `
+## KNOWN FIELD VALUES (from last 30 days — use these exact values in filters)
+
+### insurance_policies_new
+${policyFields}
+
+### insurance_web_utm_4
+${webFields}
+`;
+
+    sqlQueries.push({ sql: 'Field discovery (policies)', rows: 1, success: true, sample_data: 'categorical field values' });
+    sqlQueries.push({ sql: 'Field discovery (web)', rows: 1, success: true, sample_data: 'categorical field values' });
+  } catch (e) {
+    // Non-fatal — AI can still function without discovery
+    fieldValuesContext = '';
+  }
+
   const systemPrompt = `You are Trading Covered's AI analyst for Holiday Extras (HX) insurance.
 You answer questions about trading data by writing and executing BigQuery SQL queries.
 
@@ -363,7 +432,7 @@ ALWAYS use CURRENT_DATE() in your SQL for date calculations. Examples:
 - "FYTD" = BETWEEN DATE(EXTRACT(YEAR FROM DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)), 4, 1) AND CURRENT_DATE()
 NEVER hardcode date literals like DATE '2026-03-11'. ALWAYS use CURRENT_DATE() expressions so the query is always correct regardless of when it runs.
 If the driver context below mentions a specific date, IGNORE it for SQL purposes and use CURRENT_DATE() instead.
-
+${fieldValuesContext}
 ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT for dates)\n${driverContext}\n` : ''}
 
 ## RULES
@@ -375,10 +444,10 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 6. You can run up to 4 rounds of investigation. Each round, decide if you need more data or can answer.
 7. If SQL fails, fix it and retry. You have up to 10 attempts per query.
 8. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
-9. If the user asks something ambiguous or that requires a dimension/field you're unsure about, use the ask_clarification tool BEFORE writing SQL. Always provide examples of real values from the data to help the user choose. For example: "Do you mean broken down by cover_level_name? Examples in the data: Bronze, Classic, Silver, Gold, Deluxe, Elite."
+9. If the user asks something ambiguous or that requires a dimension/field you're unsure about, use the ask_clarification tool BEFORE writing SQL. Refer to the KNOWN FIELD VALUES section above for examples.
 10. When you give your final answer, cite which SQL query produced each number. If a number didn't come from a query, don't include it.
-11. CASE-INSENSITIVE FILTERING: When filtering by string fields (e.g. distribution_channel, policy_type, cover_level_name, customer_type, device_type), use LOWER() on both sides: WHERE LOWER(field) = LOWER('value'). This avoids mismatches from inconsistent casing.
-12. DISCOVER BEFORE DRILLING: Before writing a query that filters on a categorical field, FIRST run SELECT DISTINCT field_name FROM table to discover the actual values. This prevents incorrect filters (e.g. filtering for 'direct' when the actual value is 'Direct').`;
+11. CASE-INSENSITIVE FILTERING: When filtering by string fields, use LOWER() on both sides: WHERE LOWER(field) = LOWER('value').
+12. Use the KNOWN FIELD VALUES above to write correct filters. You already know the exact values — no need to run SELECT DISTINCT first.`;
 
   const tools = [{
     type: 'function',
