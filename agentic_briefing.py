@@ -4102,17 +4102,7 @@ body::before{{
 
 /* ── Subtle "alive" animations ── */
 
-/* Gentle float on cards — each child offsets for organic feel */
-@keyframes gentle-float{{
-  0%,100%{{transform:translateY(0)}}
-  50%{{transform:translateY(-4px)}}
-}}
-.card:not(:hover),.pcard:not(:hover){{
-  animation:gentle-float 5s ease-in-out infinite;
-}}
-.card:nth-child(2):not(:hover),.pcard:nth-child(2):not(:hover){{animation-delay:1.2s;animation-duration:5.5s}}
-.card:nth-child(3):not(:hover),.pcard:nth-child(3):not(:hover){{animation-delay:2.4s;animation-duration:6s}}
-.card:nth-child(4):not(:hover){{animation-delay:3.6s;animation-duration:5.8s}}
+/* (Floating card animation removed — was causing scroll jank) */
 
 /* Refresh button styling */
 .refresh-btn{{
