@@ -191,7 +191,7 @@ function autocorrectSQL(sql) {
 
 // ── OpenAI chat with tool use ─────────────────────────────────────────────
 
-async function callOpenAI(messages, tools, apiKey, maxTokens = 4096, model = 'gpt-5.4') {
+async function callOpenAI(messages, tools, apiKey, maxTokens = 4096, model = 'gpt-5-mini') {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
