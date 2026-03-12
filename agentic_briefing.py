@@ -3409,7 +3409,6 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         """
         _web_disc_sql = """
         SELECT
-            ARRAY_AGG(DISTINCT device_type IGNORE NULLS LIMIT 25) AS device_type,
             ARRAY_AGG(DISTINCT booking_flow_stage IGNORE NULLS LIMIT 25) AS booking_flow_stage,
             ARRAY_AGG(DISTINCT page_type IGNORE NULLS LIMIT 40) AS page_type,
             ARRAY_AGG(DISTINCT event_name IGNORE NULLS LIMIT 40) AS event_name,
@@ -5483,7 +5482,7 @@ function copySQL(id){{
 /* ── Animated AI loading stepper ── */
 const AI_STEPS_INITIAL=[
   'Connecting to BigQuery…',
-  'Checking today\'s date…',
+  'Checking today\\'s date…',
   'Writing SQL query…',
   'Running query against BigQuery…',
   'Analysing results…',
@@ -5588,7 +5587,7 @@ function _matchTrend(headingText){{
   if(!keys.length) return null;
   const stop=new Set(['the','a','an','and','or','of','in','on','to','for','is','from','by','with','not','recurring','emerging','new','trend']);
   function tokens(s){{
-    return s.toLowerCase().replace(/[^a-z0-9\s/]/g,' ').split(/\s+/)
+    return s.toLowerCase().replace(/[^a-z0-9\\s/]/g,' ').split(/\\s+/)
       .flatMap(w=>w.split('/')).filter(w=>w.length>1&&!stop.has(w));
   }}
   const hTokens=new Set(tokens(headingText));
