@@ -53,7 +53,7 @@ TRADING_CONTEXT = _load_trading_context()
 BQ_PROJECT = "hx-data-production"
 MARKET_SHEET_ID = "1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg"
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-MODEL = "gpt-4.1"
+MODEL = "gpt-5.4"
 BROWSER = "Arc"
 MAX_INVESTIGATION_LOOPS = 10
 
