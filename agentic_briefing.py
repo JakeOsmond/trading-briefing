@@ -315,7 +315,7 @@ def tool_web_search(query: str) -> str:
         client = openai.OpenAI(api_key=OPENAI_API_KEY)
         # Use web_search_preview tool for real web results with URLs
         resp = client.responses.create(
-            model="gpt-4.1-mini",
+            model="gpt-5-mini",
             tools=[{"type": "web_search_preview"}],
             input=f"""Search the web for the latest information about: {query}
 
@@ -337,7 +337,7 @@ Be specific with dates, numbers, and always cite your sources.""",
         try:
             client = openai.OpenAI(api_key=OPENAI_API_KEY)
             resp = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="gpt-5-mini",
                 max_completion_tokens=1500,
                 messages=[
                     {"role": "system", "content": "You are a research assistant. Provide the most recent and relevant information about this query. Focus on UK travel insurance market, competitors, regulatory changes, and travel trends. Be specific with dates, numbers, and name your sources (e.g. 'according to the Financial Times', 'per Google Trends data')."},
