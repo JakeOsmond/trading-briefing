@@ -5393,20 +5393,29 @@ function copySQL(id){{
 
 /* ── Ask about this driver ── */
 /* ── Animated AI loading stepper ── */
-const AI_STEPS=[
-  'Understanding your question…',
+const AI_STEPS_INITIAL=[
+  'Connecting to BigQuery…',
+  'Checking today\'s date…',
   'Writing SQL query…',
   'Running query against BigQuery…',
-  'Checking results…',
-  'Rewriting SQL…',
-  'Running refined query…',
   'Analysing results…',
-  'Digging deeper…',
   'Running follow-up query…',
-  'Cross-referencing data…',
-  'Synthesising findings…',
-  'Preparing answer…'
+  'Verifying figures…',
+  'Formatting answer…'
 ];
+const AI_STEPS_SLOW=[
+  'Taking longer than usual — still working on it…',
+  'Still crunching the numbers — complex query running…',
+  'Hang tight — pulling additional data…',
+  'Still processing — cross-referencing results…',
+  'Working through a deeper analysis…',
+  'Nearly there — refining the answer…',
+  'Still going — validating the figures…',
+  'Wrapping up the analysis…',
+  'Running final checks on the data…',
+  'Almost done — formatting the response…'
+];
+const AI_STEP_FINAL='Preparing your answer…';
 
 function createAILoadingEl(){{
   const container=document.createElement('div');
@@ -5416,16 +5425,15 @@ function createAILoadingEl(){{
 
 function startAILoadingStepper(container){{
   let stepIdx=0;
-  const MAX_VISIBLE=5;
-  const timings=[1200,2500,3000,4500,3500,3000,4000,3500,3000,3500,4000,6000];
+  let phase='initial';
+  let slowIdx=0;
+  const MAX_VISIBLE=4;
+  const startTime=Date.now();
 
-  function showStep(){{
+  function addStep(text){{
     if(container._stopped) return;
-    /* Mark previous as done */
     const prev=container.querySelector('.ai-step.active');
     if(prev){{prev.classList.remove('active');prev.classList.add('done');}}
-
-    /* Slide off oldest if over limit */
     const steps=container.querySelectorAll('.ai-step');
     if(steps.length>=MAX_VISIBLE){{
       const oldest=steps[0];
@@ -5438,32 +5446,50 @@ function startAILoadingStepper(container){{
       oldest.style.transition='all 0.3s ease';
       setTimeout(()=>oldest.remove(),300);
     }}
-
-    /* Create new step */
     const step=document.createElement('div');
     step.className='ai-step';
-    step.innerHTML='<span class="ai-step-dot"></span><span>'+AI_STEPS[stepIdx % AI_STEPS.length]+'</span>';
+    step.innerHTML='<span class="ai-step-dot"></span><span>'+text+'</span>';
     container.appendChild(step);
-
-    /* Trigger animation on next frame */
     requestAnimationFrame(()=>requestAnimationFrame(()=>step.classList.add('active')));
-
-    /* Scroll parent into view */
     const scrollParent=container.closest('.chat-messages')||container.closest('.ask-response');
     if(scrollParent) scrollParent.scrollTop=scrollParent.scrollHeight;
-
-    stepIdx++;
-    const delay=timings[Math.min(stepIdx-1,timings.length-1)];
-    container._timer=setTimeout(showStep,delay);
   }}
 
-  showStep();
+  function tick(){{
+    if(container._stopped) return;
+    const elapsed=Date.now()-startTime;
+    if(phase==='initial'){{
+      if(stepIdx<AI_STEPS_INITIAL.length){{
+        addStep(AI_STEPS_INITIAL[stepIdx]);
+        stepIdx++;
+        if(elapsed>=30000){{ phase='slow'; container._timer=setTimeout(tick,2000); return; }}
+        const timings=[800,2000,3000,5000,4000,5000,4000,5000];
+        container._timer=setTimeout(tick,timings[Math.min(stepIdx-1,timings.length-1)]);
+      }} else {{
+        if(elapsed>=30000){{ phase='slow'; container._timer=setTimeout(tick,2000); }}
+        else {{ container._timer=setTimeout(tick,3000); }}
+      }}
+    }} else if(phase==='slow'){{
+      if(slowIdx<AI_STEPS_SLOW.length){{
+        addStep(AI_STEPS_SLOW[slowIdx]);
+        slowIdx++;
+        container._timer=setTimeout(tick,20000);
+      }} else {{
+        phase='final';
+        addStep(AI_STEP_FINAL);
+      }}
+    }}
+  }}
+
+  tick();
   return container;
 }}
 
 function stopAILoadingStepper(container){{
   container._stopped=true;
   if(container._timer) clearTimeout(container._timer);
+  const active=container.querySelector('.ai-step.active');
+  if(active){{active.classList.remove('active');active.classList.add('done');}}
 }}
 
 /* ── Fuzzy-match heading text to best driver trend key ── */

@@ -149,28 +149,41 @@ function autocorrectSQL(sql) {
   }
 
   // Fix any wrong table references to the correct fully qualified names
-  // The ONLY valid tables are:
-  //   hx-data-production.commercial_finance.insurance_policies_new
-  //   hx-data-production.commercial_finance.insurance_web_utm_4
   const wrongTablePattern = /`[^`]*insurance_policies_new[^`]*`/g;
   if (wrongTablePattern.test(fixed) && !fixed.includes('`hx-data-production.commercial_finance.insurance_policies_new`')) {
     fixed = fixed.replace(/`[^`]*insurance_policies_new[^`]*`/g, '`hx-data-production.commercial_finance.insurance_policies_new`');
     warnings.push('Fixed table name to hx-data-production.commercial_finance.insurance_policies_new');
   }
-  // Unquoted references
   if (/\binsurance_policies_new\b/.test(fixed) && !fixed.includes('`hx-data-production.commercial_finance.insurance_policies_new`')) {
     fixed = fixed.replace(/\binsurance_policies_new\b/g, '`hx-data-production.commercial_finance.insurance_policies_new`');
     warnings.push('Added fully qualified table name');
   }
-  // Same for web table
   const wrongWebPattern = /`[^`]*insurance_web_utm_4[^`]*`/g;
   if (wrongWebPattern.test(fixed) && !fixed.includes('`hx-data-production.commercial_finance.insurance_web_utm_4`')) {
     fixed = fixed.replace(/`[^`]*insurance_web_utm_4[^`]*`/g, '`hx-data-production.commercial_finance.insurance_web_utm_4`');
     warnings.push('Fixed web table name');
   }
 
-  // Fix "gp" column reference — the actual column is total_gross_exc_ipt_ntu_comm
-  // but "gp" is commonly used as an alias. Leave it if it's in a CAST or alias context.
+  // Replace hardcoded epoch-era dates with CURRENT_DATE() expressions
+  // Catches DATE '1970-01-01' or similar obviously-wrong dates
+  if (/DATE\s*'19[67]\d-\d{2}-\d{2}'/i.test(fixed)) {
+    warnings.push('Detected epoch-era date literal — query may have incorrect date anchoring');
+  }
+
+  // Enforce case-insensitive string comparisons on key categorical columns
+  const catCols = ['distribution_channel', 'policy_type', 'cover_level_name', 'customer_type',
+    'device_type', 'booking_source', 'medical_split', 'channel', 'booking_flow_stage'];
+  for (const col of catCols) {
+    // Match: col = 'value' (not already wrapped in LOWER)
+    const pattern = new RegExp(`(?<!LOWER\\s*\\()\\b${col}\\b\\s*=\\s*'([^']+)'`, 'gi');
+    if (pattern.test(fixed)) {
+      fixed = fixed.replace(
+        new RegExp(`(?<!LOWER\\s*\\()\\b${col}\\b\\s*=\\s*'([^']+)'`, 'gi'),
+        `LOWER(${col}) = LOWER('$1')`
+      );
+      warnings.push(`Applied case-insensitive filter on ${col}`);
+    }
+  }
 
   return { sql: fixed, warnings };
 }
@@ -212,36 +225,42 @@ Key columns: transaction_date, policy_type (Annual/Single), distribution_channel
 channel, scheme_name, cover_level_name, booking_source, device_type, medical_split, max_medical_score_grouped,
 max_age_at_purchase, trip_duration_band, days_to_travel, policy_count,
 total_gross_exc_ipt_ntu_comm (THIS IS GP), total_gross_inc_ipt (customer price),
-total_discount_value, total_paid_commission_value, total_net_to_underwriter_inc_gadget.
+total_discount_value, total_paid_commission_value, total_net_to_underwriter_inc_gadget,
+customer_type (New/Existing/Lapsed/Re-engaged — indicates customer relationship status).
 
 ### \`hx-data-production.commercial_finance.insurance_web_utm_4\`
 Web analytics. Direct channel ONLY (no aggregator/renewal web data).
-Key cols: session_id, visitor_id, device_type, booking_flow_stage, session_start_date, page_type, event_name.
+Key cols: session_id, visitor_id, device_type, booking_flow_stage, session_start_date, page_type, event_name,
+customer_type (New/Existing/Lapsed/Re-engaged).
 Sessions = COUNT(DISTINCT session_id). Users = COUNT(DISTINCT visitor_id).
+
+### customer_type field (both tables)
+- "New" = never seen by Holiday Extras before
+- "Existing" = in our database, has booked in the last 3 years
+- "Lapsed" = in our database but hasn't booked in the last 3 years
+- "Re-engaged" = was lapsed but a recent purchase moved them out of lapsed
+This is a key drill-down dimension for understanding customer mix.
 `;
 
 const BUSINESS_CONTEXT = `
 - HX runs NEGATIVE margins on annual policies deliberately (lifetime value strategy). Never flag as problem.
 - Single trip losses ARE problems — no renewal pathway.
-- Traffic × Conversion × Avg GP = Total GP. Always decompose.
+- Traffic x Conversion x Avg GP = Total GP. Always decompose.
 - Aggregators have no web journey data. Direct has full web data.
 - Use SUM(policy_count) for counts. Use SUM(CAST(col AS FLOAT64))/NULLIF(SUM(policy_count),0) for averages.
 - YoY comparison = 364-day offset to match day-of-week.
 - Financial Year To Date (FYTD) runs 1 April to 31 March. "YTD" or "FYTD" means from 1 April of the current financial year.
-- TODAY'S DATE: ${new Date().toISOString().slice(0, 10)}. Use this to determine correct date ranges for queries like "yesterday", "last week", "FYTD", etc.
 `;
 
 
 // ── Answer verification (anti-hallucination) ─────────────────────────────
 
 async function verifyAnswer(answer, sqlQueries, apiKey) {
-  // Only verify if we have actual SQL results to check against
   const successfulQueries = sqlQueries.filter(q => q.success);
   if (!successfulQueries.length) {
-    return answer + '\n\n💡 *No SQL queries succeeded for this answer. For verification, please speak with a member of the Commercial Finance team in Insurance.*';
+    return answer + '\n\n*No SQL queries succeeded for this answer. For verification, please speak with a member of the Commercial Finance team in Insurance.*';
   }
 
-  // Build evidence including actual row data (first 5 rows per query)
   const evidenceSummary = successfulQueries.map((q, i) =>
     `Query ${i + 1}: ${q.sql}\nReturned ${q.rows} row(s).${q.sample_data ? '\nSample data: ' + q.sample_data : ''}`
   ).join('\n\n');
@@ -259,6 +278,34 @@ Your job:
       { role: 'user', content: `## SQL EVIDENCE\n${evidenceSummary}\n\n## ANSWER TO CHECK\n${answer}` },
     ], null, apiKey, 4096, 'gpt-5-mini');
     return checkResponse.choices?.[0]?.message?.content || answer;
+  } catch {
+    return answer;
+  }
+}
+
+
+// ── Prettification agent (formats output for readability) ─────────────────
+
+async function prettifyAnswer(answer, apiKey) {
+  try {
+    const response = await callOpenAI([
+      { role: 'system', content: `You are a formatting agent. Your job is to take a trading analyst's answer and make it clear, well-structured, and easy for a non-technical reader to understand.
+
+Rules:
+1. Format monetary values with the pound sign and commas (e.g. £10,864.23 not 10864.23)
+2. Format percentages with % sign and appropriate decimal places (e.g. 12.3% not 0.123)
+3. Format large numbers with commas (e.g. 1,234 not 1234)
+4. Use bullet points or tables where they make the data easier to scan
+5. Use bold for key figures and findings
+6. Keep the analyst's conclusions and insights — do NOT change any numbers or facts
+7. Do NOT add analysis, opinions, or information not in the original
+8. Do NOT add emojis
+9. Keep it concise — remove filler words but preserve all data points
+10. If there's a comparison (YoY, WoW etc), make the direction and magnitude immediately clear
+11. Structure with clear headings if the answer covers multiple topics` },
+      { role: 'user', content: answer },
+    ], null, apiKey, 4096, 'gpt-5-mini');
+    return response.choices?.[0]?.message?.content || answer;
   } catch {
     return answer;
   }
@@ -288,13 +335,36 @@ async function handleQuestion({ question, driverContext, conversationHistory, mo
     }
   }
 
+  // ── Step 0: Anchor today's date from BigQuery ──
+  const sqlQueries = [];
+  let todaysDate = new Date().toISOString().slice(0, 10); // fallback
+  try {
+    const dateRows = await runBQQuery('SELECT CURRENT_DATE() AS today', bqToken);
+    if (dateRows.length > 0 && dateRows[0].today) {
+      todaysDate = dateRows[0].today;
+    }
+    sqlQueries.push({ sql: 'SELECT CURRENT_DATE() AS today', rows: 1, success: true, sample_data: JSON.stringify(dateRows[0]) });
+  } catch (e) {
+    // fallback to JS date — already set above
+  }
+
   const systemPrompt = `You are Trading Covered's AI analyst for Holiday Extras (HX) insurance.
 You answer questions about trading data by writing and executing BigQuery SQL queries.
 
 ${SCHEMA_KNOWLEDGE}
 ${BUSINESS_CONTEXT}
 
-${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
+## DATE CONTEXT — CRITICAL
+Today's date is ${todaysDate} (confirmed from BigQuery CURRENT_DATE()).
+ALWAYS use CURRENT_DATE() in your SQL for date calculations. Examples:
+- "yesterday" = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+- "last 7 days" = BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) AND DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+- "same day last year" = DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY) (or 364 for day-of-week match)
+- "FYTD" = BETWEEN DATE(EXTRACT(YEAR FROM DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)), 4, 1) AND CURRENT_DATE()
+NEVER hardcode date literals like DATE '2026-03-11'. ALWAYS use CURRENT_DATE() expressions so the query is always correct regardless of when it runs.
+If the driver context below mentions a specific date, IGNORE it for SQL purposes and use CURRENT_DATE() instead.
+
+${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT for dates)\n${driverContext}\n` : ''}
 
 ## RULES
 1. Write SQL to answer the question. Use fully qualified table names.
@@ -303,16 +373,18 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
 4. State timeframes explicitly (e.g. "over the last 7 days", "yesterday vs same day last year").
 5. NEVER round numbers. Always give the exact figures from SQL results (e.g. £892.67, £10,864.23). The user wants precise data.
 6. You can run up to 4 rounds of investigation. Each round, decide if you need more data or can answer.
-7. If SQL fails, fix it and retry. You have up to 25 attempts per query.
+7. If SQL fails, fix it and retry. You have up to 10 attempts per query.
 8. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
 9. If the user asks something ambiguous or that requires a dimension/field you're unsure about, use the ask_clarification tool BEFORE writing SQL. Always provide examples of real values from the data to help the user choose. For example: "Do you mean broken down by cover_level_name? Examples in the data: Bronze, Classic, Silver, Gold, Deluxe, Elite."
-10. When you give your final answer, cite which SQL query produced each number. If a number didn't come from a query, don't include it.`;
+10. When you give your final answer, cite which SQL query produced each number. If a number didn't come from a query, don't include it.
+11. CASE-INSENSITIVE FILTERING: When filtering by string fields (e.g. distribution_channel, policy_type, cover_level_name, customer_type, device_type), use LOWER() on both sides: WHERE LOWER(field) = LOWER('value'). This avoids mismatches from inconsistent casing.
+12. DISCOVER BEFORE DRILLING: Before writing a query that filters on a categorical field, FIRST run SELECT DISTINCT field_name FROM table to discover the actual values. This prevents incorrect filters (e.g. filtering for 'direct' when the actual value is 'Direct').`;
 
   const tools = [{
     type: 'function',
     function: {
       name: 'run_sql',
-      description: 'Execute BigQuery SQL. Use SUM(policy_count) not COUNT(*). Fully qualified table names.',
+      description: 'Execute BigQuery SQL. Use SUM(policy_count) not COUNT(*). Fully qualified table names. Use CURRENT_DATE() for date calculations — never hardcode dates.',
       parameters: {
         type: 'object',
         properties: { sql: { type: 'string', description: 'The SQL query' } },
@@ -345,9 +417,8 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
 
   messages.push({ role: 'user', content: question });
 
-  const sqlQueries = [];
   const MAX_ROUNDS = 4;
-  const MAX_SQL_RETRIES = 25;
+  const MAX_SQL_RETRIES = 10;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const response = await callOpenAI(messages, tools, apiKey);
@@ -357,12 +428,13 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
     const msg = choice.message;
     messages.push(msg);
 
-    // If no tool calls, we have our answer — verify it first
+    // If no tool calls, we have our answer — verify then prettify
     if (choice.finish_reason === 'stop' || !msg.tool_calls || msg.tool_calls.length === 0) {
       const rawAnswer = msg.content || 'No answer generated.';
       const verified = await verifyAnswer(rawAnswer, sqlQueries, apiKey);
+      const formatted = await prettifyAnswer(verified, apiKey);
       return {
-        answer: verified,
+        answer: formatted,
         sql_queries: sqlQueries,
         rounds: round + 1,
       };
@@ -427,7 +499,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
         }
 
         if (result) {
-          const prefix = warnings.length > 0 ? `⚠️ Auto-corrected: ${warnings.join('; ')}\n\n` : '';
+          const prefix = warnings.length > 0 ? `Auto-corrected: ${warnings.join('; ')}\n\n` : '';
           messages.push({ role: 'tool', tool_call_id: tc.id, content: prefix + result });
         } else {
           sqlQueries.push({ sql: currentSQL, error: lastError, success: false });
@@ -449,8 +521,9 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT\n${driverContext}\n` : ''}
   const finalResponse = await callOpenAI(messages, null, apiKey);
   const rawContent = finalResponse.choices?.[0]?.message?.content || 'Investigation complete but no clear answer emerged.';
   const verified = await verifyAnswer(rawContent, sqlQueries, apiKey);
+  const formatted = await prettifyAnswer(verified, apiKey);
   return {
-    answer: verified,
+    answer: formatted,
     sql_queries: sqlQueries,
     rounds: MAX_ROUNDS,
   };
