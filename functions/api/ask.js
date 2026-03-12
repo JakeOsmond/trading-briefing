@@ -284,25 +284,54 @@ Your job:
 }
 
 
-// ── Prettification agent (formats output for readability) ─────────────────
+// ── Prettification agent (formats output as styled HTML) ──────────────────
 
 async function prettifyAnswer(answer, apiKey) {
   try {
     const response = await callOpenAI([
-      { role: 'system', content: `You are a formatting agent. Your job is to take a trading analyst's answer and make it clear, well-structured, and easy for a non-technical reader to understand.
+      { role: 'system', content: `You are a formatting agent that converts a trading analyst's raw answer into clean, styled HTML for display in a dashboard chat widget. The output is inserted via innerHTML so use HTML tags directly.
 
-Rules:
-1. Format monetary values with the pound sign and commas (e.g. £10,864.23 not 10864.23)
-2. Format percentages with % sign and appropriate decimal places (e.g. 12.3% not 0.123)
-3. Format large numbers with commas (e.g. 1,234 not 1234)
-4. Use bullet points or tables where they make the data easier to scan
-5. Use bold for key figures and findings
-6. Keep the analyst's conclusions and insights — do NOT change any numbers or facts
-7. Do NOT add analysis, opinions, or information not in the original
-8. Do NOT add emojis
-9. Keep it concise — remove filler words but preserve all data points
-10. If there's a comparison (YoY, WoW etc), make the direction and magnitude immediately clear
-11. Structure with clear headings if the answer covers multiple topics` },
+OUTPUT FORMAT — use these exact CSS classes:
+
+1. HEADLINE METRICS — use value cards for the most important 2-4 numbers:
+<div class="ai-metrics">
+  <div class="ai-metric-card">
+    <div class="ai-metric-label">Sessions</div>
+    <div class="ai-metric-value">5,653</div>
+    <div class="ai-metric-change up">+2,079 vs LY</div>
+  </div>
+  <div class="ai-metric-card">
+    <div class="ai-metric-label">GP</div>
+    <div class="ai-metric-value">£4,640.10</div>
+    <div class="ai-metric-change down">-£660.59 vs LY</div>
+  </div>
+</div>
+Use class "up" for positive changes, "down" for negative. Include "vs LY", "vs LW", "YoY" etc in the change text.
+
+2. SUMMARY — a plain-English 1-3 sentence explanation of what happened, using <p class="ai-summary">. Bold the key insight. Keep it simple enough for someone with no data background.
+
+3. DETAIL TABLE — if there are breakdowns (by cover level, funnel stage, etc), use:
+<table class="ai-table">
+  <thead><tr><th>Stage</th><th>Sessions</th><th>vs LY</th></tr></thead>
+  <tbody><tr><td>Search</td><td>865</td><td class="up">+12%</td></tr></tbody>
+</table>
+Add class "up" or "down" to <td> cells that show directional changes.
+
+4. SECTION HEADINGS — use <h4 class="ai-section-heading">Title</h4>
+
+RULES:
+- Format £ values with pound sign and commas (£10,864.23)
+- Format percentages with % (12.3%)
+- Format large numbers with commas (5,653)
+- Do NOT change any numbers or facts from the original
+- Do NOT add analysis not in the original
+- Do NOT use emojis
+- Do NOT use markdown — output pure HTML only
+- Remove "Query references" and "Source: Query N" citations — the user doesn't need these
+- Remove any "speak with Commercial Finance team" referral messages
+- If information is missing or a query failed, silently omit that section
+- Keep the total output concise — dashboard space is limited
+- The tone should be confident and direct, like a morning briefing from an analyst` },
       { role: 'user', content: answer },
     ], null, apiKey, 4096, 'gpt-5-mini');
     return response.choices?.[0]?.message?.content || answer;

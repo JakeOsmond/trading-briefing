@@ -5050,6 +5050,48 @@ body::after{{
   padding:1px 8px;border-radius:4px;cursor:pointer;font-family:inherit;
 }}
 .chat-sql-detail .sql-copy-btn:hover{{background:rgba(95,200,255,0.15);}}
+/* ── AI response styled components ── */
+.ai-metrics{{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;}}
+.ai-metric-card{{
+  flex:1 1 120px;min-width:100px;
+  background:rgba(15,23,42,0.7);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;text-align:center;
+}}
+.ai-metric-label{{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px;}}
+.ai-metric-value{{font-size:20px;font-weight:700;color:#f1f5f9;line-height:1.2;}}
+.ai-metric-change{{font-size:11px;margin-top:4px;font-weight:600;}}
+.ai-metric-change.up{{color:#34d399;}}
+.ai-metric-change.down{{color:#f87171;}}
+.ai-metric-change.flat{{color:var(--muted);}}
+p.ai-summary{{
+  font-size:13px;line-height:1.6;color:#e2e8f0;margin:10px 0;
+  border-left:3px solid rgba(95,200,255,0.4);padding-left:12px;
+}}
+p.ai-summary strong{{color:#fff;}}
+h4.ai-section-heading{{
+  font-size:12px;text-transform:uppercase;letter-spacing:.8px;
+  color:var(--accent);margin:16px 0 8px;padding-bottom:4px;
+  border-bottom:1px solid rgba(148,163,184,0.15);
+}}
+table.ai-table{{
+  width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;
+}}
+table.ai-table th{{
+  text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--border);
+}}
+table.ai-table td{{
+  padding:5px 10px;border-bottom:1px solid rgba(148,163,184,0.08);color:#cbd5e1;
+}}
+table.ai-table td.up{{color:#34d399;font-weight:600;}}
+table.ai-table td.down{{color:#f87171;font-weight:600;}}
+table.ai-table tr:last-child td{{border-bottom:none;}}
+table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
+/* Override white-space for styled HTML responses */
+.chat-msg.assistant .ai-metrics,
+.chat-msg.assistant .ai-summary,
+.chat-msg.assistant .ai-section-heading,
+.chat-msg.assistant .ai-table{{white-space:normal;}}
 .chat-msg.loading{{
   color:var(--muted);font-style:italic;
   border:2px solid transparent;
