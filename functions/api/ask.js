@@ -314,7 +314,7 @@ Rules:
 
 // ── Main Q&A engine ───────────────────────────────────────────────────────
 
-async function handleQuestion({ question, driverContext, conversationHistory, mode, trendSQL }, env) {
+async function handleQuestion({ question, driverContext, conversationHistory, mode, trendSQL, fieldDiscovery }, env) {
   const apiKey = env.OPENAI_API_KEY;
   const serviceAccount = env.GCP_SERVICE_ACCOUNT_KEY;
 
@@ -335,86 +335,25 @@ async function handleQuestion({ question, driverContext, conversationHistory, mo
     }
   }
 
-  // ── Step 0: Anchor today's date from BigQuery ──
+  // ── Date: use Worker server time (no BQ call needed) ──
   const sqlQueries = [];
-  let todaysDate = new Date().toISOString().slice(0, 10); // fallback
-  try {
-    const dateRows = await runBQQuery('SELECT CURRENT_DATE() AS today', bqToken);
-    if (dateRows.length > 0 && dateRows[0].today) {
-      todaysDate = dateRows[0].today;
-    }
-    sqlQueries.push({ sql: 'SELECT CURRENT_DATE() AS today', rows: 1, success: true, sample_data: JSON.stringify(dateRows[0]) });
-  } catch (e) {
-    // fallback to JS date — already set above
-  }
+  const todaysDate = new Date().toISOString().slice(0, 10);
 
-  // ── Step 1: One-time discovery of all categorical field values ──
+  // ── Field discovery: pre-computed by pipeline, passed from frontend ──
   let fieldValuesContext = '';
-  const discoverySQL_policies = `SELECT
-    ARRAY_AGG(DISTINCT policy_type IGNORE NULLS LIMIT 25) AS policy_type_vals,
-    ARRAY_AGG(DISTINCT distribution_channel IGNORE NULLS LIMIT 25) AS distribution_channel_vals,
-    ARRAY_AGG(DISTINCT channel IGNORE NULLS LIMIT 25) AS channel_vals,
-    ARRAY_AGG(DISTINCT scheme_name IGNORE NULLS LIMIT 40) AS scheme_name_vals,
-    ARRAY_AGG(DISTINCT cover_level_name IGNORE NULLS LIMIT 25) AS cover_level_name_vals,
-    ARRAY_AGG(DISTINCT booking_source IGNORE NULLS LIMIT 25) AS booking_source_vals,
-    ARRAY_AGG(DISTINCT device_type IGNORE NULLS LIMIT 25) AS device_type_vals,
-    ARRAY_AGG(DISTINCT medical_split IGNORE NULLS LIMIT 25) AS medical_split_vals,
-    ARRAY_AGG(DISTINCT max_medical_score_grouped IGNORE NULLS LIMIT 25) AS max_medical_score_grouped_vals,
-    ARRAY_AGG(DISTINCT customer_type IGNORE NULLS LIMIT 25) AS customer_type_vals,
-    ARRAY_AGG(DISTINCT trip_duration_band IGNORE NULLS LIMIT 25) AS trip_duration_band_vals,
-    ARRAY_AGG(DISTINCT days_to_travel IGNORE NULLS LIMIT 25) AS days_to_travel_vals,
-    ARRAY_AGG(DISTINCT max_age_at_purchase IGNORE NULLS LIMIT 25) AS max_age_at_purchase_vals,
-    ARRAY_AGG(DISTINCT insurance_group IGNORE NULLS LIMIT 40) AS insurance_group_vals
-  FROM \`hx-data-production.commercial_finance.insurance_policies_new\`
-  WHERE transaction_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)`;
-
-  const discoverySQL_web = `SELECT
-    ARRAY_AGG(DISTINCT device_type IGNORE NULLS LIMIT 25) AS device_type_vals,
-    ARRAY_AGG(DISTINCT booking_flow_stage IGNORE NULLS LIMIT 25) AS booking_flow_stage_vals,
-    ARRAY_AGG(DISTINCT page_type IGNORE NULLS LIMIT 40) AS page_type_vals,
-    ARRAY_AGG(DISTINCT event_name IGNORE NULLS LIMIT 40) AS event_name_vals,
-    ARRAY_AGG(DISTINCT customer_type IGNORE NULLS LIMIT 25) AS customer_type_vals,
-    ARRAY_AGG(DISTINCT med_session IGNORE NULLS LIMIT 10) AS med_session_vals,
-    ARRAY_AGG(DISTINCT Multiple_search IGNORE NULLS LIMIT 10) AS multiple_search_vals,
-    ARRAY_AGG(DISTINCT used_syd IGNORE NULLS LIMIT 10) AS used_syd_vals
-  FROM \`hx-data-production.commercial_finance.insurance_web_utm_4\`
-  WHERE session_start_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)`;
-
-  try {
-    const [policyVals, webVals] = await Promise.all([
-      runBQQuery(discoverySQL_policies, bqToken),
-      runBQQuery(discoverySQL_web, bqToken),
-    ]);
-
-    const formatVals = (row) => {
-      if (!row) return '';
-      return Object.entries(row).map(([key, val]) => {
-        const fieldName = key.replace('_vals', '');
-        if (!val) return `- ${fieldName}: (no values)`;
-        // BQ returns arrays as comma-separated or JSON — handle both
-        const values = typeof val === 'string' ? val : JSON.stringify(val);
-        return `- ${fieldName}: ${values}`;
+  if (fieldDiscovery && typeof fieldDiscovery === 'object') {
+    const formatSection = (tableName, data) => {
+      if (!data || typeof data !== 'object') return '';
+      return `### ${tableName}\n` + Object.entries(data).map(([field, values]) => {
+        const valStr = Array.isArray(values) ? values.join(', ') : String(values);
+        return `- ${field}: ${valStr}`;
       }).join('\n');
     };
-
-    const policyFields = policyVals.length > 0 ? formatVals(policyVals[0]) : '';
-    const webFields = webVals.length > 0 ? formatVals(webVals[0]) : '';
-
-    fieldValuesContext = `
-## KNOWN FIELD VALUES (from last 30 days — use these exact values in filters)
-
-### insurance_policies_new
-${policyFields}
-
-### insurance_web_utm_4
-${webFields}
-`;
-
-    sqlQueries.push({ sql: 'Field discovery (policies)', rows: 1, success: true, sample_data: 'categorical field values' });
-    sqlQueries.push({ sql: 'Field discovery (web)', rows: 1, success: true, sample_data: 'categorical field values' });
-  } catch (e) {
-    // Non-fatal — AI can still function without discovery
-    fieldValuesContext = '';
+    const policySection = formatSection('insurance_policies_new', fieldDiscovery.policies);
+    const webSection = formatSection('insurance_web_utm_4', fieldDiscovery.web);
+    if (policySection || webSection) {
+      fieldValuesContext = `\n## KNOWN FIELD VALUES (from last 30 days — use these exact values in filters)\n\n${policySection}\n\n${webSection}\n`;
+    }
   }
 
   const systemPrompt = `You are Trading Covered's AI analyst for Holiday Extras (HX) insurance.
@@ -606,7 +545,7 @@ export async function onRequestPost(context) {
 
   try {
     const body = await request.json();
-    const { question, driver_context, conversation_history, mode, trend_sql } = body;
+    const { question, driver_context, conversation_history, mode, trend_sql, field_discovery } = body;
 
     if (!question && mode !== 'trend') {
       return new Response(JSON.stringify({ error: 'Missing question' }), {
@@ -621,6 +560,7 @@ export async function onRequestPost(context) {
       conversationHistory: conversation_history || [],
       mode: mode || 'general',
       trendSQL: trend_sql || null,
+      fieldDiscovery: field_discovery || null,
     }, env);
 
     return new Response(JSON.stringify(result), {

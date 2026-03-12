@@ -3385,6 +3385,49 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     # Serialize all driver trends for client-side matching
     driver_trends_json = json.dumps(_all_trends_for_js) if _all_trends_for_js else "{}"
 
+    # ── Pre-compute distinct field values for AI chat ──
+    field_discovery = {}
+    try:
+        _policy_disc_sql = """
+        SELECT
+            ARRAY_AGG(DISTINCT policy_type IGNORE NULLS LIMIT 25) AS policy_type,
+            ARRAY_AGG(DISTINCT distribution_channel IGNORE NULLS LIMIT 25) AS distribution_channel,
+            ARRAY_AGG(DISTINCT channel IGNORE NULLS LIMIT 25) AS channel,
+            ARRAY_AGG(DISTINCT scheme_name IGNORE NULLS LIMIT 40) AS scheme_name,
+            ARRAY_AGG(DISTINCT cover_level_name IGNORE NULLS LIMIT 25) AS cover_level_name,
+            ARRAY_AGG(DISTINCT booking_source IGNORE NULLS LIMIT 25) AS booking_source,
+            ARRAY_AGG(DISTINCT device_type IGNORE NULLS LIMIT 25) AS device_type,
+            ARRAY_AGG(DISTINCT medical_split IGNORE NULLS LIMIT 25) AS medical_split,
+            ARRAY_AGG(DISTINCT max_medical_score_grouped IGNORE NULLS LIMIT 25) AS max_medical_score_grouped,
+            ARRAY_AGG(DISTINCT customer_type IGNORE NULLS LIMIT 25) AS customer_type,
+            ARRAY_AGG(DISTINCT trip_duration_band IGNORE NULLS LIMIT 25) AS trip_duration_band,
+            ARRAY_AGG(DISTINCT days_to_travel IGNORE NULLS LIMIT 25) AS days_to_travel,
+            ARRAY_AGG(DISTINCT max_age_at_purchase IGNORE NULLS LIMIT 25) AS max_age_at_purchase,
+            ARRAY_AGG(DISTINCT insurance_group IGNORE NULLS LIMIT 40) AS insurance_group
+        FROM `hx-data-production.commercial_finance.insurance_policies_new`
+        WHERE transaction_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        """
+        _web_disc_sql = """
+        SELECT
+            ARRAY_AGG(DISTINCT device_type IGNORE NULLS LIMIT 25) AS device_type,
+            ARRAY_AGG(DISTINCT booking_flow_stage IGNORE NULLS LIMIT 25) AS booking_flow_stage,
+            ARRAY_AGG(DISTINCT page_type IGNORE NULLS LIMIT 40) AS page_type,
+            ARRAY_AGG(DISTINCT event_name IGNORE NULLS LIMIT 40) AS event_name,
+            ARRAY_AGG(DISTINCT customer_type IGNORE NULLS LIMIT 25) AS customer_type
+        FROM `hx-data-production.commercial_finance.insurance_web_utm_4`
+        WHERE session_start_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        """
+        _p_rows = [dict(r) for r in BQ_CLIENT.query(_policy_disc_sql).result()]
+        _w_rows = [dict(r) for r in BQ_CLIENT.query(_web_disc_sql).result()]
+        if _p_rows:
+            field_discovery["policies"] = {k: v for k, v in _p_rows[0].items() if v}
+        if _w_rows:
+            field_discovery["web"] = {k: v for k, v in _w_rows[0].items() if v}
+        log.info(f"Field discovery complete: {sum(len(v) for v in field_discovery.values())} fields")
+    except Exception as e:
+        log.warning(f"Field discovery failed (non-fatal): {e}")
+    field_discovery_json = json.dumps(field_discovery, default=str)
+
     # Extract investigation data from the log dict
     _track_results = investigation_log.get("track_results", {}) if isinstance(investigation_log, dict) else {}
     _follow_up_log = investigation_log.get("follow_up_log", []) if isinstance(investigation_log, dict) else []
@@ -5304,6 +5347,9 @@ window.__apiBase=location.hostname.includes('staging')?'https://trading-covered.
 /* ── Pre-loaded driver trend data (keyed by driver name) ── */
 window.__driverTrends={driver_trends_json};
 
+/* ── Pre-computed field values for AI chat (from pipeline) ── */
+window.__fieldDiscovery={field_discovery_json};
+
 /* ── Chart ── */
 const data={chart_data_json};
 const chart=document.getElementById('trendChart');
@@ -5920,7 +5966,8 @@ function submitDriverAsk(id){{
       question:question,
       driver_context:driverContext,
       conversation_history:driverHistory[id].slice(-10),
-      mode:'driver'
+      mode:'driver',
+      field_discovery:window.__fieldDiscovery||null
     }})
   }})
   .then(r=>r.json())
@@ -5980,7 +6027,8 @@ function submitDriverReply(btn,id){{
       question:question,
       driver_context:driverContext,
       conversation_history:driverHistory[id].slice(-10),
-      mode:'driver'
+      mode:'driver',
+      field_discovery:window.__fieldDiscovery||null
     }})
   }})
   .then(r=>r.json())
@@ -6054,7 +6102,8 @@ function submitChat(){{
     body:JSON.stringify({{
       question:question,
       conversation_history:chatHistory.slice(-10),
-      mode:'general'
+      mode:'general',
+      field_discovery:window.__fieldDiscovery||null
     }})
   }})
   .then(r=>r.json())
@@ -6137,7 +6186,8 @@ function submitChatReply(btn){{
     body:JSON.stringify({{
       question:question,
       conversation_history:chatHistory.slice(-10),
-      mode:'general'
+      mode:'general',
+      field_discovery:window.__fieldDiscovery||null
     }})
   }})
   .then(r=>r.json())
