@@ -3423,9 +3423,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
             field_discovery["policies"] = {k: v for k, v in _p_rows[0].items() if v}
         if _w_rows:
             field_discovery["web"] = {k: v for k, v in _w_rows[0].items() if v}
-        log.info(f"Field discovery complete: {sum(len(v) for v in field_discovery.values())} fields")
+        print(f"    📋 Field discovery complete: {sum(len(v) for v in field_discovery.values())} fields")
     except Exception as e:
-        log.warning(f"Field discovery failed (non-fatal): {e}")
+        print(f"    ⚠ Field discovery failed (non-fatal): {e}")
     field_discovery_json = json.dumps(field_discovery, default=str)
 
     # Extract investigation data from the log dict
