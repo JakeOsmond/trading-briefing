@@ -516,10 +516,8 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
     // If no tool calls, we have our answer
     if (choice.finish_reason === 'stop' || !msg.tool_calls || msg.tool_calls.length === 0) {
       const rawAnswer = msg.content || 'No answer generated.';
-      const hasData = sqlQueries.some(q => q.success);
-      // Skip verify/format if we have successful queries (main prompt already formats)
-      // Only verify when no data came back (higher risk of hallucination)
-      const finalAnswer = hasData ? rawAnswer : await verifyAndFormat(rawAnswer, sqlQueries, apiKey);
+      // Main prompt handles formatting + self-verification (Rule 15/16)
+      const finalAnswer = rawAnswer;
       const chartData = extractChartData(sqlQueries);
       return {
         answer: finalAnswer,
@@ -609,10 +607,9 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
   // If we exhausted rounds, get final answer
   const finalResponse = await callOpenAI(messages, null, apiKey);
   const rawContent = finalResponse.choices?.[0]?.message?.content || 'Investigation complete but no clear answer emerged.';
-  const formatted = await verifyAndFormat(rawContent, sqlQueries, apiKey);
   const chartData = extractChartData(sqlQueries);
   return {
-    answer: formatted,
+    answer: rawContent,
     sql_queries: sqlQueries.map(q => { const { result_rows, ...rest } = q; return rest; }),
     rounds: MAX_ROUNDS,
     chart_data: chartData,
