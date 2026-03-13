@@ -468,7 +468,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 3. NEVER speculate beyond what the SQL results show. If data doesn't answer the question, say so.
 4. State timeframes explicitly (e.g. "over the last 7 days", "yesterday vs same day last year").
 5. FORMAT ALL NUMBERS PROPERLY: £ values with commas and 2dp (£10,864.23 not £10864.23000000001), percentages to 1dp with % sign (12.3% not 0.12345678), integers with commas (243,366 not 243366). NEVER show raw floating point artifacts. Round £ to 2dp, % to 1dp.
-6. You have up to 2 rounds but STRONGLY prefer answering in 1 round. Write ONE comprehensive SQL query that gets everything you need. Only use round 2 if round 1 genuinely failed or missed critical data.
+6. You have up to 4 rounds but STRONGLY prefer answering in 1. Write ONE comprehensive SQL query that gets everything. Only use extra rounds if SQL failed or critical data is missing — never just to explore.
 7. If SQL fails, it will be auto-retried once. Write correct SQL the first time.
 8. NEVER present options or menus to the user. NEVER ask "which option do you want?" Just run the best query using your judgement and explain what you ran afterwards.
 9. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
@@ -518,7 +518,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 
   messages.push({ role: 'user', content: question });
 
-  const MAX_ROUNDS = 2;
+  const MAX_ROUNDS = 4;
   const MAX_SQL_RETRIES = 2;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
