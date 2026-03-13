@@ -80,7 +80,7 @@ async function runBQQuery(sql, accessToken, projectId = 'hx-data-production') {
       useLegacySql: false,
       maxResults: 200,
       timeoutMs: 60000,
-      maximumBytesBilled: '5000000000',
+      maximumBytesBilled: '100000000000',
     }),
   });
   const data = await res.json();
@@ -389,13 +389,14 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 5. NEVER round numbers. Always give the exact figures from SQL results (e.g. £892.67, £10,864.23). The user wants precise data.
 6. You can run up to 2 rounds of investigation. Be efficient — write ONE well-crafted SQL query per round. Answer after round 1 if possible.
 7. If SQL fails, it will be auto-retried once. Write correct SQL the first time.
-8. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
-9. If DRIVER CONTEXT is provided, the user is asking about THAT driver. Do NOT ask for clarification about which metric, segment, or dimension — infer it from the driver context and its SQL. Only use ask_clarification if the question is truly impossible to answer from context.
-10. If DRIVER CONTEXT is NOT provided (general mode), and the question is genuinely ambiguous, use ask_clarification. Refer to the KNOWN FIELD VALUES section above for examples.
-11. SENSIBLE DEFAULTS: When the user asks about trends "over time" without specifying a timeframe, default to last 28 days with daily granularity and include Year-on-Year comparison (same period last year). Always include YoY comparison unless the user explicitly says not to.
-12. When you give your final answer, cite which SQL query produced each number. If a number didn't come from a query, don't include it.
-13. CASE-INSENSITIVE FILTERING: When filtering by string fields, use LOWER() on both sides: WHERE LOWER(field) = LOWER('value').
-14. Use the KNOWN FIELD VALUES above to write correct filters. You already know the exact values — no need to run SELECT DISTINCT first.`;
+8. NEVER present options or menus to the user. NEVER ask "which option do you want?" Just run the best query using your judgement and explain what you ran afterwards.
+9. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
+10. If DRIVER CONTEXT is provided, the user is asking about THAT driver. Do NOT ask for clarification about which metric, segment, or dimension — infer it from the driver context and its SQL. Only use ask_clarification if the question is truly impossible to answer from context.
+11. If DRIVER CONTEXT is NOT provided (general mode), and the question is genuinely ambiguous, use ask_clarification. Refer to the KNOWN FIELD VALUES section above for examples.
+12. SENSIBLE DEFAULTS: When the user asks about trends "over time" without specifying a timeframe, default to last 28 days with daily granularity and include Year-on-Year comparison (same period last year). Always include YoY comparison unless the user explicitly says not to.
+13. When you give your final answer, cite which SQL query produced each number. If a number didn't come from a query, don't include it.
+14. CASE-INSENSITIVE FILTERING: When filtering by string fields, use LOWER() on both sides: WHERE LOWER(field) = LOWER('value').
+15. Use the KNOWN FIELD VALUES above to write correct filters. You already know the exact values — no need to run SELECT DISTINCT first.`;
 
   const tools = [{
     type: 'function',

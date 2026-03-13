@@ -2844,16 +2844,22 @@ function getDriverContext(panel){
 
 function buildSqlButton(sqlQueries){
   if(!sqlQueries||!sqlQueries.length) return '';
-  const successful=sqlQueries.filter(q=>q.success);
-  if(!successful.length) return '';
   const uid='sql-'+Math.random().toString(36).slice(2,8);
   let html='<button class="view-sql-btn" data-sql-uid="'+uid+'">View SQL</button>';
   html+='<div id="'+uid+'" class="chat-sql-detail">';
-  successful.forEach((q,i)=>{
+  sqlQueries.forEach((q,i)=>{
     const escaped=q.sql.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    html+='<div class="sql-block"><div class="sql-label">Query '+(i+1)+' ('+q.rows+' row'+(q.rows===1?'':'s')+')'
-      +'<button class="sql-copy-btn">Copy</button></div>'
-      +'<pre>'+escaped+'</pre></div>';
+    if(q.success){
+      html+='<div class="sql-block"><div class="sql-label">Query '+(i+1)+' ('+q.rows+' row'+(q.rows===1?'':'s')+')'
+        +'<button class="sql-copy-btn">Copy</button></div>'
+        +'<pre>'+escaped+'</pre></div>';
+    }else{
+      const errEsc=(q.error||'Unknown error').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      html+='<div class="sql-block" style="border-left:3px solid var(--red);padding-left:10px"><div class="sql-label" style="color:var(--red)">Query '+(i+1)+' — FAILED'
+        +'<button class="sql-copy-btn">Copy</button></div>'
+        +'<pre>'+escaped+'</pre>'
+        +'<div style="font-size:11px;color:var(--red);margin-top:6px">Error: '+errEsc+'</div></div>';
+    }
   });
   html+='</div>';
   return html;
