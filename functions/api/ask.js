@@ -253,6 +253,69 @@ const BUSINESS_CONTEXT = `
 `;
 
 
+// ── Extract chart data from SQL results ────────────────────────────────────
+
+function extractChartData(sqlQueries) {
+  const successful = sqlQueries.filter(q => q.success && q.result_rows && q.result_rows.length >= 2);
+  if (!successful.length) return null;
+
+  for (const q of successful) {
+    const rows = q.result_rows;
+    const cols = Object.keys(rows[0] || {});
+
+    // Detect time-series: has a date-like column + a numeric column
+    const dateCol = cols.find(c => /date|dt|day|week|month|period/i.test(c) && rows.some(r => /^\d{4}-\d{2}/.test(r[c])));
+    const numCols = cols.filter(c => c !== dateCol && rows.some(r => !isNaN(parseFloat(r[c])) && r[c] !== null && r[c] !== ''));
+
+    if (dateCol && numCols.length > 0) {
+      // Pick the most interesting numeric column (prefer gp, then policies, then first)
+      const valCol = numCols.find(c => /gp|gross/i.test(c))
+        || numCols.find(c => /polic/i.test(c))
+        || numCols.find(c => /session/i.test(c))
+        || numCols[0];
+
+      // Check for TY/LY split (yr column)
+      const yrCol = cols.find(c => /^yr$/i.test(c));
+      if (yrCol) {
+        const tyRows = rows.filter(r => r[yrCol] === 'TY').sort((a, b) => a[dateCol].localeCompare(b[dateCol]));
+        const lyRows = rows.filter(r => r[yrCol] === 'LY').sort((a, b) => a[dateCol].localeCompare(b[dateCol]));
+        if (tyRows.length >= 2) {
+          return {
+            type: 'timeseries',
+            label: valCol.replace(/_/g, ' '),
+            points: tyRows.map(r => ({ date: r[dateCol], value: parseFloat(r[valCol]) || 0 })),
+            ly_points: lyRows.length > 0 ? lyRows.map(r => ({ date: r[dateCol], value: parseFloat(r[valCol]) || 0 })) : null,
+          };
+        }
+      }
+
+      // No TY/LY split — single series sorted by date
+      const sorted = [...rows].sort((a, b) => a[dateCol].localeCompare(b[dateCol]));
+      return {
+        type: 'timeseries',
+        label: valCol.replace(/_/g, ' '),
+        points: sorted.map(r => ({ date: r[dateCol], value: parseFloat(r[valCol]) || 0 })),
+        ly_points: null,
+      };
+    }
+
+    // Detect categorical: has a string column + a numeric column (e.g. customer_type × gp)
+    const catCol = cols.find(c => !dateCol && rows.every(r => isNaN(parseFloat(r[c])) || r[c] === null));
+    if (catCol && numCols.length > 0 && rows.length <= 30) {
+      const valCol = numCols.find(c => /gp|gross/i.test(c))
+        || numCols.find(c => /polic/i.test(c))
+        || numCols[0];
+      return {
+        type: 'categorical',
+        label: valCol.replace(/_/g, ' '),
+        points: rows.map(r => ({ category: r[catCol] || 'Unknown', value: parseFloat(r[valCol]) || 0 })),
+      };
+    }
+  }
+  return null;
+}
+
+
 // ── Verify + format answer (single AI call — saves subrequests) ───────────
 
 async function verifyAndFormat(answer, sqlQueries, apiKey) {
@@ -450,10 +513,12 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
     if (choice.finish_reason === 'stop' || !msg.tool_calls || msg.tool_calls.length === 0) {
       const rawAnswer = msg.content || 'No answer generated.';
       const formatted = await verifyAndFormat(rawAnswer, sqlQueries, apiKey);
+      const chartData = extractChartData(sqlQueries);
       return {
         answer: formatted,
-        sql_queries: sqlQueries,
+        sql_queries: sqlQueries.map(q => { const { result_rows, ...rest } = q; return rest; }),
         rounds: round + 1,
+        chart_data: chartData,
       };
     }
 
@@ -494,7 +559,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
             result = JSON.stringify(rows.slice(0, 100), null, 2);
             if (rows.length > 100) result += `\n... (${rows.length} total rows, showing 100)`;
             const sampleData = rows.slice(0, 5).map(r => JSON.stringify(r)).join('\n');
-            sqlQueries.push({ sql: currentSQL, rows: rows.length, success: true, sample_data: sampleData });
+            sqlQueries.push({ sql: currentSQL, rows: rows.length, success: true, sample_data: sampleData, result_rows: rows.slice(0, 200) });
             break;
           } catch (e) {
             lastError = e.message;
@@ -538,10 +603,12 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
   const finalResponse = await callOpenAI(messages, null, apiKey);
   const rawContent = finalResponse.choices?.[0]?.message?.content || 'Investigation complete but no clear answer emerged.';
   const formatted = await verifyAndFormat(rawContent, sqlQueries, apiKey);
+  const chartData = extractChartData(sqlQueries);
   return {
     answer: formatted,
-    sql_queries: sqlQueries,
+    sql_queries: sqlQueries.map(q => { const { result_rows, ...rest } = q; return rest; }),
     rounds: MAX_ROUNDS,
+    chart_data: chartData,
   };
 }
 

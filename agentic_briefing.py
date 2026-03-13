@@ -5151,6 +5151,29 @@ table.ai-table td.up{{color:#34d399;font-weight:600;}}
 table.ai-table td.down{{color:#f87171;font-weight:600;}}
 table.ai-table tr:last-child td{{border-bottom:none;}}
 table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
+/* AI chat chart */
+.ai-chart-wrap{{
+  margin:12px 0;padding:14px;border-radius:12px;
+  background:rgba(15,23,42,0.5);border:1px solid var(--border);
+}}
+.ai-chart-title{{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:10px;font-weight:600;}}
+.ai-chart-container{{position:relative;height:140px;display:flex;align-items:flex-end;gap:2px;padding-top:20px;}}
+.ai-chart-container .bar-col{{flex:1 1 0;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;min-width:0;}}
+.ai-chart-container .bar{{
+  width:100%;min-height:2px;border-radius:3px 3px 0 0;
+  transition:height 0.6s cubic-bezier(.23,1,.32,1),opacity 0.2s;
+}}
+.ai-chart-container .bar:hover{{opacity:.8;}}
+.ai-chart-container .bar-label{{font-size:8px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}}
+.ai-chart-container .tooltip{{
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) scale(0.95);
+  background:rgba(15,23,42,0.95);border:1px solid var(--border);border-radius:8px;
+  padding:6px 10px;font-size:10px;white-space:nowrap;pointer-events:none;
+  opacity:0;transition:opacity 0.15s,transform 0.15s;z-index:20;
+}}
+.ai-chart-container .bar-col:hover .tooltip{{opacity:1;transform:translateX(-50%) scale(1);}}
+.ai-chart-trendline{{margin-top:6px;height:30px;position:relative;}}
+.ai-chart-trendline canvas{{width:100%;height:100%;}}
 /* Override white-space for styled HTML responses */
 .chat-msg.assistant .ai-metrics,
 .chat-msg.assistant .ai-summary,
@@ -5614,12 +5637,12 @@ function startAILoadingStepper(container){{
       if(stepIdx<AI_STEPS_INITIAL.length){{
         addStep(AI_STEPS_INITIAL[stepIdx]);
         stepIdx++;
-        if(elapsed>=30000){{ phase='slow'; container._timer=setTimeout(tick,2000); return; }}
-        const timings=[800,2000,3000,5000,4000,5000,4000,5000];
+        if(elapsed>=60000){{ phase='slow'; container._timer=setTimeout(tick,4000); return; }}
+        const timings=[1600,4000,6000,10000,8000,10000,8000,10000];
         container._timer=setTimeout(tick,timings[Math.min(stepIdx-1,timings.length-1)]);
       }} else {{
-        if(elapsed>=30000){{ phase='slow'; container._timer=setTimeout(tick,2000); }}
-        else {{ container._timer=setTimeout(tick,3000); }}
+        if(elapsed>=60000){{ phase='slow'; container._timer=setTimeout(tick,4000); }}
+        else {{ container._timer=setTimeout(tick,6000); }}
       }}
     }} else if(phase==='slow'){{
       if(slowIdx<AI_STEPS_SLOW.length){{
@@ -6007,6 +6030,107 @@ function buildSqlButton(sqlQueries){{
   return html;
 }}
 
+function renderAIChart(container,chartData){{
+  if(!chartData||!chartData.points||chartData.points.length<2) return;
+  const wrap=document.createElement('div');
+  wrap.className='ai-chart-wrap';
+
+  const isTime=chartData.type==='timeseries';
+  const pts=chartData.points;
+  const lyPts=chartData.ly_points||[];
+  const allVals=pts.map(p=>p.value).concat(lyPts.map(p=>p.value));
+  const maxV=Math.max(...allVals);
+  const minV=Math.min(...allVals);
+  const range=maxV-minV||1;
+  const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  let title=chartData.label||'Value';
+  if(isTime) title+=' — '+pts.length+' day trend';
+  let barsHTML='';
+  pts.forEach((p,i)=>{{
+    const h=((p.value-minV)/range)*110+10;
+    const lyVal=lyPts[i]?lyPts[i].value:null;
+    const isUp=lyVal!==null?p.value>=lyVal:true;
+    const gradTop=isUp?'#00D4C8':'#FF8A91';
+    const gradBot=isUp?'#00B0A6':'#FF5F68';
+    let label='';
+    if(isTime&&p.date){{
+      const dt=new Date(p.date+'T00:00:00');
+      label=dayNames[dt.getDay()]+' '+(dt.getMonth()+1)+'/'+dt.getDate();
+    }}else{{
+      label=p.category||'';
+    }}
+    const fmtVal=p.value>=1000?'\\u00A3'+Math.round(p.value).toLocaleString():p.value.toFixed(1);
+    const yoyHTML=lyVal!==null?'<div style="color:'+(isUp?'#34d399':'#f87171')+'">vs LY: \\u00A3'+Math.round(lyVal).toLocaleString()+'</div>':'';
+    barsHTML+=
+      '<div class="bar-col">'+
+      '<div class="tooltip"><div style="font-weight:700;margin-bottom:2px">'+label+'</div><div>'+fmtVal+'</div>'+yoyHTML+'</div>'+
+      '<div class="bar" style="height:0px;background:linear-gradient(to top,'+gradBot+','+gradTop+')"></div>'+
+      '<div class="bar-label">'+label+'</div></div>';
+  }});
+
+  wrap.innerHTML='<div class="ai-chart-title">'+title+'</div>'+
+    '<div class="ai-chart-container">'+barsHTML+'</div>'+
+    '<div class="ai-chart-trendline"><canvas></canvas></div>';
+  container.appendChild(wrap);
+
+  /* Animate bars */
+  requestAnimationFrame(()=>{{
+    requestAnimationFrame(()=>{{
+      const bars=wrap.querySelectorAll('.bar');
+      pts.forEach((p,i)=>{{
+        const h=((p.value-minV)/range)*110+10;
+        if(bars[i]) bars[i].style.height=h+'px';
+      }});
+    }});
+  }});
+
+  /* Draw trendline on canvas */
+  const canvas=wrap.querySelector('canvas');
+  if(canvas&&pts.length>=2){{
+    const ctx=canvas.getContext('2d');
+    const dpr=window.devicePixelRatio||1;
+    const cw=canvas.parentElement.clientWidth;const ch=30;
+    canvas.width=cw*dpr;canvas.height=ch*dpr;
+    canvas.style.width=cw+'px';canvas.style.height=ch+'px';
+    ctx.scale(dpr,dpr);
+
+    function drawLine(data,color,width,dashed){{
+      if(!data.length) return;
+      ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=width;
+      ctx.setLineDash(dashed?[4,3]:[]);
+      const step=cw/(data.length-1||1);
+      data.forEach((v,i)=>{{
+        const x=i*step;
+        const y=2+(1-(v-minV)/range)*(ch-4);
+        if(i===0) ctx.moveTo(x,y);else ctx.lineTo(x,y);
+      }});
+      ctx.stroke();
+    }}
+
+    if(lyPts.length) drawLine(lyPts.map(p=>p.value),'rgba(255,255,255,0.15)',1.5,true);
+    drawLine(pts.map(p=>p.value),'rgba(146,95,255,0.85)',2,false);
+
+    /* Dot on last value */
+    const vals=pts.map(p=>p.value);
+    const lastX=(vals.length-1)*(cw/(vals.length-1||1));
+    const lastY=2+(1-(vals[vals.length-1]-minV)/range)*(ch-4);
+    ctx.beginPath();ctx.arc(lastX,lastY,3,0,Math.PI*2);
+    ctx.fillStyle='rgba(146,95,255,1)';ctx.fill();
+
+    /* Linear regression trend line */
+    const n=vals.length;
+    const sumX=vals.reduce((_,__,i)=>_+i,0);
+    const sumY=vals.reduce((s,v)=>s+v,0);
+    const sumXY=vals.reduce((s,v,i)=>s+i*v,0);
+    const sumX2=vals.reduce((s,_,i)=>s+i*i,0);
+    const slope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
+    const intercept=(sumY-slope*sumX)/n;
+    const trendVals=vals.map((_,i)=>intercept+slope*i);
+    drawLine(trendVals,'rgba(255,180,50,0.5)',1.5,true);
+  }}
+}}
+
 /* Delegate click handlers for SQL view/copy buttons */
 document.addEventListener('click',function(e){{
   const sqlBtn=e.target.closest('.view-sql-btn');
@@ -6100,6 +6224,7 @@ function submitDriverAsk(id){{
       content+=buildSqlButton(data.sql_queries);
     }}
     addDriverMessage(responseDiv,'assistant',content);
+    if(data.chart_data) renderAIChart(responseDiv,data.chart_data);
     driverHistory[id].push({{role:'assistant',content:data.answer||''}});
     addDriverReplyInput(responseDiv,id);
   }})
@@ -6161,6 +6286,7 @@ function submitDriverReply(btn,id){{
       content+=buildSqlButton(data.sql_queries);
     }}
     addDriverMessage(responseDiv,'assistant',content);
+    if(data.chart_data) renderAIChart(responseDiv,data.chart_data);
     driverHistory[id].push({{role:'assistant',content:data.answer||''}});
     addDriverReplyInput(responseDiv,id);
   }})
@@ -6240,6 +6366,7 @@ function submitChat(){{
     }}
     assistantMsg.innerHTML=content;
     messagesDiv.appendChild(assistantMsg);
+    if(data.chart_data) renderAIChart(messagesDiv,data.chart_data);
 
     chatHistory.push({{role:'assistant',content:data.answer||''}});
 
@@ -6323,6 +6450,7 @@ function submitChatReply(btn){{
     }}
     assistantMsg.innerHTML=content;
     messagesDiv.appendChild(assistantMsg);
+    if(data.chart_data) renderAIChart(messagesDiv,data.chart_data);
     chatHistory.push({{role:'assistant',content:data.answer||''}});
     addChatReplyInput(messagesDiv);
     messagesDiv.scrollTop=messagesDiv.scrollHeight;
