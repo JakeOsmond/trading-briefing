@@ -2256,7 +2256,11 @@ const AI_STEPS_INITIAL=[
   'Running query against BigQuery…',
   'Analysing results…',
   'Running follow-up query…',
+  'Cross-referencing data…',
   'Verifying figures…',
+  'Checking year-on-year comparisons…',
+  'Building the narrative…',
+  'Nearly there — refining the answer…',
   'Formatting answer…'
 ];
 const AI_STEPS_SLOW=[
@@ -2265,7 +2269,6 @@ const AI_STEPS_SLOW=[
   'Hang tight — pulling additional data…',
   'Still processing — cross-referencing results…',
   'Working through a deeper analysis…',
-  'Nearly there — refining the answer…',
   'Still going — validating the figures…',
   'Wrapping up the analysis…',
   'Running final checks on the data…',
@@ -2318,11 +2321,11 @@ function startAILoadingStepper(container){
       if(stepIdx<AI_STEPS_INITIAL.length){
         addStep(AI_STEPS_INITIAL[stepIdx]);
         stepIdx++;
-        if(elapsed>=30000){ phase='slow'; container._timer=setTimeout(tick,2000); return; }
-        const timings=[800,2000,3000,5000,4000,5000,4000,5000];
+        if(elapsed>=180000){ phase='slow'; container._timer=setTimeout(tick,2000); return; }
+        const timings=[2000,4000,8000,12000,14000,16000,18000,20000,20000,20000,18000,16000];
         container._timer=setTimeout(tick,timings[Math.min(stepIdx-1,timings.length-1)]);
       } else {
-        if(elapsed>=30000){ phase='slow'; container._timer=setTimeout(tick,2000); }
+        if(elapsed>=180000){ phase='slow'; container._timer=setTimeout(tick,2000); }
         else { container._timer=setTimeout(tick,3000); }
       }
     } else if(phase==='slow'){

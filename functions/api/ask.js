@@ -289,13 +289,15 @@ function extractChartData(sqlQueries) {
         }
       }
 
-      // No TY/LY split — single series sorted by date
+      // Check for same-row LY columns (e.g. gp + gp_ly, sessions + sessions_ly)
+      const lyCol = cols.find(c => c.toLowerCase() === valCol.toLowerCase() + '_ly')
+        || cols.find(c => c.toLowerCase() === valCol.toLowerCase() + '_last_year');
       const sorted = [...rows].sort((a, b) => a[dateCol].localeCompare(b[dateCol]));
       return {
         type: 'timeseries',
         label: valCol.replace(/_/g, ' '),
         points: sorted.map(r => ({ date: r[dateCol], value: parseFloat(r[valCol]) || 0 })),
-        ly_points: null,
+        ly_points: lyCol ? sorted.map(r => ({ date: r[dateCol], value: parseFloat(r[lyCol]) || 0 })) : null,
       };
     }
 
@@ -366,11 +368,12 @@ Use class "up" for positive, "down" for negative.
 4. SECTION HEADINGS — <h4 class="ai-section-heading">Title</h4>
 
 RULES:
-- Format £ with commas (£10,864.23), percentages with % (12.3%), numbers with commas
-- Do NOT change any verified numbers or facts
+- CRITICAL: Format ALL numbers properly — £ values with commas and exactly 2dp (£10,864.23 not £10864.52999999997), percentages to 1dp with % (−12.0% not −0.12024140746527696), integers with commas (243,366 not 243366). NEVER show raw floating point artifacts or more than 2 decimal places on money.
+- Do NOT change any verified numbers or facts (but DO clean up their formatting)
 - Do NOT add analysis not in the original
 - Do NOT use emojis or markdown — pure HTML only
-- Remove "Source: Query N" citations and referral messages
+- Remove "Source: Query N" citations, "Which SQL produced which numbers" sections, and referral messages
+- Remove any offers to run more queries or suggestions of what to ask next
 - Keep output concise — dashboard space is limited
 - Confident, direct tone` },
       { role: 'user', content: `${evidenceBlock}## ANSWER TO VERIFY AND FORMAT\n${answer}` },
@@ -449,7 +452,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 2. After getting results, analyze them and provide a clear, grounded answer.
 3. NEVER speculate beyond what the SQL results show. If data doesn't answer the question, say so.
 4. State timeframes explicitly (e.g. "over the last 7 days", "yesterday vs same day last year").
-5. NEVER round numbers. Always give the exact figures from SQL results (e.g. £892.67, £10,864.23). The user wants precise data.
+5. FORMAT ALL NUMBERS PROPERLY: £ values with commas and 2dp (£10,864.23 not £10864.23000000001), percentages to 1dp with % sign (12.3% not 0.12345678), integers with commas (243,366 not 243366). NEVER show raw floating point artifacts. Round £ to 2dp, % to 1dp.
 6. You can run up to 2 rounds of investigation. Be efficient — write ONE well-crafted SQL query per round. Answer after round 1 if possible.
 7. If SQL fails, it will be auto-retried once. Write correct SQL the first time.
 8. NEVER present options or menus to the user. NEVER ask "which option do you want?" Just run the best query using your judgement and explain what you ran afterwards.

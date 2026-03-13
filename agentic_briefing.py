@@ -5575,7 +5575,11 @@ const AI_STEPS_INITIAL=[
   'Running query against BigQuery…',
   'Analysing results…',
   'Running follow-up query…',
+  'Cross-referencing data…',
   'Verifying figures…',
+  'Checking year-on-year comparisons…',
+  'Building the narrative…',
+  'Nearly there — refining the answer…',
   'Formatting answer…'
 ];
 const AI_STEPS_SLOW=[
@@ -5584,7 +5588,6 @@ const AI_STEPS_SLOW=[
   'Hang tight — pulling additional data…',
   'Still processing — cross-referencing results…',
   'Working through a deeper analysis…',
-  'Nearly there — refining the answer…',
   'Still going — validating the figures…',
   'Wrapping up the analysis…',
   'Running final checks on the data…',
@@ -5637,11 +5640,11 @@ function startAILoadingStepper(container){{
       if(stepIdx<AI_STEPS_INITIAL.length){{
         addStep(AI_STEPS_INITIAL[stepIdx]);
         stepIdx++;
-        if(elapsed>=60000){{ phase='slow'; container._timer=setTimeout(tick,4000); return; }}
-        const timings=[1600,4000,6000,10000,8000,10000,8000,10000];
+        if(elapsed>=180000){{ phase='slow'; container._timer=setTimeout(tick,4000); return; }}
+        const timings=[2000,4000,8000,12000,14000,16000,18000,20000,20000,20000,18000,16000];
         container._timer=setTimeout(tick,timings[Math.min(stepIdx-1,timings.length-1)]);
       }} else {{
-        if(elapsed>=60000){{ phase='slow'; container._timer=setTimeout(tick,4000); }}
+        if(elapsed>=180000){{ phase='slow'; container._timer=setTimeout(tick,4000); }}
         else {{ container._timer=setTimeout(tick,6000); }}
       }}
     }} else if(phase==='slow'){{
@@ -6108,7 +6111,8 @@ function renderAIChart(container,chartData){{
   pts.forEach((p,i)=>{{
     const h=((p.value-minV)/range)*110+10;
     const lyVal=lyPts[i]?lyPts[i].value:null;
-    const isUp=lyVal!==null?p.value>=lyVal:true;
+    const prevVal=i>0?pts[i-1].value:null;
+    const isUp=lyVal!==null?p.value>=lyVal:(prevVal!==null?p.value>=prevVal:true);
     const gradTop=isUp?'#00D4C8':'#FF8A91';
     const gradBot=isUp?'#00B0A6':'#FF5F68';
     let label='';
