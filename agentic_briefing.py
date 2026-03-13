@@ -5088,7 +5088,7 @@ body::after{{
   flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 20px;
   display:flex;flex-direction:column;gap:14px;
 }}
-.chat-msg{{max-width:90%;padding:12px 16px;border-radius:12px;font-size:13px;line-height:1.7;overflow-x:auto;overflow-wrap:break-word;word-break:break-word}}
+.chat-msg{{max-width:90%;padding:12px 16px;border-radius:12px;font-size:13px;line-height:1.7;overflow:visible;overflow-wrap:break-word;word-break:break-word}}
 .chat-msg.user{{
   align-self:flex-end;background:rgba(146,95,255,0.15);
   color:var(--text);border:1px solid rgba(146,95,255,0.2);
@@ -5166,10 +5166,10 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
 .ai-chart-wrap{{
   margin:12px 0;padding:14px;border-radius:12px;
   background:rgba(15,23,42,0.5);border:1px solid var(--border);
-  overflow:hidden;max-width:100%;box-sizing:border-box;
+  overflow:visible;max-width:100%;box-sizing:border-box;
 }}
 .ai-chart-title{{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:10px;font-weight:600;}}
-.ai-chart-container{{position:relative;height:140px;display:flex;align-items:flex-end;gap:2px;padding-top:20px;}}
+.ai-chart-container{{position:relative;height:140px;display:flex;align-items:flex-end;gap:2px;padding-top:20px;overflow:visible;}}
 .ai-chart-container .bar-col{{flex:1 1 0;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;min-width:0;}}
 .ai-chart-container .bar{{
   width:100%;min-height:2px;border-radius:3px 3px 0 0;
