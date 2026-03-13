@@ -4070,7 +4070,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 <div class="headline-tile glass-card" data-animate="card">
 <div class="hl-main">{headline_html}</div>
 {f'<div class="hl-also"><strong>Also:</strong> {also_html}</div>' if also_html else ''}
-{f'<div class="hl-also" style="margin-top:6px;font-size:11px;opacity:0.6">Jump to: {" &middot; ".join(section_links)}</div>' if section_links else ''}
+{f'<div class="hl-also" style="margin-top:6px;font-size:11px;opacity:0.75">Jump to: {" &middot; ".join(section_links)}</div>' if section_links else ''}
 </div>
 </div>"""
 
@@ -4573,7 +4573,7 @@ body::after{{
 .view-trend-btn{{
   display:inline-flex;align-items:center;gap:5px;
   font-size:10px;font-weight:600;letter-spacing:.3px;
-  background:rgba(146,95,255,0.08);color:rgba(146,95,255,0.85);
+  background:rgba(146,95,255,0.08);color:var(--accent-light);
   border:1px solid rgba(146,95,255,0.2);border-radius:10px;
   padding:3px 10px;margin-left:8px;vertical-align:middle;
   cursor:pointer;font-family:inherit;transition:all 0.2s;
@@ -4719,7 +4719,7 @@ body::after{{
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }}
 .archive-size{{
-  font-size:10px;color:rgba(148,163,184,0.5);
+  font-size:10px;color:#94A3B8;
   min-width:50px;text-align:right;
 }}
 .archive-empty{{
@@ -5374,7 +5374,7 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
   border-top:1px solid var(--border);margin-top:16px;
   display:flex;flex-direction:column;gap:6px;align-items:center;
 }}
-.foot-brand{{font-size:10px;color:rgba(148,163,184,0.5);letter-spacing:.5px}}
+.foot-brand{{font-size:10px;color:#94A3B8;letter-spacing:.5px}}
 
 /* ── Responsive ── */
 @media(max-width:1024px){{
