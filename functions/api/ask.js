@@ -253,90 +253,68 @@ const BUSINESS_CONTEXT = `
 `;
 
 
-// ── Answer verification (anti-hallucination) ─────────────────────────────
+// ── Verify + format answer (single AI call — saves subrequests) ───────────
 
-async function verifyAnswer(answer, sqlQueries, apiKey) {
+async function verifyAndFormat(answer, sqlQueries, apiKey) {
   const successfulQueries = sqlQueries.filter(q => q.success);
-  if (!successfulQueries.length) {
-    return answer + '\n\n*No SQL queries succeeded for this answer. For verification, please speak with a member of the Commercial Finance team in Insurance.*';
-  }
 
-  const evidenceSummary = successfulQueries.map((q, i) =>
-    `Query ${i + 1}: ${q.sql}\nReturned ${q.rows} row(s).${q.sample_data ? '\nSample data: ' + q.sample_data : ''}`
-  ).join('\n\n');
+  const evidenceBlock = successfulQueries.length > 0
+    ? `## SQL EVIDENCE\n${successfulQueries.map((q, i) =>
+        `Query ${i + 1}: ${q.sql}\nReturned ${q.rows} row(s).${q.sample_data ? '\nSample: ' + q.sample_data : ''}`
+      ).join('\n\n')}\n\n`
+    : '';
 
-  try {
-    const checkResponse = await callOpenAI([
-      { role: 'system', content: `You are a fact-checker for a trading analyst's answer. You have the SQL queries that were run, their row counts, and sample data.
+  const noDataWarning = successfulQueries.length === 0
+    ? '\n\n<p class="ai-summary"><em>No SQL queries succeeded. For verification, please speak with a member of the Commercial Finance team in Insurance.</em></p>'
+    : '';
 
-Your job:
-1. Check if the answer contains any numbers, percentages, or claims that could NOT have come from the SQL queries and data shown.
-2. If the answer looks grounded in the data, return it UNCHANGED.
-3. If you spot ANY claim that seems fabricated, unsupported, or inconsistent with the query results, REMOVE that claim entirely and replace it with: "For further detail on this point, please speak with a member of the Commercial Finance team in Insurance."
-4. Do NOT add warning symbols or caveats. Either the data supports it (keep it) or it doesn't (replace with the referral message above).
-5. Keep the original formatting and tone for all supported claims.` },
-      { role: 'user', content: `## SQL EVIDENCE\n${evidenceSummary}\n\n## ANSWER TO CHECK\n${answer}` },
-    ], null, apiKey, 4096, 'gpt-5-mini');
-    return checkResponse.choices?.[0]?.message?.content || answer;
-  } catch {
-    return answer;
-  }
-}
-
-
-// ── Prettification agent (formats output as styled HTML) ──────────────────
-
-async function prettifyAnswer(answer, apiKey) {
   try {
     const response = await callOpenAI([
-      { role: 'system', content: `You are a formatting agent that converts a trading analyst's raw answer into clean, styled HTML for display in a dashboard chat widget. The output is inserted via innerHTML so use HTML tags directly.
+      { role: 'system', content: `You are a combined fact-checker and formatter for a trading dashboard chat widget.
+
+## STEP 1: VERIFY (if SQL evidence is provided)
+- Check every number/percentage/claim against the SQL evidence
+- If a claim is NOT supported by query results, silently REMOVE it
+- If all claims are supported, keep them unchanged
+
+## STEP 2: FORMAT AS HTML
+Convert the verified answer into clean styled HTML (inserted via innerHTML).
 
 OUTPUT FORMAT — use these exact CSS classes:
 
-1. HEADLINE METRICS — use value cards for the most important 2-4 numbers:
+1. HEADLINE METRICS — the most important 2-4 numbers:
 <div class="ai-metrics">
   <div class="ai-metric-card">
     <div class="ai-metric-label">Sessions</div>
     <div class="ai-metric-value">5,653</div>
     <div class="ai-metric-change up">+2,079 vs LY</div>
   </div>
-  <div class="ai-metric-card">
-    <div class="ai-metric-label">GP</div>
-    <div class="ai-metric-value">£4,640.10</div>
-    <div class="ai-metric-change down">-£660.59 vs LY</div>
-  </div>
 </div>
-Use class "up" for positive changes, "down" for negative. Include "vs LY", "vs LW", "YoY" etc in the change text.
+Use class "up" for positive, "down" for negative.
 
-2. SUMMARY — a plain-English 1-3 sentence explanation of what happened, using <p class="ai-summary">. Bold the key insight. Keep it simple enough for someone with no data background.
+2. SUMMARY — <p class="ai-summary">. Bold the key insight. 1-3 sentences.
 
-3. DETAIL TABLE — if there are breakdowns (by cover level, funnel stage, etc), use:
+3. DETAIL TABLE (if breakdowns exist):
 <table class="ai-table">
   <thead><tr><th>Stage</th><th>Sessions</th><th>vs LY</th></tr></thead>
   <tbody><tr><td>Search</td><td>865</td><td class="up">+12%</td></tr></tbody>
 </table>
-Add class "up" or "down" to <td> cells that show directional changes.
 
-4. SECTION HEADINGS — use <h4 class="ai-section-heading">Title</h4>
+4. SECTION HEADINGS — <h4 class="ai-section-heading">Title</h4>
 
 RULES:
-- Format £ values with pound sign and commas (£10,864.23)
-- Format percentages with % (12.3%)
-- Format large numbers with commas (5,653)
-- Do NOT change any numbers or facts from the original
+- Format £ with commas (£10,864.23), percentages with % (12.3%), numbers with commas
+- Do NOT change any verified numbers or facts
 - Do NOT add analysis not in the original
-- Do NOT use emojis
-- Do NOT use markdown — output pure HTML only
-- Remove "Query references" and "Source: Query N" citations — the user doesn't need these
-- Remove any "speak with Commercial Finance team" referral messages
-- If information is missing or a query failed, silently omit that section
-- Keep the total output concise — dashboard space is limited
-- The tone should be confident and direct, like a morning briefing from an analyst` },
-      { role: 'user', content: answer },
+- Do NOT use emojis or markdown — pure HTML only
+- Remove "Source: Query N" citations and referral messages
+- Keep output concise — dashboard space is limited
+- Confident, direct tone` },
+      { role: 'user', content: `${evidenceBlock}## ANSWER TO VERIFY AND FORMAT\n${answer}` },
     ], null, apiKey, 4096, 'gpt-5-mini');
-    return response.choices?.[0]?.message?.content || answer;
+    return (response.choices?.[0]?.message?.content || answer) + noDataWarning;
   } catch {
-    return answer;
+    return answer + noDataWarning;
   }
 }
 
@@ -409,8 +387,8 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 3. NEVER speculate beyond what the SQL results show. If data doesn't answer the question, say so.
 4. State timeframes explicitly (e.g. "over the last 7 days", "yesterday vs same day last year").
 5. NEVER round numbers. Always give the exact figures from SQL results (e.g. £892.67, £10,864.23). The user wants precise data.
-6. You can run up to 4 rounds of investigation. Each round, decide if you need more data or can answer.
-7. If SQL fails, fix it and retry. You have up to 10 attempts per query.
+6. You can run up to 2 rounds of investigation. Be efficient — write ONE well-crafted SQL query per round. Answer after round 1 if possible.
+7. If SQL fails, it will be auto-retried once. Write correct SQL the first time.
 8. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
 9. If DRIVER CONTEXT is provided, the user is asking about THAT driver. Do NOT ask for clarification about which metric, segment, or dimension — infer it from the driver context and its SQL. Only use ask_clarification if the question is truly impossible to answer from context.
 10. If DRIVER CONTEXT is NOT provided (general mode), and the question is genuinely ambiguous, use ask_clarification. Refer to the KNOWN FIELD VALUES section above for examples.
@@ -456,8 +434,8 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 
   messages.push({ role: 'user', content: question });
 
-  const MAX_ROUNDS = 4;
-  const MAX_SQL_RETRIES = 10;
+  const MAX_ROUNDS = 2;
+  const MAX_SQL_RETRIES = 2;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const response = await callOpenAI(messages, tools, apiKey);
@@ -470,8 +448,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
     // If no tool calls, we have our answer — verify then prettify
     if (choice.finish_reason === 'stop' || !msg.tool_calls || msg.tool_calls.length === 0) {
       const rawAnswer = msg.content || 'No answer generated.';
-      const verified = await verifyAnswer(rawAnswer, sqlQueries, apiKey);
-      const formatted = await prettifyAnswer(verified, apiKey);
+      const formatted = await verifyAndFormat(rawAnswer, sqlQueries, apiKey);
       return {
         answer: formatted,
         sql_queries: sqlQueries,
@@ -559,8 +536,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
   // If we exhausted rounds, get final answer
   const finalResponse = await callOpenAI(messages, null, apiKey);
   const rawContent = finalResponse.choices?.[0]?.message?.content || 'Investigation complete but no clear answer emerged.';
-  const verified = await verifyAnswer(rawContent, sqlQueries, apiKey);
-  const formatted = await prettifyAnswer(verified, apiKey);
+  const formatted = await verifyAndFormat(rawContent, sqlQueries, apiKey);
   return {
     answer: formatted,
     sql_queries: sqlQueries,
