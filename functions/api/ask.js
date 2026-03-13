@@ -453,9 +453,10 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 3. NEVER speculate beyond what the SQL results show. If data doesn't answer the question, say so.
 4. State timeframes explicitly (e.g. "over the last 7 days", "yesterday vs same day last year").
 5. FORMAT ALL NUMBERS PROPERLY: £ values with commas and 2dp (£10,864.23 not £10864.23000000001), percentages to 1dp with % sign (12.3% not 0.12345678), integers with commas (243,366 not 243366). NEVER show raw floating point artifacts. Round £ to 2dp, % to 1dp.
-6. You can run up to 2 rounds of investigation. Be efficient — write ONE well-crafted SQL query per round. Answer after round 1 if possible.
+6. You have up to 2 rounds but STRONGLY prefer answering in 1 round. Write ONE comprehensive SQL query that gets everything you need. Only use round 2 if round 1 genuinely failed or missed critical data.
 7. If SQL fails, it will be auto-retried once. Write correct SQL the first time.
 8. NEVER present options or menus to the user. NEVER ask "which option do you want?" Just run the best query using your judgement and explain what you ran afterwards.
+16. FORMAT YOUR ANSWER AS CLEAN HTML using these classes: ai-metrics/ai-metric-card/ai-metric-label/ai-metric-value/ai-metric-change (up/down), ai-summary, ai-table, ai-section-heading. Format £ with commas and 2dp, % to 1dp, integers with commas. No markdown, no emojis. Be concise.
 9. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
 10. If DRIVER CONTEXT is provided, the user is asking about THAT driver. Do NOT ask for clarification about which metric, segment, or dimension — infer it from the driver context and its SQL. Only use ask_clarification if the question is truly impossible to answer from context.
 11. If DRIVER CONTEXT is NOT provided (general mode), and the question is genuinely ambiguous, use ask_clarification. Refer to the KNOWN FIELD VALUES section above for examples.
@@ -512,13 +513,16 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
     const msg = choice.message;
     messages.push(msg);
 
-    // If no tool calls, we have our answer — verify then prettify
+    // If no tool calls, we have our answer
     if (choice.finish_reason === 'stop' || !msg.tool_calls || msg.tool_calls.length === 0) {
       const rawAnswer = msg.content || 'No answer generated.';
-      const formatted = await verifyAndFormat(rawAnswer, sqlQueries, apiKey);
+      const hasData = sqlQueries.some(q => q.success);
+      // Skip verify/format if we have successful queries (main prompt already formats)
+      // Only verify when no data came back (higher risk of hallucination)
+      const finalAnswer = hasData ? rawAnswer : await verifyAndFormat(rawAnswer, sqlQueries, apiKey);
       const chartData = extractChartData(sqlQueries);
       return {
-        answer: formatted,
+        answer: finalAnswer,
         sql_queries: sqlQueries.map(q => { const { result_rows, ...rest } = q; return rest; }),
         rounds: round + 1,
         chart_data: chartData,
@@ -597,7 +601,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
     if (round < MAX_ROUNDS - 1) {
       messages.push({
         role: 'user',
-        content: `Round ${round + 1} complete. If you have enough data to answer confidently, provide your final answer now. If you need to dig deeper, run another query. You have ${MAX_ROUNDS - round - 1} rounds remaining.`,
+        content: `Round ${round + 1} complete. Provide your final answer NOW using the data you have. Only run another query if the first one completely failed to return any useful data.`,
       });
     }
   }
