@@ -4091,9 +4091,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
   --border:rgba(146,95,255,0.2);
   --border-hover:rgba(146,95,255,0.4);
   --text:#f1f5f9;
-  --muted:#b8a9d4;
-  --accent:#542E91;
-  --accent-light:#925FFF;
+  --muted:#c4b8e0;
+  --accent:#7B52CC;
+  --accent-light:#A87BFF;
   --accent-glow:rgba(84,46,145,0.35);
   --yellow:#FDDC06;
   --green:#00B0A6;
@@ -4410,7 +4410,7 @@ body::after{{
 
 /* Card sub text fade in */
 .card .sub{{
-  opacity:0.6;
+  opacity:0.75;
   transition:opacity 0.3s;
 }}
 .card:hover .sub{{opacity:1}}
@@ -4944,7 +4944,7 @@ body::after{{
 .nar tr:last-child td{{border-bottom:none}}
 .nar code{{background:rgba(51,65,85,0.5);padding:2px 7px;border-radius:5px;font-size:11.5px;color:var(--green)}}
 .nar pre{{background:rgba(12,18,34,0.8);padding:18px;border-radius:10px;overflow-x:auto;border:1px solid var(--border);margin:12px 0}}
-.nar pre code{{background:none;padding:0;color:var(--muted);font-size:11.5px;line-height:1.8}}
+.nar pre code{{background:none;padding:0;color:#c4b8e0;font-size:11.5px;line-height:1.8}}
 .nar hr{{border:none;border-top:1px solid var(--border);margin:24px 0}}
 
 /* ── SQL dig buttons (glass-morphism) ── */
@@ -4982,7 +4982,7 @@ body::after{{
   position:absolute;top:10px;right:10px;
   background:rgba(51,65,85,0.6);
   backdrop-filter:blur(8px);
-  color:var(--muted);
+  color:#d1c4e9;
   border:1px solid var(--border);border-radius:8px;
   padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;
   transition:all .15s ease-out;
@@ -5080,7 +5080,7 @@ body::after{{
 }}
 .chat-title{{font-weight:700;font-size:15px;color:var(--text);letter-spacing:.3px}}
 .chat-close{{
-  background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;
+  background:none;border:none;color:#d1c4e9;font-size:24px;cursor:pointer;
   padding:0 4px;transition:color 0.2s;
 }}
 .chat-close:hover{{color:var(--text)}}
@@ -5118,7 +5118,7 @@ body::after{{
 }}
 .chat-sql-detail .sql-block{{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid rgba(148,163,184,0.15);}}
 .chat-sql-detail .sql-block:last-child{{border-bottom:none;margin-bottom:0;padding-bottom:0;}}
-.chat-sql-detail .sql-label{{font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}}
+.chat-sql-detail .sql-label{{font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#d1c4e9;margin-bottom:4px;}}
 .chat-sql-detail .sql-copy-btn{{
   float:right;font-size:9px;color:#5fc8ff;background:none;border:1px solid rgba(95,200,255,0.3);
   padding:1px 8px;border-radius:4px;cursor:pointer;font-family:inherit;
@@ -5144,7 +5144,7 @@ p.ai-summary{{
 p.ai-summary strong{{color:#fff;}}
 h4.ai-section-heading{{
   font-size:12px;text-transform:uppercase;letter-spacing:.8px;
-  color:var(--accent);margin:16px 0 8px;padding-bottom:4px;
+  color:var(--accent-light);margin:16px 0 8px;padding-bottom:4px;
   border-bottom:1px solid rgba(148,163,184,0.15);
 }}
 table.ai-table{{
@@ -5176,7 +5176,7 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
   transition:height 0.6s cubic-bezier(.23,1,.32,1),opacity 0.2s;
 }}
 .ai-chart-container .bar:hover{{opacity:.8;}}
-.ai-chart-container .bar-label{{font-size:8px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}}
+.ai-chart-container .bar-label{{font-size:9px;color:#d1c4e9;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}}
 .ai-chart-container .tooltip{{
   position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) scale(0.95);
   background:rgba(15,23,42,0.95);border:1px solid var(--border);border-radius:8px;
@@ -5219,8 +5219,8 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
   max-height:30px;overflow:hidden;
   transition:opacity 0.4s ease,transform 0.4s ease,color 0.4s ease,max-height 0.3s ease;
 }}
-.ai-step.active{{opacity:1;transform:translateY(0);color:rgba(146,95,255,0.9);}}
-.ai-step.done{{opacity:0.5;transform:translateY(0);color:var(--muted);}}
+.ai-step.active{{opacity:1;transform:translateY(0);color:#c4a5ff;}}
+.ai-step.done{{opacity:0.7;transform:translateY(0);color:var(--muted);}}
 .ai-step-icon{{width:14px;height:14px;flex-shrink:0;}}
 .ai-step.active .ai-step-icon{{animation:ai-step-pulse 1.2s ease-in-out infinite;}}
 @keyframes ai-step-pulse{{
@@ -5233,7 +5233,7 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
   background:rgba(146,95,255,0.6);
   margin:0 4px;
 }}
-.ai-step.active .ai-step-dot{{animation:ai-dot-pulse 1s ease-in-out infinite;background:rgba(146,95,255,0.9);}}
+.ai-step.active .ai-step-dot{{animation:ai-dot-pulse 1s ease-in-out infinite;background:#c4a5ff;}}
 .ai-step.done .ai-step-dot{{background:rgba(95,255,200,0.4);}}
 @keyframes ai-dot-pulse{{
   0%,100%{{transform:scale(1);opacity:0.6}}
@@ -5353,8 +5353,8 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
 .trail-call-details summary:hover{{color:var(--yellow)}}
 .trail-call-details[open] summary{{margin-bottom:8px}}
 .trail-call-query{{margin-bottom:6px}}
-.trail-call-query code{{font-size:11px;color:var(--muted);word-break:break-all;display:block;max-height:120px;overflow-y:auto;line-height:1.5}}
-.trail-result{{font-size:11px;color:var(--muted);line-height:1.5;opacity:0.7;max-height:80px;overflow-y:auto;border-top:1px solid var(--border);padding-top:6px;margin-top:4px}}
+.trail-call-query code{{font-size:11px;color:#c4b8e0;word-break:break-all;display:block;max-height:120px;overflow-y:auto;line-height:1.5}}
+.trail-result{{font-size:11px;color:#b8aed0;line-height:1.5;max-height:80px;overflow-y:auto;border-top:1px solid var(--border);padding-top:6px;margin-top:4px}}
 .trail-result-error{{font-size:11px;color:var(--red);line-height:1.5;border-top:1px solid var(--border);padding-top:6px;margin-top:4px}}
 
 /* ── Section spacing ── */
