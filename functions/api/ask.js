@@ -515,12 +515,28 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 
     // If no tool calls, we have our answer
     if (choice.finish_reason === 'stop' || !msg.tool_calls || msg.tool_calls.length === 0) {
-      const rawAnswer = msg.content || 'No answer generated.';
-      // Main prompt handles formatting + self-verification (Rule 15/16)
-      const finalAnswer = rawAnswer;
+      let rawAnswer = msg.content;
+      // If AI returned empty content, force a summary from the data we have
+      if (!rawAnswer || rawAnswer.trim().length < 10) {
+        const successQ = sqlQueries.filter(q => q.success);
+        if (successQ.length > 0) {
+          // Ask AI to summarise the data we got
+          const summaryResponse = await callOpenAI([
+            { role: 'system', content: 'You are a trading data analyst. Summarise the SQL results below into a concise HTML answer using classes: ai-metrics, ai-metric-card, ai-metric-label, ai-metric-value, ai-metric-change (up/down), ai-summary, ai-table. Format £ with commas and 2dp, % to 1dp, integers with commas. No markdown, no emojis. Be direct and concise.' },
+            { role: 'user', content: successQ.map((q, i) => `Query ${i + 1} (${q.rows} rows):\n${q.sample_data || 'No sample data'}`).join('\n\n') },
+          ], null, apiKey, 4096, 'gpt-5-mini');
+          rawAnswer = summaryResponse.choices?.[0]?.message?.content || null;
+        }
+      }
+      if (!rawAnswer || rawAnswer.trim().length < 10) {
+        const failedQ = sqlQueries.filter(q => !q.success);
+        rawAnswer = '<p class="ai-summary">The query didn\'t return usable results this time. ' +
+          (failedQ.length > 0 ? 'Error: <em>' + (failedQ[0].error || 'Unknown').replace(/</g, '&lt;') + '</em>. ' : '') +
+          'Try rephrasing your question or asking about a specific metric (e.g. "GP trend last 28 days").</p>';
+      }
       const chartData = extractChartData(sqlQueries);
       return {
-        answer: finalAnswer,
+        answer: rawAnswer,
         sql_queries: sqlQueries.map(q => { const { result_rows, ...rest } = q; return rest; }),
         rounds: round + 1,
         chart_data: chartData,
@@ -595,18 +611,42 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
       }
     }
 
-    // After processing tools, if this isn't the last round, nudge for deeper analysis
+    // After processing tools, nudge based on whether we got data
     if (round < MAX_ROUNDS - 1) {
-      messages.push({
-        role: 'user',
-        content: `Round ${round + 1} complete. Provide your final answer NOW using the data you have. Only run another query if the first one completely failed to return any useful data.`,
-      });
+      const anySuccess = sqlQueries.some(q => q.success);
+      if (anySuccess) {
+        messages.push({
+          role: 'user',
+          content: `Round ${round + 1} complete. You have data — provide your final answer NOW as formatted HTML. Do not run more queries.`,
+        });
+      } else {
+        messages.push({
+          role: 'user',
+          content: `Round ${round + 1} complete. Your SQL failed. Try again with a simpler, corrected query. Check table names, column names, and date expressions carefully.`,
+        });
+      }
     }
   }
 
   // If we exhausted rounds, get final answer
   const finalResponse = await callOpenAI(messages, null, apiKey);
-  const rawContent = finalResponse.choices?.[0]?.message?.content || 'Investigation complete but no clear answer emerged.';
+  let rawContent = finalResponse.choices?.[0]?.message?.content;
+  if (!rawContent || rawContent.trim().length < 10) {
+    const successQ = sqlQueries.filter(q => q.success);
+    if (successQ.length > 0) {
+      const summaryResponse = await callOpenAI([
+        { role: 'system', content: 'You are a trading data analyst. Summarise the SQL results below into a concise HTML answer using classes: ai-metrics, ai-metric-card, ai-metric-label, ai-metric-value, ai-metric-change (up/down), ai-summary, ai-table. Format £ with commas and 2dp, % to 1dp, integers with commas. No markdown, no emojis. Be direct and concise.' },
+        { role: 'user', content: successQ.map((q, i) => `Query ${i + 1} (${q.rows} rows):\n${q.sample_data || 'No sample data'}`).join('\n\n') },
+      ], null, apiKey, 4096, 'gpt-5-mini');
+      rawContent = summaryResponse.choices?.[0]?.message?.content || null;
+    }
+    if (!rawContent || rawContent.trim().length < 10) {
+      const failedQ = sqlQueries.filter(q => !q.success);
+      rawContent = '<p class="ai-summary">The query didn\'t return usable results this time. ' +
+        (failedQ.length > 0 ? 'Error: <em>' + (failedQ[0].error || 'Unknown').replace(/</g, '&lt;') + '</em>. ' : '') +
+        'Try rephrasing your question or asking about a specific metric (e.g. "GP trend last 28 days").</p>';
+    }
+  }
   const chartData = extractChartData(sqlQueries);
   return {
     answer: rawContent,
