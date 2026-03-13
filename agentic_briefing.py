@@ -6010,22 +6010,80 @@ function getDriverContext(panel){{
 function buildSqlButton(sqlQueries){{
   if(!sqlQueries||!sqlQueries.length) return '';
   const uid='sql-'+Math.random().toString(36).slice(2,8);
-  let html='<button class="view-sql-btn" data-sql-uid="'+uid+'">View SQL</button>';
+  const successCount=sqlQueries.filter(q=>q.success).length;
+  const failCount=sqlQueries.length-successCount;
+  const totalRows=sqlQueries.filter(q=>q.success).reduce((s,q)=>s+q.rows,0);
+  let summaryParts=[];
+  if(successCount) summaryParts.push(successCount+' successful');
+  if(failCount) summaryParts.push(failCount+' failed');
+
+  let html='<button class="view-sql-btn" data-sql-uid="'+uid+'">'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px">'
+    +'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>'
+    +'<rect x="9" y="3" width="6" height="4" rx="1"/></svg>'
+    +'Investigation trail</button>';
   html+='<div id="'+uid+'" class="chat-sql-detail">';
+
+  /* Trail header */
+  html+='<div style="padding:12px 16px;margin-bottom:12px;background:rgba(84,46,145,0.08);border-left:3px solid var(--accent-light);border-radius:0 10px 10px 0">'
+    +'<div style="font-size:10px;font-weight:700;color:var(--accent-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">How we got this answer</div>'
+    +'<div style="font-size:12px;color:#e2d6f0">Ran <strong>'+sqlQueries.length+' quer'+(sqlQueries.length===1?'y':'ies')+'</strong> against BigQuery'
+    +(totalRows?' returning <strong>'+totalRows.toLocaleString()+' row'+(totalRows===1?'':'s')+'</strong> of data':'')
+    +'</div></div>';
+
+  /* Each query as a trail step */
   sqlQueries.forEach((q,i)=>{{
     const escaped=q.sql.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    if(q.success){{
-      html+='<div class="sql-block"><div class="sql-label">Query '+(i+1)+' ('+q.rows+' row'+(q.rows===1?'':'s')+')'
-        +'<button class="sql-copy-btn">Copy</button></div>'
-        +'<pre>'+escaped+'</pre></div>';
+    const isSuccess=q.success;
+    const dotColor=isSuccess?'var(--accent-light)':'var(--red)';
+    const borderColor=isSuccess?'var(--accent-light)':'var(--red)';
+    const isLast=i===sqlQueries.length-1;
+
+    html+='<div style="position:relative;padding-left:36px;margin-bottom:'+(isLast?'0':'16')+'px">';
+    /* Connector line */
+    if(!isLast) html+='<div style="position:absolute;left:11px;top:22px;bottom:-16px;width:2px;background:linear-gradient(to bottom,'+borderColor+',rgba(84,46,145,0.08))"></div>';
+    /* Dot */
+    html+='<div style="position:absolute;left:0;top:2px;width:24px;height:20px;border-radius:10px;border:2px solid '+dotColor+';background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:'+dotColor+'">'+(i+1)+'</div>';
+    /* Content */
+    html+='<div style="padding:10px 14px;background:rgba(15,23,42,0.5);border:1px solid var(--border);border-radius:8px">';
+    if(isSuccess){{
+      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
+        +'<span style="font-size:10px;font-weight:700;color:var(--accent-light);text-transform:uppercase;letter-spacing:.5px">Query '+(i+1)+'</span>'
+        +'<span style="font-size:10px;color:#34d399;font-weight:600">'+q.rows+' row'+(q.rows===1?'':'s')+' returned</span>'
+        +'<button class="sql-copy-btn" style="margin-left:auto">Copy SQL</button>'
+        +'</div>';
+      /* Show sample data preview if available */
+      if(q.sample_data){{
+        const sampleLines=q.sample_data.split('\\n').slice(0,3);
+        html+='<div style="font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Sample results</div>';
+        html+='<div style="font-size:11px;color:#cbd5e1;margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;overflow-x:auto;max-height:80px">';
+        sampleLines.forEach(line=>{{
+          try{{
+            const obj=JSON.parse(line);
+            const pairs=Object.entries(obj).map(([k,v])=>'<span style="color:var(--muted)">'+k+':</span> <span style="color:#f1f5f9">'+v+'</span>');
+            html+='<div style="white-space:nowrap;margin-bottom:2px">'+pairs.join(' &middot; ')+'</div>';
+          }}catch{{
+            html+='<div style="white-space:nowrap;margin-bottom:2px">'+line.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+          }}
+        }});
+        if(q.rows>3) html+='<div style="color:var(--muted);font-style:italic;margin-top:4px">…and '+(q.rows-3)+' more row'+(q.rows-3===1?'':'s')+'</div>';
+        html+='</div>';
+      }}
     }}else{{
       const errEsc=(q.error||'Unknown error').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      html+='<div class="sql-block" style="border-left:3px solid var(--red);padding-left:10px"><div class="sql-label" style="color:var(--red)">Query '+(i+1)+' — FAILED'
-        +'<button class="sql-copy-btn">Copy</button></div>'
-        +'<pre>'+escaped+'</pre>'
-        +'<div style="font-size:11px;color:var(--red);margin-top:6px">Error: '+errEsc+'</div></div>';
+      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
+        +'<span style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.5px">Query '+(i+1)+' — Failed</span>'
+        +'<button class="sql-copy-btn" style="margin-left:auto">Copy SQL</button>'
+        +'</div>';
+      html+='<div style="font-size:11px;color:var(--red);margin-bottom:8px;padding:8px;background:rgba(248,113,113,0.06);border-radius:6px;border-left:2px solid var(--red)">'+errEsc+'</div>';
     }}
+    /* SQL query (collapsed by default) */
+    const sqlUid='sqld-'+Math.random().toString(36).slice(2,8);
+    html+='<button class="view-sql-btn" data-sql-uid="'+sqlUid+'" style="font-size:10px;padding:3px 8px;margin:0">Show SQL</button>';
+    html+='<div id="'+sqlUid+'" class="chat-sql-detail"><pre>'+escaped+'</pre></div>';
+    html+='</div></div>';
   }});
+
   html+='</div>';
   return html;
 }}
