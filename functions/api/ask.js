@@ -289,15 +289,30 @@ function extractChartData(sqlQueries) {
         }
       }
 
-      // Check for same-row LY columns (e.g. gp + gp_ly, sessions + sessions_ly)
-      const lyCol = cols.find(c => c.toLowerCase() === valCol.toLowerCase() + '_ly')
-        || cols.find(c => c.toLowerCase() === valCol.toLowerCase() + '_last_year');
+      // Check for same-row LY columns — broad matching
+      const valLower = valCol.toLowerCase();
+      const lyCol = cols.find(c => {
+        const cl = c.toLowerCase();
+        if (cl === valLower) return false;
+        // Match: gp_ly, gp_last_year, ly_gp, last_year_gp, gp_previous, previous_gp
+        return cl === valLower + '_ly' || cl === valLower + '_last_year' || cl === valLower + '_previous'
+          || cl === 'ly_' + valLower || cl === 'last_year_' + valLower
+          || (cl.includes('ly') && cl.includes(valLower) && cl !== valLower);
+      });
+      // Also detect delta/change columns for colouring when no LY
+      const deltaCol = cols.find(c => {
+        const cl = c.toLowerCase();
+        return (cl.includes(valLower) || cl.includes('delta') || cl.includes('change'))
+          && (cl.includes('delta') || cl.includes('diff') || cl.includes('change') || cl.includes('pct'))
+          && cl !== valLower;
+      });
       const sorted = [...rows].sort((a, b) => a[dateCol].localeCompare(b[dateCol]));
       return {
         type: 'timeseries',
         label: valCol.replace(/_/g, ' '),
         points: sorted.map(r => ({ date: r[dateCol], value: parseFloat(r[valCol]) || 0 })),
         ly_points: lyCol ? sorted.map(r => ({ date: r[dateCol], value: parseFloat(r[lyCol]) || 0 })) : null,
+        delta_values: deltaCol ? sorted.map(r => parseFloat(r[deltaCol]) || 0) : null,
       };
     }
 
@@ -460,6 +475,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 10. If DRIVER CONTEXT is provided, the user is asking about THAT driver. Do NOT ask for clarification about which metric, segment, or dimension — infer it from the driver context and its SQL. Only use ask_clarification if the question is truly impossible to answer from context.
 11. If DRIVER CONTEXT is NOT provided (general mode), and the question is genuinely ambiguous, use ask_clarification. Refer to the KNOWN FIELD VALUES section above for examples.
 12. SENSIBLE DEFAULTS: When the user asks about trends "over time" without specifying a timeframe, default to last 28 days with daily granularity and include Year-on-Year comparison (same period last year). Always include YoY comparison unless the user explicitly says not to.
+17. SQL FOR CHARTING: When writing daily time-series SQL, include BOTH TY and LY values as separate columns in the same row (e.g. gp, gp_ly, gp_delta, gp_pct_change) so the chart can show red/green bars and growth. Use a 364-day offset for LY to match day-of-week. Name LY columns with a _ly suffix (e.g. sessions_ly, gp_ly).
 13. CASE-INSENSITIVE FILTERING: When filtering by string fields, use LOWER() on both sides: WHERE LOWER(field) = LOWER('value').
 14. Use the KNOWN FIELD VALUES above to write correct filters. You already know the exact values — no need to run SELECT DISTINCT first.
 15. SELF-VERIFY before answering: Re-read the SQL results and check every number in your answer matches the data. If a number doesn't appear in the results, DELETE that claim. Never include unverifiable figures. Remove any "which SQL produced what" meta-commentary — just state the facts.

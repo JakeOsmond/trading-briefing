@@ -6099,6 +6099,7 @@ function renderAIChart(container,chartData){{
   const isTime=chartData.type==='timeseries';
   const pts=chartData.points;
   const lyPts=chartData.ly_points||[];
+  const deltas=chartData.delta_values||[];
   const allVals=pts.map(p=>p.value).concat(lyPts.map(p=>p.value));
   const maxV=Math.max(...allVals);
   const minV=Math.min(...allVals);
@@ -6111,8 +6112,10 @@ function renderAIChart(container,chartData){{
   pts.forEach((p,i)=>{{
     const h=((p.value-minV)/range)*110+10;
     const lyVal=lyPts[i]?lyPts[i].value:null;
+    const deltaVal=deltas[i]!==undefined?deltas[i]:null;
     const prevVal=i>0?pts[i-1].value:null;
-    const isUp=lyVal!==null?p.value>=lyVal:(prevVal!==null?p.value>=prevVal:true);
+    /* Determine up/down: prefer LY comparison, then delta column, then previous day */
+    const isUp=lyVal!==null?p.value>=lyVal:(deltaVal!==null?deltaVal>=0:(prevVal!==null?p.value>=prevVal:true));
     const gradTop=isUp?'#00D4C8':'#FF8A91';
     const gradBot=isUp?'#00B0A6':'#FF5F68';
     let label='';
@@ -6123,10 +6126,22 @@ function renderAIChart(container,chartData){{
       label=p.category||'';
     }}
     const fmtVal=p.value>=1000?'\\u00A3'+Math.round(p.value).toLocaleString():p.value.toFixed(1);
-    const yoyHTML=lyVal!==null?'<div style="color:'+(isUp?'#34d399':'#f87171')+'">vs LY: \\u00A3'+Math.round(lyVal).toLocaleString()+'</div>':'';
+    /* Growth tooltip: show vs LY with % change, or delta, or vs previous */
+    let growthHTML='';
+    if(lyVal!==null){{
+      const diff=p.value-lyVal;
+      const pct=lyVal!==0?((diff/lyVal)*100).toFixed(1):'n/a';
+      growthHTML='<div style="color:'+(isUp?'#34d399':'#f87171')+'">vs LY: \\u00A3'+Math.round(lyVal).toLocaleString()+' ('+(isUp?'+':'')+pct+'%)</div>';
+    }}else if(deltaVal!==null){{
+      growthHTML='<div style="color:'+(isUp?'#34d399':'#f87171')+'">'+(isUp?'+':'')+deltaVal.toFixed(1)+'% vs LY</div>';
+    }}else if(prevVal!==null){{
+      const diff=p.value-prevVal;
+      const pct=prevVal!==0?((diff/prevVal)*100).toFixed(1):'n/a';
+      growthHTML='<div style="color:'+(isUp?'#34d399':'#f87171')+'">vs prev: '+(isUp?'+':'')+pct+'%</div>';
+    }}
     barsHTML+=
       '<div class="bar-col">'+
-      '<div class="tooltip"><div style="font-weight:700;margin-bottom:2px">'+label+'</div><div>'+fmtVal+'</div>'+yoyHTML+'</div>'+
+      '<div class="tooltip"><div style="font-weight:700;margin-bottom:2px">'+label+'</div><div>'+fmtVal+'</div>'+growthHTML+'</div>'+
       '<div class="bar" style="height:0px;background:linear-gradient(to top,'+gradBot+','+gradTop+')"></div>'+
       '<div class="bar-label">'+label+'</div></div>';
   }});
