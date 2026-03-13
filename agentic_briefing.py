@@ -5012,6 +5012,7 @@ body::after{{
   margin-top:10px;padding:14px;
   background:rgba(12,18,34,0.6);border:1px solid var(--border);
   border-radius:12px;backdrop-filter:blur(12px);
+  overflow-x:hidden;max-width:100%;box-sizing:border-box;
 }}
 .ask-input-wrap{{display:flex;gap:8px}}
 .ask-input{{
@@ -5029,6 +5030,7 @@ body::after{{
 .ask-response{{
   margin-top:12px;font-size:13px;color:#cbd5e1;line-height:1.7;
   display:flex;flex-direction:column;gap:10px;
+  overflow-x:hidden;overflow-wrap:break-word;word-break:break-word;max-width:100%;
 }}
 .ask-response .ask-loading{{
   color:var(--muted);font-style:italic;
@@ -5063,6 +5065,14 @@ body::after{{
   z-index:10000;display:flex;flex-direction:column;
   box-shadow:-8px 0 40px rgba(0,0,0,0.5);
   transition:transform 0.3s ease-out;
+  min-width:320px;
+}}
+.chat-resize-handle{{
+  position:absolute;left:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:10001;
+  background:transparent;transition:background 0.2s;
+}}
+.chat-resize-handle:hover,.chat-resize-handle.active{{
+  background:linear-gradient(to right,rgba(146,95,255,0.4),transparent);
 }}
 .chat-header{{
   display:flex;justify-content:space-between;align-items:center;
@@ -5075,10 +5085,10 @@ body::after{{
 }}
 .chat-close:hover{{color:var(--text)}}
 .chat-messages{{
-  flex:1;overflow-y:auto;padding:16px 20px;
+  flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 20px;
   display:flex;flex-direction:column;gap:14px;
 }}
-.chat-msg{{max-width:90%;padding:12px 16px;border-radius:12px;font-size:13px;line-height:1.7}}
+.chat-msg{{max-width:90%;padding:12px 16px;border-radius:12px;font-size:13px;line-height:1.7;overflow-x:auto;overflow-wrap:break-word;word-break:break-word}}
 .chat-msg.user{{
   align-self:flex-end;background:rgba(146,95,255,0.15);
   color:var(--text);border:1px solid rgba(146,95,255,0.2);
@@ -5115,14 +5125,14 @@ body::after{{
 }}
 .chat-sql-detail .sql-copy-btn:hover{{background:rgba(95,200,255,0.15);}}
 /* ── AI response styled components ── */
-.ai-metrics{{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;}}
+.ai-metrics{{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;max-width:100%;}}
 .ai-metric-card{{
   flex:1 1 120px;min-width:100px;
   background:rgba(15,23,42,0.7);border:1px solid var(--border);border-radius:10px;
   padding:12px 14px;text-align:center;
 }}
 .ai-metric-label{{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px;}}
-.ai-metric-value{{font-size:20px;font-weight:700;color:#f1f5f9;line-height:1.2;}}
+.ai-metric-value{{font-size:20px;font-weight:700;color:#f1f5f9;line-height:1.2;overflow-wrap:break-word;word-break:break-word;}}
 .ai-metric-change{{font-size:11px;margin-top:4px;font-weight:600;}}
 .ai-metric-change.up{{color:#34d399;}}
 .ai-metric-change.down{{color:#f87171;}}
@@ -5139,6 +5149,7 @@ h4.ai-section-heading{{
 }}
 table.ai-table{{
   width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;
+  display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;
 }}
 table.ai-table th{{
   text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;
@@ -5155,6 +5166,7 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
 .ai-chart-wrap{{
   margin:12px 0;padding:14px;border-radius:12px;
   background:rgba(15,23,42,0.5);border:1px solid var(--border);
+  overflow:hidden;max-width:100%;box-sizing:border-box;
 }}
 .ai-chart-title{{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:10px;font-weight:600;}}
 .ai-chart-container{{position:relative;height:140px;display:flex;align-items:flex-end;gap:2px;padding-top:20px;}}
@@ -6389,6 +6401,56 @@ function toggleChat(){{
   }}
 }}
 
+/* ── Resize handle for chat sidebar ── */
+(function(){{
+  const handle=document.getElementById('chatResizeHandle');
+  const panel=document.getElementById('chatPanel');
+  if(!handle||!panel) return;
+  let dragging=false,startX=0,startW=0;
+  handle.addEventListener('mousedown',function(e){{
+    e.preventDefault();
+    dragging=true;startX=e.clientX;startW=panel.offsetWidth;
+    handle.classList.add('active');
+    document.body.style.cursor='col-resize';
+    document.body.style.userSelect='none';
+  }});
+  document.addEventListener('mousemove',function(e){{
+    if(!dragging) return;
+    const diff=startX-e.clientX;
+    const newW=Math.min(Math.max(startW+diff,320),window.innerWidth*0.85);
+    panel.style.width=newW+'px';
+    panel.style.transition='none';
+  }});
+  document.addEventListener('mouseup',function(){{
+    if(!dragging) return;
+    dragging=false;
+    handle.classList.remove('active');
+    document.body.style.cursor='';
+    document.body.style.userSelect='';
+    panel.style.transition='';
+  }});
+  /* Touch support for tablets */
+  handle.addEventListener('touchstart',function(e){{
+    const t=e.touches[0];
+    dragging=true;startX=t.clientX;startW=panel.offsetWidth;
+    handle.classList.add('active');
+  }},{{passive:true}});
+  document.addEventListener('touchmove',function(e){{
+    if(!dragging) return;
+    const t=e.touches[0];
+    const diff=startX-t.clientX;
+    const newW=Math.min(Math.max(startW+diff,320),window.innerWidth*0.85);
+    panel.style.width=newW+'px';
+    panel.style.transition='none';
+  }});
+  document.addEventListener('touchend',function(){{
+    if(!dragging) return;
+    dragging=false;
+    handle.classList.remove('active');
+    panel.style.transition='';
+  }});
+}})();
+
 function submitChat(){{
   const inputWrap=document.querySelector('.chat-input-wrap');
   const input=document.getElementById('chatInput');
@@ -6838,6 +6900,7 @@ document.addEventListener('keydown', e => {{
 
 <!-- Chat Panel — Ask Trading Covered -->
 <div id="chatPanel" class="chat-panel" style="display:none">
+  <div class="chat-resize-handle" id="chatResizeHandle"></div>
   <div class="chat-header">
     <span class="chat-title">Ask Trading Covered</span>
     <button class="chat-close" onclick="toggleChat()">&times;</button>
