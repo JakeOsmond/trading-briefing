@@ -80,7 +80,7 @@ async function runBQQuery(sql, accessToken, projectId = 'hx-data-production') {
       useLegacySql: false,
       maxResults: 200,
       timeoutMs: 60000,
-      maximumBytesBilled: '100000000000',
+      maximumBytesBilled: '25000000000',
     }),
   });
   const data = await res.json();
