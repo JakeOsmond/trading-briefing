@@ -1790,6 +1790,78 @@ GROUP BY device_type
 """
     }
 
+    # Track 23: Customer Type (New vs Existing) — traffic, conversion and GP
+    tracks['customer_type_deep'] = {
+        'name': 'Customer Type Trading',
+        'desc': 'New vs Existing customer dynamics across web traffic (sessions, conversion) and policy GP by distribution channel. Answers: are we winning new customers or losing them, and how does that affect GP?',
+        'sql': f"""
+WITH web AS (
+  SELECT 'TY' AS yr, customer_type,
+      COUNT(DISTINCT session_id) AS sessions,
+      COUNT(DISTINCT CASE WHEN booking_flow_stage = 'Search' THEN session_id END) AS search_sessions,
+      COUNT(DISTINCT CASE WHEN page_type = 'just_booked' THEN session_id END) AS booked_sessions,
+      SAFE_DIVIDE(
+          COUNT(DISTINCT CASE WHEN booking_flow_stage = 'Search' THEN session_id END),
+          COUNT(DISTINCT session_id)
+      ) AS session_to_search,
+      SAFE_DIVIDE(
+          COUNT(DISTINCT CASE WHEN page_type = 'just_booked' THEN session_id END),
+          COUNT(DISTINCT CASE WHEN booking_flow_stage = 'Search' THEN session_id END)
+      ) AS search_to_book
+  FROM {W}
+  WHERE session_start_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+  GROUP BY customer_type
+
+  UNION ALL
+
+  SELECT 'LY', customer_type,
+      COUNT(DISTINCT session_id),
+      COUNT(DISTINCT CASE WHEN booking_flow_stage = 'Search' THEN session_id END),
+      COUNT(DISTINCT CASE WHEN page_type = 'just_booked' THEN session_id END),
+      SAFE_DIVIDE(
+          COUNT(DISTINCT CASE WHEN booking_flow_stage = 'Search' THEN session_id END),
+          COUNT(DISTINCT session_id)
+      ),
+      SAFE_DIVIDE(
+          COUNT(DISTINCT CASE WHEN page_type = 'just_booked' THEN session_id END),
+          COUNT(DISTINCT CASE WHEN booking_flow_stage = 'Search' THEN session_id END)
+      )
+  FROM {W}
+  WHERE session_start_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+  GROUP BY customer_type
+),
+pol AS (
+  SELECT 'TY' AS yr, customer_type, distribution_channel,
+      SUM(policy_count) AS policies,
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+  FROM {P}
+  WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+  GROUP BY customer_type, distribution_channel
+
+  UNION ALL
+
+  SELECT 'LY', customer_type, distribution_channel,
+      SUM(policy_count),
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
+  FROM {P}
+  WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+  GROUP BY customer_type, distribution_channel
+)
+SELECT 'web' AS source, yr, customer_type, CAST(NULL AS STRING) AS distribution_channel,
+    sessions, search_sessions, booked_sessions, session_to_search, search_to_book,
+    CAST(NULL AS INT64) AS policies, CAST(NULL AS FLOAT64) AS gp, CAST(NULL AS FLOAT64) AS avg_gp
+FROM web
+UNION ALL
+SELECT 'policy', yr, customer_type, distribution_channel,
+    CAST(NULL AS INT64), CAST(NULL AS INT64), CAST(NULL AS INT64), CAST(NULL AS FLOAT64), CAST(NULL AS FLOAT64),
+    policies, gp, avg_gp
+FROM pol
+ORDER BY source, yr, customer_type
+"""
+    }
+
     return tracks
 
 
@@ -1801,9 +1873,11 @@ ANALYSIS_SYSTEM = dedent("""\
 You are an expert autonomous insurance trading analyst for Holiday Extras (HX).
 
 You have been given COMPREHENSIVE investigation data: baseline trading metrics,
-22 deterministic investigation tracks covering every trading dimension (each comparing
+23 deterministic investigation tracks covering every trading dimension (each comparing
 this year vs last year), INCLUDING 7 cross-table tracks that JOIN web session behaviour
-to policy trading outcomes (tracks 14-20), PLUS 2 cost/revenue decomposition tracks (21-22), AND full market intelligence from Google Sheets.
+to policy trading outcomes (tracks 14-20), PLUS 2 cost/revenue decomposition tracks (21-22),
+a dedicated customer type track (23) showing New vs Existing dynamics across traffic, conversion and GP by channel,
+AND full market intelligence from Google Sheets.
 
 The cross-table tracks are particularly powerful — they connect the dots between web
 journeys and trading results:
@@ -1816,6 +1890,7 @@ journeys and trading results:
 - session_depth_outcome: Session engagement depth linked to GP outcomes
 - cost_decomposition: Commission, UW, IPT, discount as % of gross — are costs growing faster than price?
 - conversion_gp_bridge: Traffic × conversion × price × margin decomposition by device
+- customer_type_deep: New vs Existing customer traffic, conversion and GP by channel — are we winning or losing new customers?
 
 Your job is to ANALYZE all of this data and produce structured findings.
 
@@ -1959,7 +2034,7 @@ Use negative numbers for negative values (not +2500, just 2500 or -2500).
 
 FOLLOW_UP_SYSTEM = dedent("""\
 You are an expert insurance trading analyst for Holiday Extras (HX).
-You have already analyzed 22 investigation tracks (13 trading + 7 cross-table web×trading + 2 cost/conversion decomposition)
+You have already analyzed 23 investigation tracks (13 trading + 7 cross-table web×trading + 2 cost/conversion decomposition + 1 customer type)
 and identified material movers. Now you are investigating SPECIFIC follow-up questions
 to fill gaps in the story and build the full picture.
 
@@ -2351,7 +2426,7 @@ def run_baseline_queries(date_params):
 
 def run_investigation_tracks(date_params):
     """Phase 2: Run ALL investigation tracks deterministically via BigQuery."""
-    print("\n🔬 Phase 2: Running 22 investigation tracks...")
+    print("\n🔬 Phase 2: Running 23 investigation tracks...")
     tracks = build_investigation_tracks(date_params)
     results = {}
     errors = []
@@ -2482,7 +2557,7 @@ def run_ai_analysis(baseline_data, track_results, run_date):
 {json.dumps(baseline_data.get('spike_log', [])[:10], indent=2, default=str)}
 ```
 
-## INVESTIGATION TRACK RESULTS (22 tracks, each comparing TY vs LY)
+## INVESTIGATION TRACK RESULTS (23 tracks, each comparing TY vs LY)
 ```json
 {json.dumps(compact_tracks, indent=2, default=str)}
 ```
@@ -2860,7 +2935,7 @@ USE THESE DATE LITERALS in all sql-dig blocks (do NOT use a 'period' column — 
 {json.dumps(baseline_data.get('dashboard_metrics', [])[:20], indent=2, default=str)}
 ```
 
-## INVESTIGATED FINDINGS (from 22 tracks + AI analysis + follow-ups)
+## INVESTIGATED FINDINGS (from 23 tracks + AI analysis + follow-ups)
 ```json
 {json.dumps(merged_findings, indent=2, default=str)}
 ```
