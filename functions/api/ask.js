@@ -191,7 +191,7 @@ function autocorrectSQL(sql) {
 
 // ── OpenAI chat with tool use ─────────────────────────────────────────────
 
-async function callOpenAI(messages, tools, apiKey, maxTokens = 4096, model = 'gpt-5-mini') {
+async function callOpenAI(messages, tools, apiKey, maxTokens = 4096, model = 'gpt-4.1-mini') {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -377,7 +377,7 @@ RULES:
 - Keep output concise — dashboard space is limited
 - Confident, direct tone` },
       { role: 'user', content: `${evidenceBlock}## ANSWER TO VERIFY AND FORMAT\n${answer}` },
-    ], null, apiKey, 4096, 'gpt-5-mini');
+    ], null, apiKey, 4096);
     return (response.choices?.[0]?.message?.content || answer) + noDataWarning;
   } catch {
     return answer + noDataWarning;
@@ -524,7 +524,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
           const summaryResponse = await callOpenAI([
             { role: 'system', content: 'You are a trading data analyst. Summarise the SQL results below into a concise HTML answer using classes: ai-metrics, ai-metric-card, ai-metric-label, ai-metric-value, ai-metric-change (up/down), ai-summary, ai-table. Format £ with commas and 2dp, % to 1dp, integers with commas. No markdown, no emojis. Be direct and concise.' },
             { role: 'user', content: successQ.map((q, i) => `Query ${i + 1} (${q.rows} rows):\n${q.sample_data || 'No sample data'}`).join('\n\n') },
-          ], null, apiKey, 4096, 'gpt-5-mini');
+          ], null, apiKey, 4096);
           rawAnswer = summaryResponse.choices?.[0]?.message?.content || null;
         }
       }
@@ -589,7 +589,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
               const fixResponse = await callOpenAI([
                 { role: 'system', content: 'Fix this BigQuery SQL error. Return ONLY the corrected SQL, nothing else.' },
                 { role: 'user', content: `SQL:\n${currentSQL}\n\nError:\n${lastError}` },
-              ], null, apiKey, 2048, 'gpt-5-mini');
+              ], null, apiKey, 2048);
               const fixedSQL = fixResponse.choices?.[0]?.message?.content?.trim();
               if (fixedSQL && fixedSQL !== currentSQL) {
                 currentSQL = fixedSQL;
@@ -637,7 +637,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
       const summaryResponse = await callOpenAI([
         { role: 'system', content: 'You are a trading data analyst. Summarise the SQL results below into a concise HTML answer using classes: ai-metrics, ai-metric-card, ai-metric-label, ai-metric-value, ai-metric-change (up/down), ai-summary, ai-table. Format £ with commas and 2dp, % to 1dp, integers with commas. No markdown, no emojis. Be direct and concise.' },
         { role: 'user', content: successQ.map((q, i) => `Query ${i + 1} (${q.rows} rows):\n${q.sample_data || 'No sample data'}`).join('\n\n') },
-      ], null, apiKey, 4096, 'gpt-5-mini');
+      ], null, apiKey, 4096);
       rawContent = summaryResponse.choices?.[0]?.message?.content || null;
     }
     if (!rawContent || rawContent.trim().length < 10) {
