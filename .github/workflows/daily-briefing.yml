@@ -66,6 +66,7 @@ jobs:
           git commit -m "Briefing: ${DATE}
 
           Co-Authored-By: Trading Covered Bot <noreply@holidayextras.com>"
+          git pull --rebase origin main
           git push
 
       - name: Stage deployment (briefings + functions)
