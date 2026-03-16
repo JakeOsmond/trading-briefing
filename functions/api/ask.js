@@ -221,7 +221,7 @@ CRITICAL RULES:
 - YoY = 364-day offset (matches day-of-week)
 - transaction_date is DATE type — use directly, no EXTRACT()
 
-Key columns: transaction_date, policy_type (Annual/Single), distribution_channel (Direct/Aggregator/Partner Referral/Renewals),
+Key columns: transaction_date, travel_end_date (policy expiry date), policy_type (Annual/Single), distribution_channel (Direct/Aggregator/Partner Referral/Renewals),
 channel, scheme_name, cover_level_name, booking_source, device_type, medical_split, max_medical_score_grouped,
 max_age_at_purchase, trip_duration_band, days_to_travel, policy_count,
 total_gross_exc_ipt_ntu_comm (THIS IS GP), total_gross_inc_ipt (customer price),
@@ -250,6 +250,27 @@ const BUSINESS_CONTEXT = `
 - Use SUM(policy_count) for counts. Use SUM(CAST(col AS FLOAT64))/NULLIF(SUM(policy_count),0) for averages.
 - YoY comparison = 364-day offset to match day-of-week.
 - Financial Year To Date (FYTD) runs 1 April to 31 March. "YTD" or "FYTD" means from 1 April of the current financial year.
+- RENEWAL RATE CALCULATION: Renewal rate = renewal policies sold / expiring policies.
+  Expiring policies = Annual policies (policy_type='Annual', ANY distribution channel) where travel_end_date falls in the period.
+  Renewal policies = policies where distribution_channel='Renewals' with transaction_date in the period.
+  Join expiring to renewals by matching travel_end_date = transaction_date.
+  Formula: SUM(renewal_policies) / NULLIF(SUM(expiring_policies), 0).
+  Example pattern:
+    WITH expiry_pols AS (
+      SELECT travel_end_date AS expiry_date, SUM(policy_count) AS policies
+      FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
+      WHERE travel_end_date BETWEEN @start AND @end AND LOWER(policy_type) = LOWER('Annual')
+      GROUP BY travel_end_date
+    ),
+    renewal_pols AS (
+      SELECT transaction_date, SUM(policy_count) AS policies
+      FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
+      WHERE transaction_date BETWEEN @start AND @end AND LOWER(distribution_channel) = LOWER('Renewals')
+      GROUP BY transaction_date
+    )
+    SELECT e.expiry_date, e.policies AS expiring, COALESCE(r.policies,0) AS renewed,
+           COALESCE(r.policies,0) / NULLIF(e.policies,0) AS renewal_rate
+    FROM expiry_pols e LEFT JOIN renewal_pols r ON e.expiry_date = r.transaction_date
 `;
 
 
