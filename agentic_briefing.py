@@ -5694,7 +5694,7 @@ body::after{{
 }}
 .nar h2:first-of-type{{margin-top:0}}
 .nar h3{{font-size:17px;font-weight:700;color:var(--text);margin:20px 0 4px;line-height:1.3}}
-.nar h3 .verify-pill,.nar h3 .view-trend-btn,[class^="badge-confidence-"]{{display:inline-block;margin-top:4px}}
+.driver-pills .verify-pill,.driver-pills .view-trend-btn,.driver-pills [class^="badge-confidence-"],.driver-pills .badge-recovery{{display:inline-block;vertical-align:middle}}
 .driver-pills{{display:block;margin:2px 0 8px}}
 .nar p{{font-size:13.5px;color:#cbd5e1;margin-bottom:12px;line-height:1.8}}
 .nar blockquote{{
@@ -7577,7 +7577,9 @@ function openInvestigations(){{
 
     headings.forEach(h3=>{{
       const trendKey=h3.getAttribute('data-trend-key');
-      const btn=h3.querySelector('.view-trend-btn');
+      /* Find the pills line — next sibling div.driver-pills */
+      const pillsDiv=h3.nextElementSibling&&h3.nextElementSibling.classList.contains('driver-pills')?h3.nextElementSibling:null;
+      const btn=pillsDiv?pillsDiv.querySelector('.view-trend-btn'):h3.querySelector('.view-trend-btn');
       const tid=btn?btn.getAttribute('data-trend-id'):null;
 
       /* No trend data for this heading — leave as-is */
@@ -7594,22 +7596,24 @@ function openInvestigations(){{
         if(container) container._matchedData=td;
       }}
 
-      /* Remove old AI-written badge and replace with confidence badge */
+      /* Remove old AI-written badge from h3 */
       const oldBadge=h3.querySelector('[class^="badge-confidence-"],.badge-recurring,.badge-emerging,.badge-new');
       if(oldBadge) oldBadge.remove();
 
+      /* Insert confidence badge into pills line */
+      const target=pillsDiv||h3;
       const conf=(td.confidence||'Low');
       const confSlug=conf.toLowerCase().replace(/\s+/g,'-');
       const badge=document.createElement('span');
       badge.className='badge-confidence-'+confSlug;
       badge.textContent=conf+' confidence';
-      /* Short tooltip — full explanation shown in trend panel */
       const tip=document.createElement('span');
       tip.className='conf-tip';
       tip.textContent=cd+'/'+tot+' days consistent. Click Trend for full analysis.';
       badge.appendChild(tip);
-      if(btn) h3.insertBefore(badge,btn);
-      else h3.appendChild(badge);
+      /* Insert confidence pill at the start of the pills line (before trend btn) */
+      if(btn) target.insertBefore(badge,btn);
+      else target.prepend(badge);
 
       if(btn){{
         btn.style.display='';
@@ -7620,8 +7624,8 @@ function openInvestigations(){{
         const recBadge=document.createElement('span');
         recBadge.className='badge-recovery';
         recBadge.textContent='Recovery';
-        if(btn) h3.insertBefore(recBadge,btn);
-        else h3.appendChild(recBadge);
+        if(btn) target.insertBefore(recBadge,btn);
+        else target.appendChild(recBadge);
       }}
     }});
   }})();
