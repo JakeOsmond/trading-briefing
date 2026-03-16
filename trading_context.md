@@ -101,7 +101,7 @@ True discount rate = total discount value / (gross price including IPT + total d
 
 
 ### renewal rate calculation
-True renewal rate = total policies purchased in the 'Renewal' distribution channel (on a transaction date) / total annual policies expiring (by travel end date, this is the expory date). This tells us how many customers are going on and keeping an annual policy with us.
+True renewal rate = total policies purchased in the 'Renewal' distribution channel (on a transaction date) / total annual policies expiring (by travel end date, this is the expiry date, ie the number of annual policies expiring). you must use travel end date for expiring policies and transaction date for new purchased policies. this means it is a join on 2 seperate sql queries. This tells us how many customers are going on and keeping an annual policy with us.
 
 
 ### Cover Levels
