@@ -1036,8 +1036,66 @@ GROUP BY cancellation_reason, policy_type, distribution_channel
     # Track 9: Renewal Performance
     tracks['renewals'] = {
         'name': 'Renewal Performance',
-        'desc': 'Renewal cohort analysis — retention, pricing, auto-renew',
+        'desc': 'Renewal rate (expiry→renewal), expiry mix by channel, cohort analysis',
         'sql': f"""
+-- Part A: Blended renewal rate — expiring policies vs renewed policies (weekly)
+WITH expiry_pols AS (
+    SELECT 'TY' AS yr, SUM(policy_count) AS expiring,
+        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS expiring_gp
+    FROM {P}
+    WHERE travel_end_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+      AND LOWER(policy_type) = 'annual'
+    UNION ALL
+    SELECT 'LY', SUM(policy_count),
+        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+    FROM {P}
+    WHERE travel_end_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+      AND LOWER(policy_type) = 'annual'
+),
+renewal_pols AS (
+    SELECT 'TY' AS yr, SUM(policy_count) AS renewed,
+        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS renewed_gp
+    FROM {P}
+    WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+      AND LOWER(distribution_channel) = 'renewals'
+    UNION ALL
+    SELECT 'LY', SUM(policy_count),
+        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+    FROM {P}
+    WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+      AND LOWER(distribution_channel) = 'renewals'
+)
+SELECT e.yr, e.expiring, e.expiring_gp,
+    SAFE_DIVIDE(e.expiring_gp, e.expiring) AS avg_expiry_gp,
+    r.renewed, r.renewed_gp,
+    SAFE_DIVIDE(r.renewed_gp, r.renewed) AS avg_renewed_gp,
+    SAFE_DIVIDE(r.renewed, e.expiring) AS renewal_rate
+FROM expiry_pols e LEFT JOIN renewal_pols r ON e.yr = r.yr
+ORDER BY e.yr
+""",
+        'sql_2': f"""
+-- Part B: Expiry mix by original distribution channel (explains blended rate shifts)
+SELECT 'TY' AS yr, distribution_channel AS expiry_channel,
+    SUM(policy_count) AS expiring_policies,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS expiring_gp,
+    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)), NULLIF(SUM(policy_count),0)) AS avg_gp
+FROM {P}
+WHERE travel_end_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+  AND LOWER(policy_type) = 'annual'
+GROUP BY distribution_channel
+UNION ALL
+SELECT 'LY', distribution_channel,
+    SUM(policy_count),
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
+    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)), NULLIF(SUM(policy_count),0))
+FROM {P}
+WHERE travel_end_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+  AND LOWER(policy_type) = 'annual'
+GROUP BY distribution_channel
+ORDER BY yr, expiring_policies DESC
+""",
+        'sql_3': f"""
+-- Part C: Renewal cohort detail — retention, pricing, auto-renew
 SELECT 'TY' AS yr, policy_renewal_year, auto_renew_opt_in,
     SUM(policy_count) AS policies,
     SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
@@ -1903,6 +1961,18 @@ annual policies as a problem, concern, or action item.
 Instead focus on: VOLUME trends, SINGLE TRIP losses, CONVERSION changes,
 MIX SHIFTS, MARKET CONTEXT, COMMISSION changes.
 
+## RENEWALS AS A GP DRIVER
+
+Renewal GP is driven by: (1) number of expiring policies, (2) blended renewal rate,
+(3) average GP of renewed policies. The renewals track gives you all three.
+IMPORTANT: The blended renewal rate fluctuates with the MIX of expiring channels.
+e.g. if more Aggregator policies expire (lower typical renewal rate), the blended rate
+drops even if underlying renewal behaviour hasn't changed. Always check the expiry mix
+(Part B) when the blended rate moves. Also check expiry GP — if high-GP channels have
+fewer expiries, renewed GP drops even at the same renewal rate.
+When renewal GP is a material mover, decompose into: expiry volume change + renewal rate
+change + avg renewed GP change. State which of the three is driving the movement.
+
 ## TRAFFIC & CONVERSION — ALWAYS DECOMPOSE
 
 For EVERY growth or decline you identify, decompose the movement into its traffic and
@@ -2452,6 +2522,14 @@ def run_investigation_tracks(date_params):
                     'row_count': len(rows),
                 }
                 print(f"     ✓ {len(rows)} rows")
+                # Run additional SQL parts (sql_2, sql_3, etc.) if present
+                for extra_key in sorted(k for k in track if k.startswith('sql_') and k != 'sql'):
+                    try:
+                        extra_rows = [dict(r) for r in BQ_CLIENT.query(track[extra_key]).result()]
+                        results[track_id][f'data_{extra_key}'] = extra_rows[:300]
+                        print(f"     ✓ {extra_key}: {len(extra_rows)} rows")
+                    except Exception as ex:
+                        print(f"     ⚠ {extra_key} failed: {str(ex)[:120]}")
                 success = True
                 break
             except Exception as e:
