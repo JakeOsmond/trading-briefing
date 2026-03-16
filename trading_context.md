@@ -99,6 +99,11 @@ When investigating margin changes, check whether the squeeze is coming from unde
 ### Discount Rate Calculation
 True discount rate = total discount value / (gross price including IPT + total discount value). This gives the discount as a percentage of the pre-discount price. Use this to assess whether discounting is driving margin changes.
 
+
+### renewal rate calculation
+True renewal rate = total policies purchased in the 'Renewal' distribution channel (on a transaction date) / total annual policies expiring (by travel end date, this is the expory date). This tells us how many customers are going on and keeping an annual policy with us.
+
+
 ### Cover Levels
 Products are tiered: Bronze, Classic, Silver, Gold, Deluxe, Elite, Adventure. Mix shifts between these tiers affect average GP because higher tiers carry higher premiums and (usually) higher margins.
 
