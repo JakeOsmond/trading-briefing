@@ -58,48 +58,136 @@ MODEL = "gpt-5.4"
 BROWSER = "Arc"
 MAX_INVESTIGATION_LOOPS = 10
 
-# UK bank holidays — used for statistical confidence checks.
-# UPDATE ANNUALLY — next update needed before Jan 2028.
-UK_BANK_HOLIDAYS = {
-    # 2024
+# ---------------------------------------------------------------------------
+# UK HOLIDAYS — bank holidays (API + fallback) and school holidays (computed)
+# ---------------------------------------------------------------------------
+
+# Fallback bank holidays if gov.uk API unavailable
+_FALLBACK_BANK_HOLIDAYS = {
     "2024-01-01", "2024-03-29", "2024-04-01", "2024-05-06", "2024-05-27",
     "2024-08-26", "2024-12-25", "2024-12-26",
-    # 2025
     "2025-01-01", "2025-04-18", "2025-04-21", "2025-05-05", "2025-05-26",
     "2025-08-25", "2025-12-25", "2025-12-26",
-    # 2026
     "2026-01-01", "2026-04-03", "2026-04-06", "2026-05-04", "2026-05-25",
     "2026-08-31", "2026-12-25", "2026-12-28",
-    # 2027
     "2027-01-01", "2027-03-26", "2027-03-29", "2027-05-03", "2027-05-31",
     "2027-08-30", "2027-12-27", "2027-12-28",
 }
 
-# UK school holiday periods (England approximate — week ranges, Mon-Fri).
-# These are date ranges [start, end] inclusive. UPDATE ANNUALLY.
-UK_SCHOOL_HOLIDAYS = [
-    # 2024-25 academic year
-    ("2024-10-28", "2024-11-01"),  # October half term
-    ("2024-12-23", "2025-01-03"),  # Christmas
-    ("2025-02-17", "2025-02-21"),  # February half term
-    ("2025-04-07", "2025-04-21"),  # Easter
-    ("2025-05-26", "2025-05-30"),  # May half term
-    ("2025-07-21", "2025-08-29"),  # Summer
-    # 2025-26 academic year
-    ("2025-10-27", "2025-10-31"),  # October half term
-    ("2025-12-22", "2026-01-02"),  # Christmas
-    ("2026-02-16", "2026-02-20"),  # February half term
-    ("2026-03-30", "2026-04-10"),  # Easter
-    ("2026-05-25", "2026-05-29"),  # May half term
-    ("2026-07-20", "2026-08-28"),  # Summer
-    # 2026-27 academic year
-    ("2026-10-26", "2026-10-30"),  # October half term
-    ("2026-12-21", "2027-01-01"),  # Christmas
-    ("2027-02-15", "2027-02-19"),  # February half term
-    ("2027-03-22", "2027-04-02"),  # Easter
-    ("2027-05-31", "2027-06-04"),  # May half term
-    ("2027-07-19", "2027-08-27"),  # Summer
-]
+def _fetch_uk_bank_holidays():
+    """Fetch UK bank holidays from gov.uk API. Returns set of YYYY-MM-DD strings."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            "https://www.gov.uk/bank-holidays.json",
+            headers={"User-Agent": "TradingCovered/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        dates = set()
+        for division in data.values():
+            for event in division.get("events", []):
+                dates.add(event["date"])
+        print(f"  ✓ Fetched {len(dates)} bank holidays from gov.uk")
+        return dates
+    except Exception as e:
+        print(f"  ⚠ Could not fetch bank holidays from gov.uk ({e}), using fallback")
+        return _FALLBACK_BANK_HOLIDAYS
+
+# Initialised at pipeline start (lazy — populated on first use)
+UK_BANK_HOLIDAYS = None
+
+def _get_bank_holidays():
+    global UK_BANK_HOLIDAYS
+    if UK_BANK_HOLIDAYS is None:
+        UK_BANK_HOLIDAYS = _fetch_uk_bank_holidays()
+    return UK_BANK_HOLIDAYS
+
+
+def _easter_date(year):
+    """Compute Easter Sunday for a given year using the Anonymous Gregorian algorithm."""
+    a = year % 19
+    b, c = divmod(year, 100)
+    d, e = divmod(b, 4)
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    return date(year, month, day)
+
+
+def _generate_school_holidays(year):
+    """Generate approximate English school holiday periods for the academic year
+    starting in September of `year`. Returns list of (start, end) date string tuples.
+
+    Based on typical English state school term patterns:
+    - October half term: last full week of October
+    - Christmas: ~2 weeks from ~22 Dec
+    - February half term: 3rd full week of February
+    - Easter: 2 weeks around Easter (starts ~Fri before Good Friday week)
+    - May half term: week containing late May bank holiday
+    - Summer: ~late July to late August
+    """
+    holidays = []
+    from datetime import date as _d
+
+    # October half term (last full Mon-Fri of October)
+    oct_31 = _d(year, 10, 31)
+    # Find last Monday on or before Oct 31
+    last_mon = oct_31 - timedelta(days=(oct_31.weekday()))
+    if last_mon.month == 11:
+        last_mon -= timedelta(days=7)
+    holidays.append((last_mon.isoformat(), (last_mon + timedelta(days=4)).isoformat()))
+
+    # Christmas (~22 Dec to ~2 Jan)
+    holidays.append((_d(year, 12, 22).isoformat(), _d(year + 1, 1, 2).isoformat()))
+
+    # February half term (3rd full week of Feb, year+1)
+    feb_1 = _d(year + 1, 2, 1)
+    first_mon = feb_1 + timedelta(days=(7 - feb_1.weekday()) % 7)
+    third_mon = first_mon + timedelta(weeks=2)
+    holidays.append((third_mon.isoformat(), (third_mon + timedelta(days=4)).isoformat()))
+
+    # Easter (2 weeks: week before and week of Easter Monday, year+1)
+    easter = _easter_date(year + 1)
+    good_friday = easter - timedelta(days=2)
+    easter_start = good_friday - timedelta(days=6)  # Saturday before Good Friday week
+    easter_end = easter + timedelta(days=8)  # Friday after Easter Monday week
+    holidays.append((easter_start.isoformat(), easter_end.isoformat()))
+
+    # May half term (week containing the Spring bank holiday, year+1)
+    # Spring bank holiday is last Monday of May
+    may_31 = _d(year + 1, 5, 31)
+    spring_bh = may_31 - timedelta(days=(may_31.weekday()))
+    if spring_bh.month == 6:
+        spring_bh -= timedelta(days=7)
+    ht_mon = spring_bh
+    holidays.append((ht_mon.isoformat(), (ht_mon + timedelta(days=4)).isoformat()))
+
+    # Summer (~3rd week of July to last week of August, year+1)
+    jul_21 = _d(year + 1, 7, 21)
+    summer_start = jul_21 - timedelta(days=jul_21.weekday())  # Monday on or before 21 Jul
+    aug_31 = _d(year + 1, 8, 31)
+    summer_end = aug_31 - timedelta(days=(aug_31.weekday() + 3) % 7)  # ~last Friday of Aug
+    holidays.append((summer_start.isoformat(), summer_end.isoformat()))
+
+    return holidays
+
+
+def _build_school_holidays():
+    """Generate school holiday periods covering the current and surrounding academic years."""
+    current_year = date.today().year
+    all_holidays = []
+    for y in range(current_year - 2, current_year + 2):
+        all_holidays.extend(_generate_school_holidays(y))
+    return all_holidays
+
+UK_SCHOOL_HOLIDAYS = _build_school_holidays()
+
 
 def _date_in_school_holiday(d_str):
     """Check if a date string (YYYY-MM-DD) falls within a UK school holiday period."""
@@ -3227,9 +3315,10 @@ def _compute_confidence(observed, ty_90d_vals, ly_seasonal_vals, persistence_lab
     }
 
     # ── Bank holiday & school holiday detection ─────────────────────────────
-    ty_holidays = [h for h in UK_BANK_HOLIDAYS
+    _bank_hols = _get_bank_holidays()
+    ty_holidays = [h for h in _bank_hols
                    if ty_start <= h <= ty_end]
-    ly_holidays = [h for h in UK_BANK_HOLIDAYS
+    ly_holidays = [h for h in _bank_hols
                    if ly_start <= h <= ly_end]
     bank_hol_mismatch = len(ty_holidays) != len(ly_holidays)
 
