@@ -254,31 +254,38 @@ const BUSINESS_CONTEXT = `
   Expiring policies = Annual policies (policy_type='Annual', ANY distribution channel) where travel_end_date falls in the period.
   Renewal policies = policies where distribution_channel='Renewals' with transaction_date in the period.
   Renewal rate = renewed / expiring, joined on travel_end_date = transaction_date.
-  IMPORTANT: Renewal rate varies significantly by the ORIGINAL distribution channel of the expiring policy.
-  e.g. Direct expiries typically renew at a much higher rate than Aggregator expiries.
-  This means the overall blended renewal rate will fluctuate based on the MIX of expiring policies,
-  not just underlying renewal behaviour. When analysing renewal rate changes, ALWAYS break down
-  expiring policies by their distribution_channel to check whether a rate shift is driven by
-  genuine renewal behaviour change or simply a change in the mix of expiring channels.
-  Example pattern (daily, with channel mix):
+  CRITICAL: Renewal rate can ONLY be calculated at a BLENDED level (all channels combined).
+  There is NO column linking a renewal back to the original expiry channel, so you CANNOT
+  calculate per-channel renewal rates. NEVER join renewals to expiries broken out by channel —
+  this DUPLICATES the renewal count across every channel row, producing nonsensical rates.
+  The expiry CHANNEL BREAKDOWN is useful ONLY for understanding the MIX of expiring policies
+  (volume and proportion by channel). The mix matters because different channels have different
+  typical renewal rates, so a shift in the expiry mix changes the blended rate even if
+  underlying renewal behaviour is unchanged.
+  CORRECT approach — use TWO SEPARATE queries:
+  Query 1 — Blended renewal rate:
     WITH expiry_pols AS (
-      SELECT travel_end_date AS expiry_date, distribution_channel AS expiry_channel,
-             SUM(policy_count) AS policies
+      SELECT travel_end_date AS expiry_date, SUM(policy_count) AS expiring
       FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
       WHERE travel_end_date BETWEEN @start AND @end AND LOWER(policy_type) = LOWER('Annual')
-      GROUP BY travel_end_date, distribution_channel
+      GROUP BY travel_end_date
     ),
     renewal_pols AS (
-      SELECT transaction_date, SUM(policy_count) AS policies
+      SELECT transaction_date, SUM(policy_count) AS renewed
       FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
       WHERE transaction_date BETWEEN @start AND @end AND LOWER(distribution_channel) = LOWER('Renewals')
       GROUP BY transaction_date
     )
-    SELECT e.expiry_date, e.expiry_channel, e.policies AS expiring,
-           COALESCE(r.policies,0) AS renewed,
-           COALESCE(r.policies,0) / NULLIF(e.policies,0) AS renewal_rate
+    SELECT e.expiry_date, e.expiring, COALESCE(r.renewed,0) AS renewed,
+           SAFE_DIVIDE(COALESCE(r.renewed,0), e.expiring) AS renewal_rate
     FROM expiry_pols e LEFT JOIN renewal_pols r ON e.expiry_date = r.transaction_date
-  For blended rate, remove the expiry_channel grouping. Always consider showing both views.
+  Query 2 — Expiry mix breakdown (to explain rate movements):
+    SELECT distribution_channel AS expiry_channel,
+           SUM(policy_count) AS expiring_policies
+    FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
+    WHERE travel_end_date BETWEEN @start AND @end AND LOWER(policy_type) = LOWER('Annual')
+    GROUP BY distribution_channel
+    ORDER BY expiring_policies DESC
 `;
 
 
