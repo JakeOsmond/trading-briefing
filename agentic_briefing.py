@@ -5235,6 +5235,11 @@ body::after{{
 }}
 .verify-action-btn:hover{{background:rgba(255,255,255,0.12);}}
 .verify-remove-btn:hover{{background:rgba(255,95,104,0.2);color:#FF5F68;}}
+.verify-revert{{
+  font-size:9px;color:rgba(255,255,255,0.3);margin-left:8px;text-decoration:none;
+  cursor:pointer;vertical-align:middle;
+}}
+.verify-revert:hover{{color:rgba(255,255,255,0.6);text-decoration:underline;}}
 .verify-sql-evidence{{
   margin-top:8px;padding:10px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:10px;
   color:rgba(255,255,255,0.6);white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;
@@ -7724,44 +7729,77 @@ function copySqlEvidence(btn){{
 }}
 
 function verifyFinding(findingId,action){{
+  var verifiedBy=null,note=null;
+  if(action==='verify'){{
+    verifiedBy=prompt('Who from Commercial Finance validated this?');
+    if(!verifiedBy)return;
+    note=prompt('Add a note (optional):');
+  }}
   var pwd=prompt('Enter verification password:');
+  if(!pwd)return;
+  var dt=document.documentElement.getAttribute('data-generated-utc');
+  var dateStr=dt?dt.split('T')[0]:'unknown';
+  var payload={{finding_id:findingId,action:action,date:dateStr,password:pwd}};
+  if(verifiedBy)payload.verified_by=verifiedBy;
+  if(note)payload.note=note;
+  fetch(window.__apiBase+'/api/verify',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify(payload)
+  }}).then(function(r){{return r.json()}}).then(function(d){{
+    if(d.error){{alert('Error: '+d.error);return;}}
+    applyVerificationState(findingId,action,verifiedBy,note);
+  }}).catch(function(e){{alert('Verification failed: '+e);}});
+}}
+
+function revertFinding(findingId){{
+  var pwd=prompt('Enter password to revert:');
   if(!pwd)return;
   var dt=document.documentElement.getAttribute('data-generated-utc');
   var dateStr=dt?dt.split('T')[0]:'unknown';
   fetch(window.__apiBase+'/api/verify',{{
     method:'POST',
     headers:{{'Content-Type':'application/json'}},
-    body:JSON.stringify({{finding_id:findingId,action:action,date:dateStr,password:pwd}})
+    body:JSON.stringify({{finding_id:findingId,action:'revert',date:dateStr,password:pwd}})
   }}).then(function(r){{return r.json()}}).then(function(d){{
     if(d.error){{alert('Error: '+d.error);return;}}
-    applyVerificationState(findingId,action);
-  }}).catch(function(e){{alert('Verification failed: '+e);}});
+    location.reload();
+  }}).catch(function(e){{alert('Revert failed: '+e);}});
 }}
 
-function applyVerificationState(findingId,action){{
+function applyVerificationState(findingId,action,verifiedBy,note){{
   var els=document.querySelectorAll('[data-finding-id="'+findingId+'"]');
   var h3=null;
   els.forEach(function(el){{
     if(el.tagName==='H3'){{h3=el;}}
   }});
+  var tipExtra='';
+  if(verifiedBy)tipExtra+=' Confirmed by '+verifiedBy+'.';
+  if(note)tipExtra+=' Note: '+note;
+  var nameLabel=verifiedBy?(' &amp; '+verifiedBy):'';
   if(action==='verify'){{
     els.forEach(function(el){{
-      /* Upgrade pill to green verified */
-      if(el.classList.contains('verify-pill-contested')){{
+      if(el.classList.contains('verify-pill-contested')||el.classList.contains('verify-pill-agreed')){{
         el.className='verify-pill verify-pill-agreed';
-        el.innerHTML='&#10003; VERIFIED<span class="verify-tip">Verified by OpenAI, Claude, and confirmed by Commercial Finance.</span>';
+        el.innerHTML='&#10003; VERIFIED<span class="verify-tip">Verified by OpenAI, Claude'+nameLabel+'.'+tipExtra+'</span>';
       }}
-      /* Hide the contested detail block */
       if(el.classList.contains('verify-contested-detail')){{
         el.style.display='none';
       }}
     }});
+    /* Add revert link after the pill */
+    var pill=h3?h3.parentElement.querySelector('.verify-pill-agreed[data-finding-id="'+findingId+'"]'):null;
+    if(pill&&!pill.nextElementSibling||pill&&!pill.nextElementSibling.classList.contains('verify-revert')){{
+      var rv=document.createElement('a');
+      rv.href='#';rv.className='verify-revert';
+      rv.textContent='revert';
+      rv.onclick=function(e){{e.preventDefault();revertFinding(findingId);}};
+      pill.parentNode.insertBefore(rv,pill.nextSibling);
+    }}
   }}else if(action==='remove'){{
     var driverName='';
     if(h3){{
-      /* Get driver name from h3 text for At a Glance matching */
       driverName=h3.textContent.replace(/VERIFIED|DISPUTED|REVIEW|UNVERIFIED|REMOVED|Trend/g,'').trim().toLowerCase();
-      /* Fade the h3 and all siblings until the next h3 or h2 */
       h3.style.opacity='0.2';
       var sib=h3.nextElementSibling;
       while(sib&&sib.tagName!=='H3'&&sib.tagName!=='H2'){{
@@ -7777,14 +7815,21 @@ function applyVerificationState(findingId,action){{
         el.style.opacity='1';
       }}
     }});
-    /* Also fade matching At a Glance bullet */
+    /* Add revert link */
+    if(h3){{
+      var rv=document.createElement('a');
+      rv.href='#';rv.className='verify-revert';rv.style.opacity='1';
+      rv.textContent='revert';
+      rv.onclick=function(e){{e.preventDefault();revertFinding(findingId);}};
+      h3.appendChild(rv);
+    }}
+    /* Fade matching At a Glance bullet */
     if(driverName){{
       var glance=document.getElementById('section-at-a-glance');
       if(glance){{
         var lis=glance.querySelectorAll('li');
         lis.forEach(function(li){{
           var txt=li.textContent.toLowerCase();
-          /* Match if the bullet contains key words from the driver name */
           var words=driverName.split(/[\s\-\u2014]+/).filter(function(w){{return w.length>3;}});
           var matches=words.filter(function(w){{return txt.indexOf(w)!==-1;}});
           if(matches.length>=2){{
@@ -7807,7 +7852,8 @@ function applyVerificationState(findingId,action){{
     .then(function(overrides){{
       if(!overrides||!overrides.findings)return;
       Object.keys(overrides.findings).forEach(function(fid){{
-        applyVerificationState(fid,overrides.findings[fid].action);
+        var f=overrides.findings[fid];
+        applyVerificationState(fid,f.action,f.verified_by,f.note);
       }});
     }}).catch(function(){{}});
 }})();

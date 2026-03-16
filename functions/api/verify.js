@@ -2,9 +2,9 @@
  * /api/verify — Human verification of contested findings
  *
  * GET  /api/verify?date=2026-03-17  → Returns all verification overrides for that date
- * POST /api/verify                   → Verify or remove a finding (requires password)
+ * POST /api/verify                   → Verify, remove, or revert a finding (requires password)
  *
- * Body: { finding_id, action: "verify"|"remove", date, password }
+ * Body: { finding_id, action: "verify"|"remove"|"revert", date, password, verified_by?, note? }
  * KV key: verification:{date}:{finding_id}
  */
 
@@ -50,7 +50,7 @@ export async function onRequest(context) {
     return Response.json({ findings }, { headers: corsHeaders });
   }
 
-  // POST — verify or remove a finding
+  // POST — verify, remove, or revert a finding
   if (request.method === "POST") {
     let body;
     try {
@@ -59,7 +59,7 @@ export async function onRequest(context) {
       return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: corsHeaders });
     }
 
-    const { finding_id, action, date, password } = body;
+    const { finding_id, action, date, password, verified_by, note } = body;
 
     // Validate required fields
     if (!finding_id || !action || !date || !password) {
@@ -67,8 +67,8 @@ export async function onRequest(context) {
     }
 
     // Validate action
-    if (!["verify", "remove"].includes(action)) {
-      return Response.json({ error: "Action must be 'verify' or 'remove'" }, { status: 400, headers: corsHeaders });
+    if (!["verify", "remove", "revert"].includes(action)) {
+      return Response.json({ error: "Action must be 'verify', 'remove', or 'revert'" }, { status: 400, headers: corsHeaders });
     }
 
     // Check password
@@ -85,10 +85,19 @@ export async function onRequest(context) {
       return Response.json({ error: "KV storage not configured" }, { status: 500, headers: corsHeaders });
     }
 
-    // Write to KV
     const key = `verification:${date}:${finding_id}`;
+
+    // Revert — delete the KV entry
+    if (action === "revert") {
+      await env.VERIFICATION_KV.delete(key);
+      return Response.json({ success: true, action: "reverted", key }, { headers: corsHeaders });
+    }
+
+    // Verify or remove — write to KV
     const value = {
       action,
+      verified_by: verified_by || null,
+      note: note || null,
       timestamp: new Date().toISOString(),
     };
 
