@@ -2661,6 +2661,7 @@ def run_investigation_tracks(date_params):
                 results[track_id] = {
                     'name': track['name'],
                     'desc': track['desc'],
+                    'sql': sql,
                     'data': rows[:300],
                     'row_count': len(rows),
                 }
@@ -3969,27 +3970,47 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         )
         h3_tag += '</h3>'
 
-        # Add verification badge
+        # Add verification pill (inline, matching confidence pill style)
         vr = _verification.get(finding_id, {})
         verdict = vr.get("verdict", "")
+        reasoning = (vr.get("reasoning") or "").replace('"', '&quot;').replace("'", "&#39;")
         concern = (vr.get("concern") or "").replace('"', '&quot;').replace("'", "&#39;")
         sql_ev = vr.get("sql_evidence", [])
-        sql_preview = json.dumps(sql_ev, indent=2, default=str).replace('<', '&lt;').replace('>', '&gt;')
+        # Format SQL evidence: show actual SQL queries
+        sql_lines = []
+        for ev in sql_ev:
+            sql_lines.append(f"-- {ev.get('track', 'Unknown track')} ({ev.get('row_count', '?')} rows)")
+            sql_lines.append(ev.get("sql", "N/A"))
+            sql_lines.append("")
+        sql_preview = "\n".join(sql_lines).replace('<', '&lt;').replace('>', '&gt;') if sql_lines else "No SQL evidence available"
 
         if verdict == "agree":
-            h3_tag += f'<div class="verify-badge verify-agreed" data-finding-id="{finding_id}">&#10003; Verified by OpenAI &amp; Claude</div>'
+            # Inline pill on the h3 line (before </h3>)
+            pill = f'<span class="verify-pill verify-pill-agreed" data-finding-id="{finding_id}">&#10003; VERIFIED'
+            pill += f'<span class="verify-tip">Independently verified by both OpenAI and Claude. Both models agree this finding is supported by the SQL evidence. {reasoning}</span>'
+            pill += '</span>'
+            # Insert pill before the closing </h3> — re-open the h3
+            h3_tag = h3_tag.replace('</h3>', f' {pill}</h3>')
         elif verdict in ("partially_agree", "disagree"):
-            label = "Partially agreed" if verdict == "partially_agree" else "Disputed"
-            h3_tag += f'<div class="verify-badge verify-contested" data-finding-id="{finding_id}">'
-            h3_tag += f'&#9888; {label} &mdash; {concern}<br>'
-            h3_tag += '<span class="verify-detail">Please speak with Commercial Finance to verify this finding.</span><br>'
+            label = "DISPUTED" if verdict == "disagree" else "REVIEW"
+            pill = f'<span class="verify-pill verify-pill-contested" data-finding-id="{finding_id}">&#9888; {label}'
+            pill += f'<span class="verify-tip">OpenAI and Claude disagree on this finding. {concern}. Please speak with Commercial Finance to verify.</span>'
+            pill += '</span>'
+            h3_tag = h3_tag.replace('</h3>', f' {pill}</h3>')
+            # Add detail block below the h3 with actions
+            h3_tag += f'<div class="verify-contested-detail" data-finding-id="{finding_id}">'
+            h3_tag += f'&#9888; {concern}<br>'
+            h3_tag += '<span class="verify-cf-note">Please speak with Commercial Finance to verify this finding.</span><br>'
             h3_tag += f'<button class="verify-action-btn" onclick="verifyFinding(\'{finding_id}\',\'verify\')">&#10003; Verify</button> '
             h3_tag += f'<button class="verify-action-btn verify-remove-btn" onclick="verifyFinding(\'{finding_id}\',\'remove\')">&#10007; Remove</button> '
-            h3_tag += f'<button class="verify-action-btn verify-sql-btn" onclick="toggleSqlEvidence(this)">&#128269; View SQL Evidence</button>'
+            h3_tag += f'<button class="verify-action-btn" onclick="toggleSqlEvidence(this)">&#128269; View SQL</button>'
             h3_tag += f'<pre class="verify-sql-evidence" style="display:none">{sql_preview}</pre>'
             h3_tag += '</div>'
         elif verdict == "unverified":
-            h3_tag += f'<div class="verify-badge verify-unverified" data-finding-id="{finding_id}">&#9679; Verification unavailable</div>'
+            pill = f'<span class="verify-pill verify-pill-unverified" data-finding-id="{finding_id}">UNVERIFIED'
+            pill += '<span class="verify-tip">Cross-model verification was unavailable for this finding. The Claude API could not be reached during pipeline execution.</span>'
+            pill += '</span>'
+            h3_tag = h3_tag.replace('</h3>', f' {pill}</h3>')
 
         h3_tag += f'<div id="{tid}" class="yoy-trend-container"></div>'
         return h3_tag
@@ -5167,21 +5188,45 @@ body::after{{
   font-size:1.05em;
 }}
 
-/* Verification badges */
-.verify-badge{{
+/* Verification pills — matches confidence pill style */
+.verify-pill{{
+  display:inline-block;
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  padding:2px 8px;border-radius:10px;
+  margin-left:8px;vertical-align:middle;cursor:help;position:relative;
+}}
+.verify-pill-agreed{{
+  background:rgba(0,176,166,0.15);color:#00B0A6;
+  border:1px solid rgba(0,176,166,0.3);
+}}
+.verify-pill-contested{{
+  background:rgba(255,181,95,0.15);color:#FFB55F;
+  border:1px solid rgba(255,181,95,0.3);
+}}
+.verify-pill-unverified{{
+  background:rgba(117,117,117,0.1);color:#9E9E9E;
+  border:1px solid rgba(117,117,117,0.2);opacity:0.8;
+}}
+.verify-pill .verify-tip{{
+  visibility:hidden;opacity:0;
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:rgba(20,14,46,0.97);color:#c4b8e0;
+  font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;
+  padding:10px 14px;border-radius:8px;border:1px solid var(--border);
+  width:320px;white-space:normal;z-index:100;line-height:1.5;
+  transition:opacity 0.2s;pointer-events:none;
+  box-shadow:0 4px 16px rgba(0,0,0,0.4);
+}}
+.verify-pill:hover .verify-tip{{
+  visibility:visible;opacity:1;pointer-events:auto;
+}}
+/* Contested detail block below the heading */
+.verify-contested-detail{{
   display:block;margin:6px 0 10px;padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.5;
+  background:rgba(255,181,95,0.08);border:1px solid rgba(255,181,95,0.2);color:#FFB55F;
 }}
-.verify-agreed{{
-  background:rgba(0,176,166,0.12);color:#00B0A6;border:1px solid rgba(0,176,166,0.25);
-}}
-.verify-contested{{
-  background:rgba(255,181,95,0.12);color:#FFB55F;border:1px solid rgba(255,181,95,0.25);
-}}
-.verify-unverified{{
-  background:rgba(146,95,255,0.08);color:rgba(255,255,255,0.4);border:1px solid rgba(146,95,255,0.15);
-}}
-.verify-detail{{
-  font-style:italic;opacity:0.8;font-size:11px;
+.verify-cf-note{{
+  font-style:italic;opacity:0.8;font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px;
 }}
 .verify-action-btn{{
   display:inline-block;margin:6px 4px 2px 0;padding:4px 12px;border-radius:6px;font-size:11px;
@@ -7684,35 +7729,39 @@ function verifyFinding(findingId,action){{
 }}
 
 function applyVerificationState(findingId,action){{
-  var badges=document.querySelectorAll('[data-finding-id="'+findingId+'"]');
-  var section=null;
-  badges.forEach(function(b){{
-    if(b.tagName==='H3'){{section=b;}}
+  var els=document.querySelectorAll('[data-finding-id="'+findingId+'"]');
+  var h3=null;
+  els.forEach(function(el){{
+    if(el.tagName==='H3'){{h3=el;}}
   }});
   if(action==='verify'){{
-    badges.forEach(function(b){{
-      if(b.classList.contains('verify-contested')){{
-        b.className='verify-badge verify-agreed';
-        b.setAttribute('data-finding-id',findingId);
-        b.innerHTML='&#10003; Verified by OpenAI, Claude &amp; Commercial Finance';
+    els.forEach(function(el){{
+      /* Upgrade pill to green verified */
+      if(el.classList.contains('verify-pill-contested')){{
+        el.className='verify-pill verify-pill-agreed';
+        el.innerHTML='&#10003; VERIFIED<span class="verify-tip">Verified by OpenAI, Claude, and confirmed by Commercial Finance.</span>';
+      }}
+      /* Hide the contested detail block */
+      if(el.classList.contains('verify-contested-detail')){{
+        el.style.display='none';
       }}
     }});
   }}else if(action==='remove'){{
-    if(section){{
+    if(h3){{
       /* Fade the h3 and all siblings until the next h3 or h2 */
-      section.style.opacity='0.2';
-      var sib=section.nextElementSibling;
+      h3.style.opacity='0.2';
+      var sib=h3.nextElementSibling;
       while(sib&&sib.tagName!=='H3'&&sib.tagName!=='H2'){{
         sib.style.opacity='0.2';
         sib.style.pointerEvents='none';
         sib=sib.nextElementSibling;
       }}
     }}
-    badges.forEach(function(b){{
-      if(b.classList.contains('verify-contested')){{
-        b.innerHTML='&#10007; Removed — finding disputed and removed by reviewer';
-        b.className='verify-badge verify-unverified';
-        b.style.opacity='1';
+    els.forEach(function(el){{
+      if(el.classList.contains('verify-pill-contested')){{
+        el.className='verify-pill verify-pill-unverified';
+        el.innerHTML='&#10007; REMOVED';
+        el.style.opacity='1';
       }}
     }});
   }}
