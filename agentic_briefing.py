@@ -7364,8 +7364,6 @@ function openInvestigations(){{
       /* Short tooltip — full explanation shown in trend panel */
       const tip=document.createElement('span');
       tip.className='conf-tip';
-      const cd=td.consistent_days||0;
-      const tot=td.total_days||10;
       tip.textContent=cd+'/'+tot+' days consistent. Click Trend for full analysis.';
       badge.appendChild(tip);
       if(btn) h3.insertBefore(badge,btn);
