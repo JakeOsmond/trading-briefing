@@ -3965,7 +3965,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         # Add verification badge
         vr = _verification.get(finding_id, {})
         verdict = vr.get("verdict", "")
-        concern = vr.get("concern", "").replace('"', '&quot;').replace("'", "&#39;")
+        concern = (vr.get("concern") or "").replace('"', '&quot;').replace("'", "&#39;")
         sql_ev = vr.get("sql_evidence", [])
         sql_preview = json.dumps(sql_ev, indent=2, default=str).replace('<', '&lt;').replace('>', '&gt;')
 
