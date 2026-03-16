@@ -3976,13 +3976,15 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         reasoning = (vr.get("reasoning") or "").replace('"', '&quot;').replace("'", "&#39;")
         concern = (vr.get("concern") or "").replace('"', '&quot;').replace("'", "&#39;")
         sql_ev = vr.get("sql_evidence", [])
-        # Format SQL evidence: show actual SQL queries
-        sql_lines = []
+        # Format SQL evidence: clean, copy-pastable SQL for BigQuery
+        sql_blocks = []
         for ev in sql_ev:
-            sql_lines.append(f"-- {ev.get('track', 'Unknown track')} ({ev.get('row_count', '?')} rows)")
-            sql_lines.append(ev.get("sql", "N/A"))
-            sql_lines.append("")
-        sql_preview = "\n".join(sql_lines).replace('<', '&lt;').replace('>', '&gt;') if sql_lines else "No SQL evidence available"
+            track_name = ev.get('track', 'Unknown track')
+            row_count = ev.get('row_count', '?')
+            raw_sql = ev.get("sql", "").strip()
+            if raw_sql and raw_sql != "N/A":
+                sql_blocks.append(f"-- Track: {track_name} ({row_count} rows returned)\n{raw_sql};")
+        sql_preview = ("\n\n".join(sql_blocks) if sql_blocks else "No SQL evidence available").replace('<', '&lt;').replace('>', '&gt;')
 
         if verdict == "agree":
             # Inline pill on the h3 line (before </h3>)
@@ -4004,7 +4006,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
             h3_tag += f'<button class="verify-action-btn" onclick="verifyFinding(\'{finding_id}\',\'verify\')">&#10003; Verify</button> '
             h3_tag += f'<button class="verify-action-btn verify-remove-btn" onclick="verifyFinding(\'{finding_id}\',\'remove\')">&#10007; Remove</button> '
             h3_tag += f'<button class="verify-action-btn" onclick="toggleSqlEvidence(this)">&#128269; View SQL</button>'
-            h3_tag += f'<pre class="verify-sql-evidence" style="display:none">{sql_preview}</pre>'
+            h3_tag += f'<div class="verify-sql-wrap" style="display:none"><button class="verify-action-btn" onclick="copySqlEvidence(this)" style="margin-bottom:4px">&#128203; Copy SQL</button><pre class="verify-sql-evidence">{sql_preview}</pre></div>'
             h3_tag += '</div>'
         elif verdict == "unverified":
             pill = f'<span class="verify-pill verify-pill-unverified" data-finding-id="{finding_id}">UNVERIFIED'
@@ -7709,8 +7711,16 @@ document.addEventListener('keydown', e => {{
 <script>
 /* ── Verification system ── */
 function toggleSqlEvidence(btn){{
+  var wrap=btn.nextElementSibling;
+  wrap.style.display=wrap.style.display==='none'?'block':'none';
+}}
+function copySqlEvidence(btn){{
   var pre=btn.nextElementSibling;
-  pre.style.display=pre.style.display==='none'?'block':'none';
+  var text=pre.textContent;
+  navigator.clipboard.writeText(text).then(function(){{
+    btn.textContent='Copied!';
+    setTimeout(function(){{btn.innerHTML='&#128203; Copy SQL';}},1500);
+  }});
 }}
 
 function verifyFinding(findingId,action){{
@@ -7747,7 +7757,10 @@ function applyVerificationState(findingId,action){{
       }}
     }});
   }}else if(action==='remove'){{
+    var driverName='';
     if(h3){{
+      /* Get driver name from h3 text for At a Glance matching */
+      driverName=h3.textContent.replace(/VERIFIED|DISPUTED|REVIEW|UNVERIFIED|REMOVED|Trend/g,'').trim().toLowerCase();
       /* Fade the h3 and all siblings until the next h3 or h2 */
       h3.style.opacity='0.2';
       var sib=h3.nextElementSibling;
@@ -7764,6 +7777,23 @@ function applyVerificationState(findingId,action){{
         el.style.opacity='1';
       }}
     }});
+    /* Also fade matching At a Glance bullet */
+    if(driverName){{
+      var glance=document.getElementById('section-at-a-glance');
+      if(glance){{
+        var lis=glance.querySelectorAll('li');
+        lis.forEach(function(li){{
+          var txt=li.textContent.toLowerCase();
+          /* Match if the bullet contains key words from the driver name */
+          var words=driverName.split(/[\s\-\u2014]+/).filter(function(w){{return w.length>3;}});
+          var matches=words.filter(function(w){{return txt.indexOf(w)!==-1;}});
+          if(matches.length>=2){{
+            li.style.opacity='0.2';
+            li.style.textDecoration='line-through';
+          }}
+        }});
+      }}
+    }}
   }}
 }}
 
