@@ -250,17 +250,23 @@ const BUSINESS_CONTEXT = `
 - Use SUM(policy_count) for counts. Use SUM(CAST(col AS FLOAT64))/NULLIF(SUM(policy_count),0) for averages.
 - YoY comparison = 364-day offset to match day-of-week.
 - Financial Year To Date (FYTD) runs 1 April to 31 March. "YTD" or "FYTD" means from 1 April of the current financial year.
-- RENEWAL RATE CALCULATION: Renewal rate = renewal policies sold / expiring policies.
+- RENEWAL RATE & VOLUME — two drivers: (1) how many policies are expiring, (2) the renewal rate.
   Expiring policies = Annual policies (policy_type='Annual', ANY distribution channel) where travel_end_date falls in the period.
   Renewal policies = policies where distribution_channel='Renewals' with transaction_date in the period.
-  Join expiring to renewals by matching travel_end_date = transaction_date.
-  Formula: SUM(renewal_policies) / NULLIF(SUM(expiring_policies), 0).
-  Example pattern:
+  Renewal rate = renewed / expiring, joined on travel_end_date = transaction_date.
+  IMPORTANT: Renewal rate varies significantly by the ORIGINAL distribution channel of the expiring policy.
+  e.g. Direct expiries typically renew at a much higher rate than Aggregator expiries.
+  This means the overall blended renewal rate will fluctuate based on the MIX of expiring policies,
+  not just underlying renewal behaviour. When analysing renewal rate changes, ALWAYS break down
+  expiring policies by their distribution_channel to check whether a rate shift is driven by
+  genuine renewal behaviour change or simply a change in the mix of expiring channels.
+  Example pattern (daily, with channel mix):
     WITH expiry_pols AS (
-      SELECT travel_end_date AS expiry_date, SUM(policy_count) AS policies
+      SELECT travel_end_date AS expiry_date, distribution_channel AS expiry_channel,
+             SUM(policy_count) AS policies
       FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
       WHERE travel_end_date BETWEEN @start AND @end AND LOWER(policy_type) = LOWER('Annual')
-      GROUP BY travel_end_date
+      GROUP BY travel_end_date, distribution_channel
     ),
     renewal_pols AS (
       SELECT transaction_date, SUM(policy_count) AS policies
@@ -268,9 +274,11 @@ const BUSINESS_CONTEXT = `
       WHERE transaction_date BETWEEN @start AND @end AND LOWER(distribution_channel) = LOWER('Renewals')
       GROUP BY transaction_date
     )
-    SELECT e.expiry_date, e.policies AS expiring, COALESCE(r.policies,0) AS renewed,
+    SELECT e.expiry_date, e.expiry_channel, e.policies AS expiring,
+           COALESCE(r.policies,0) AS renewed,
            COALESCE(r.policies,0) / NULLIF(e.policies,0) AS renewal_rate
     FROM expiry_pols e LEFT JOIN renewal_pols r ON e.expiry_date = r.transaction_date
+  For blended rate, remove the expiry_channel grouping. Always consider showing both views.
 `;
 
 
