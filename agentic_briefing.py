@@ -3239,7 +3239,7 @@ def _compute_confidence(observed, ty_90d_vals, ly_seasonal_vals, persistence_lab
     elif persistence_label == "emerging":
         confidence = "High" if both_sig else ("Medium" if either_sig else "Low")
     else:  # new
-        confidence = "Medium" if both_sig else ("Low" if either_sig else "Low")
+        confidence = "Medium" if both_sig else "Low"
 
     # Bank holiday downgrade
     if holiday_mismatch:
