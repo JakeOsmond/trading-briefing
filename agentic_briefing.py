@@ -7351,7 +7351,7 @@ function openInvestigations(){{
       const confSlug=conf.toLowerCase().replace(/\s+/g,'-');
       const badge=document.createElement('span');
       badge.className='badge-confidence-'+confSlug;
-      badge.textContent=confLabel+' confidence';
+      badge.textContent=conf+' confidence';
       /* Tooltip with natural language explanation */
       const tip=document.createElement('span');
       tip.className='conf-tip';
