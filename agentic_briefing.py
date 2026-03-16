@@ -5194,14 +5194,6 @@ body::after{{
   margin-top:8px;padding:10px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:10px;
   color:rgba(255,255,255,0.6);white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;
 }}
-.driver-removed{{
-  opacity:0.2;pointer-events:none;position:relative;
-}}
-.driver-removed::after{{
-  content:'Removed by verification';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  font-size:14px;font-weight:700;color:#FF5F68;opacity:0.8;
-}}
-
 /* Persistence badges for What's Driving This */
 .badge-recurring{{
   display:inline-block;
@@ -7707,13 +7699,20 @@ function applyVerificationState(findingId,action){{
     }});
   }}else if(action==='remove'){{
     if(section){{
-      var parent=section.parentElement;
-      if(parent)parent.classList.add('driver-removed');
+      /* Fade the h3 and all siblings until the next h3 or h2 */
+      section.style.opacity='0.2';
+      var sib=section.nextElementSibling;
+      while(sib&&sib.tagName!=='H3'&&sib.tagName!=='H2'){{
+        sib.style.opacity='0.2';
+        sib.style.pointerEvents='none';
+        sib=sib.nextElementSibling;
+      }}
     }}
     badges.forEach(function(b){{
       if(b.classList.contains('verify-contested')){{
         b.innerHTML='&#10007; Removed — finding disputed and removed by reviewer';
         b.className='verify-badge verify-unverified';
+        b.style.opacity='1';
       }}
     }});
   }}
