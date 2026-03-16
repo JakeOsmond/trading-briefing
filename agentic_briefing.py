@@ -3336,21 +3336,21 @@ def _compute_confidence(observed, ty_90d_vals, ly_seasonal_vals, persistence_lab
     notes = []
     if bank_hol_mismatch:
         notes.append(
-            f"Bank holiday mismatch: {len(ty_holidays)} holiday(s) in the recent window "
-            f"vs {len(ly_holidays)} in the last-year window."
+            f"There are {len(ty_holidays)} bank holiday(s) in the current window "
+            f"but {len(ly_holidays)} at the same point last year."
         )
     if school_hol_mismatch:
-        ty_label = "in school holidays" if ty_in_school_hol else "not in school holidays"
-        ly_label = "in school holidays" if ly_in_school_hol else "not in school holidays"
-        notes.append(f"School holiday mismatch: this year is {ty_label} but last year was {ly_label}.")
+        ty_label = "falls during school holidays" if ty_in_school_hol else "is outside school holidays"
+        ly_label = "fell during school holidays" if ly_in_school_hol else "was outside school holidays"
+        notes.append(f"This period {ty_label}, but last year it {ly_label}.")
     if notes:
-        result["bank_holiday_note"] = " ".join(notes) + " This may distort YoY comparisons."
+        result["bank_holiday_note"] = " ".join(notes)
 
     # ── Guard: insufficient data ───────────────────────────────────────────
     if len(ty_90d_vals) < 7:
         result["explanation"] = (
-            f"Low confidence: only {len(ty_90d_vals)} data points in the 90-day window "
-            f"— insufficient for statistical analysis."
+            "There isn't enough historical data for this segment to assess "
+            "whether this movement is meaningful or just normal variation."
         )
         return result
 
@@ -3389,46 +3389,55 @@ def _compute_confidence(observed, ty_90d_vals, ly_seasonal_vals, persistence_lab
 
     result["confidence"] = confidence
 
-    # ── Natural language explanation ────────────────────────────────────────
+    # ── Natural language explanation (plain English, no jargon) ─────────────
     parts = []
 
-    # Persistence description
+    # How consistent the pattern is
     if persistence_label == "recurring":
-        parts.append(f"This is a persistent pattern — the movement has been consistent on "
-                      f"{consistent_days} of the last {total_days} trading days.")
+        parts.append(f"This has been happening consistently — {consistent_days} out of "
+                      f"the last {total_days} trading days showed the same trend.")
     elif persistence_label == "emerging":
-        parts.append(f"This pattern is building — consistent on {consistent_days} of the "
-                      f"last {total_days} trading days, but not yet fully entrenched.")
+        parts.append(f"This is starting to form a pattern — {consistent_days} out of "
+                      f"the last {total_days} trading days, but it's not yet established.")
     else:
-        parts.append(f"This is a recent shift — only consistent on {consistent_days} of the "
-                      f"last {total_days} trading days.")
+        parts.append(f"This is a recent change — only {consistent_days} out of the "
+                      f"last {total_days} trading days showed this.")
 
-    # Recent baseline
+    # How unusual it is vs recent history
     if stdev_recent > 0:
-        parts.append(f"Compared to the 90-day average (same day of week, {len(ty_90d_vals)} data points), "
-                      f"the current value is {abs(z_recent):.1f} standard deviations "
-                      f"{'above' if z_recent > 0 else 'below'} the mean"
-                      f"{' — a statistically significant deviation.' if recent_sig else ' — within normal variance.'}")
-    else:
-        parts.append("The 90-day baseline shows zero variance, so no statistical comparison is possible.")
+        if recent_sig:
+            parts.append(f"Compared to the last 90 days, this level of movement is unusual "
+                          f"and stands out from what we'd normally expect to see.")
+        else:
+            parts.append(f"Compared to the last 90 days, this is within the normal range "
+                          f"of day-to-day variation we typically see.")
 
-    # Seasonal baseline
+    # How unusual it is vs this time last year
     if has_seasonal:
-        parts.append(f"Against the same period last year (±3 weeks, same day of week, "
-                      f"{len(ly_seasonal_vals)} data points), the value is {abs(z_seasonal):.1f} standard deviations "
-                      f"{'above' if z_seasonal > 0 else 'below'} the seasonal norm"
-                      f"{' — confirming this is unusual for the time of year.' if seasonal_sig else ' — in line with seasonal expectations.'}")
-    else:
-        parts.append("Insufficient last-year data for a seasonal comparison.")
+        if seasonal_sig:
+            parts.append(f"It's also unusual compared to this time last year, suggesting "
+                          f"something has genuinely changed rather than it being seasonal.")
+        else:
+            parts.append(f"However, it's in line with what we saw at this time last year, "
+                          f"so seasonality could be a factor.")
 
-    # Holiday note
+    # Holiday context
     if holiday_mismatch:
-        parts.append(f"Note: {result['bank_holiday_note']} This has reduced the confidence rating by one level.")
+        if bank_hol_mismatch and school_hol_mismatch:
+            parts.append("Both bank holidays and school holidays fall differently this year vs last year, "
+                          "making the year-on-year comparison less reliable.")
+        elif bank_hol_mismatch:
+            parts.append("Bank holidays fall differently this year vs last year, "
+                          "which makes the year-on-year comparison less reliable.")
+        elif school_hol_mismatch:
+            parts.append("School holidays fall differently this year vs last year, "
+                          "which could be influencing this movement.")
+        parts.append("This has reduced the confidence rating by one level.")
 
-    # Volume note
+    # Small sample warning
     if len(ty_90d_vals) < 20:
-        parts.append(f"Caution: only {len(ty_90d_vals)} same-day-of-week data points in 90 days "
-                      f"— sample size limits the reliability of this analysis.")
+        parts.append("Note: this is a smaller segment with limited data, "
+                      "so the analysis is less reliable than for larger segments.")
 
     result["explanation"] = " ".join(parts)
     return result
@@ -6475,7 +6484,7 @@ function renderYoYTrend(container, trendData, title, meta){{
   wrap.className='yoy-trend-wrap';
   wrap.innerHTML=
     `<div class="yoy-trend-header"><span>${{title}} — 14 day daily GP</span><span>YoY growth coloured</span></div>`+
-    persHTML+confHTML+
+    confHTML+
     barsHTML+
     `<div class="yoy-trendline-wrap"><canvas></canvas></div>`;
   container.innerHTML='';
@@ -7352,11 +7361,12 @@ function openInvestigations(){{
       const badge=document.createElement('span');
       badge.className='badge-confidence-'+confSlug;
       badge.textContent=conf+' confidence';
-      /* Tooltip with natural language explanation */
+      /* Short tooltip — full explanation shown in trend panel */
       const tip=document.createElement('span');
       tip.className='conf-tip';
-      tip.textContent=td.confidence_explanation||'Statistical analysis not available.';
-      if(td.bank_holiday_note) tip.textContent+=' '+td.bank_holiday_note;
+      const cd=td.consistent_days||0;
+      const tot=td.total_days||10;
+      tip.textContent=cd+'/'+tot+' days consistent. Click Trend for full analysis.';
       badge.appendChild(tip);
       if(btn) h3.insertBefore(badge,btn);
       else h3.appendChild(badge);
