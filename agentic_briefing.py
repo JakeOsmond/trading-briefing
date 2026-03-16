@@ -3698,6 +3698,13 @@ Output ONLY raw JSON (no markdown fences):
             "sql_evidence": sql_evidence[:3],  # Keep top 3 for HTML display
         }
 
+    # ── TEMPORARY TEST: Force first finding to "disagree" to test contested UI ──
+    # TODO: Remove this block after testing
+    if "finding-0" in verification_results:
+        verification_results["finding-0"]["verdict"] = "disagree"
+        verification_results["finding-0"]["reasoning"] = "TEST: The stated GP impact may overstate the decline. The SQL shows a mix of seasonal and structural factors that are not separated."
+        verification_results["finding-0"]["concern"] = "TEST: Claude disputes the magnitude — seasonal effects may account for 40-60% of the reported decline"
+
     return verification_results
 
 
