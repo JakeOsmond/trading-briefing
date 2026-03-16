@@ -43,6 +43,7 @@ jobs:
       - name: Run briefing script
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
           CI: "true"
         run: |
@@ -82,6 +83,8 @@ jobs:
         run: |
           echo "${{ secrets.OPENAI_API_KEY }}" | npx wrangler pages secret put OPENAI_API_KEY --project-name trading-covered 2>/dev/null || true
           echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' | npx wrangler pages secret put GCP_SERVICE_ACCOUNT_KEY --project-name trading-covered 2>/dev/null || true
+          echo "${{ secrets.ANTHROPIC_API_KEY }}" | npx wrangler pages secret put ANTHROPIC_API_KEY --project-name trading-covered 2>/dev/null || true
+          echo "${{ secrets.VERIFY_PASSWORD }}" | npx wrangler pages secret put VERIFY_PASSWORD --project-name trading-covered 2>/dev/null || true
 
       - name: Deploy to Cloudflare Pages
         env:

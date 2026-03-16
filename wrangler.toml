@@ -1,3 +1,7 @@
 name = "trading-covered"
 pages_build_output_dir = "briefings"
 compatibility_date = "2024-12-01"
+
+[[kv_namespaces]]
+binding = "VERIFICATION_KV"
+id = "45353e04656c415fa471dfc8e70260f7"
