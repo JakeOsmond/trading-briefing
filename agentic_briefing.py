@@ -75,6 +75,39 @@ UK_BANK_HOLIDAYS = {
     "2027-08-30", "2027-12-27", "2027-12-28",
 }
 
+# UK school holiday periods (England approximate — week ranges, Mon-Fri).
+# These are date ranges [start, end] inclusive. UPDATE ANNUALLY.
+UK_SCHOOL_HOLIDAYS = [
+    # 2024-25 academic year
+    ("2024-10-28", "2024-11-01"),  # October half term
+    ("2024-12-23", "2025-01-03"),  # Christmas
+    ("2025-02-17", "2025-02-21"),  # February half term
+    ("2025-04-07", "2025-04-21"),  # Easter
+    ("2025-05-26", "2025-05-30"),  # May half term
+    ("2025-07-21", "2025-08-29"),  # Summer
+    # 2025-26 academic year
+    ("2025-10-27", "2025-10-31"),  # October half term
+    ("2025-12-22", "2026-01-02"),  # Christmas
+    ("2026-02-16", "2026-02-20"),  # February half term
+    ("2026-03-30", "2026-04-10"),  # Easter
+    ("2026-05-25", "2026-05-29"),  # May half term
+    ("2026-07-20", "2026-08-28"),  # Summer
+    # 2026-27 academic year
+    ("2026-10-26", "2026-10-30"),  # October half term
+    ("2026-12-21", "2027-01-01"),  # Christmas
+    ("2027-02-15", "2027-02-19"),  # February half term
+    ("2027-03-22", "2027-04-02"),  # Easter
+    ("2027-05-31", "2027-06-04"),  # May half term
+    ("2027-07-19", "2027-08-27"),  # Summer
+]
+
+def _date_in_school_holiday(d_str):
+    """Check if a date string (YYYY-MM-DD) falls within a UK school holiday period."""
+    for start, end in UK_SCHOOL_HOLIDAYS:
+        if start <= d_str <= end:
+            return True
+    return False
+
 # ---------------------------------------------------------------------------
 # AUTH
 # ---------------------------------------------------------------------------
@@ -3047,15 +3080,17 @@ USE THESE DATE LITERALS in all sql-dig blocks (do NOT use a 'period' column — 
 Now produce the final briefing following the 3-tier format exactly:
 1. Headline (one sentence, like a newspaper)
 2. At a Glance (5 traffic light bullets, biggest £ first)
-3. What's Driving This (ALL 8 movers, ordered by CONFIDENCE: HIGH confidence first, then MEDIUM, then LOW. Within each confidence tier, order by absolute £ impact. Each needs its confidence tag: HIGH CONFIDENCE / MEDIUM CONFIDENCE / LOW CONFIDENCE instead of the old RECURRING/EMERGING/NEW tags. 2 sentences + sql-dig)
+3. What's Driving This (ALL 8 movers, ordered by CONFIDENCE: VERY HIGH first, then HIGH, MEDIUM, LOW, VERY LOW. Within each confidence tier, order by absolute £ impact. Each needs its confidence tag: VERY HIGH CONFIDENCE / HIGH CONFIDENCE / MEDIUM CONFIDENCE / LOW CONFIDENCE / VERY LOW CONFIDENCE instead of the old RECURRING/EMERGING/NEW tags. 2 sentences + sql-dig)
 4. Customer Search Intent (Google Trends / search behaviour data)
 5. News & Market Context (AI Insights, competitor activity, external factors)
 6. Actions table (max 5, with £ values)
 
 **CONFIDENCE-AWARE LANGUAGE:**
+- For VERY HIGH confidence movers: Use strongest language ("this is definitively...", "the data conclusively shows...")
 - For HIGH confidence movers: Use definitive language ("this is clearly...", "the data shows...")
 - For MEDIUM confidence movers: Use moderate language ("this appears to be...", "early signs suggest...")
 - For LOW confidence movers: Use hedged language ("this may be noise...", "too early to tell if...")
+- For VERY LOW confidence movers: Use cautious language ("this is likely noise...", "insufficient evidence to conclude...")
 - If a mover has a bank_holiday_note, mention the holiday effect briefly in the narrative
 
 Stay under 500 words (excluding sql-dig blocks). Write like a sharp colleague, not a report.
@@ -3095,9 +3130,9 @@ CHECK:
 7. Market intelligence is referenced with specific data points
 8. Renewal and medical/cruise findings are included if material
 9. Every numerical claim states an explicit timeframe (e.g. "over the last 7 days", "yesterday vs last year") — no orphaned numbers without a time reference
-10. Deep dives are ordered by confidence: HIGH CONFIDENCE first, then MEDIUM, then LOW
-11. Language is hedged appropriately for low-confidence movers ("may be...", "too early to tell...")
-12. High-confidence movers use definitive language ("clearly...", "the data shows...")
+10. Deep dives are ordered by confidence: VERY HIGH first, then HIGH, MEDIUM, LOW, VERY LOW
+11. Language is hedged appropriately for low/very low confidence movers ("may be...", "too early to tell...")
+12. High/very high confidence movers use definitive language ("clearly...", "the data shows...")
 
 Fix any issues and output the FINAL revised briefing in the same markdown format.
 If the draft is already good, output it unchanged."""
@@ -3191,19 +3226,36 @@ def _compute_confidence(observed, ty_90d_vals, ly_seasonal_vals, persistence_lab
         "bank_holiday_note": None,
     }
 
-    # ── Bank holiday detection ─────────────────────────────────────────────
+    # ── Bank holiday & school holiday detection ─────────────────────────────
     ty_holidays = [h for h in UK_BANK_HOLIDAYS
                    if ty_start <= h <= ty_end]
     ly_holidays = [h for h in UK_BANK_HOLIDAYS
                    if ly_start <= h <= ly_end]
-    holiday_mismatch = len(ty_holidays) != len(ly_holidays)
-    if holiday_mismatch:
-        ty_names = len(ty_holidays)
-        ly_names = len(ly_holidays)
-        result["bank_holiday_note"] = (
-            f"Bank holiday mismatch: {ty_names} holiday(s) in the recent window "
-            f"vs {ly_names} in the last-year window, which may distort comparisons."
+    bank_hol_mismatch = len(ty_holidays) != len(ly_holidays)
+
+    # Check if the analysis week overlaps school holidays differently TY vs LY
+    from datetime import date as _date
+    _ty_end_dt = _date.fromisoformat(ty_end)
+    _ty_week_start = (_ty_end_dt - timedelta(days=6)).isoformat()
+    _ly_end_dt = _date.fromisoformat(ly_end) if ly_end <= ty_end else _date.fromisoformat(ly_end)
+    _ly_week_start = (_ly_end_dt - timedelta(days=6)).isoformat()
+    ty_in_school_hol = any(_date_in_school_holiday(d) for d in [_ty_week_start, ty_end])
+    ly_in_school_hol = any(_date_in_school_holiday(d) for d in [_ly_week_start, ly_end])
+    school_hol_mismatch = ty_in_school_hol != ly_in_school_hol
+
+    holiday_mismatch = bank_hol_mismatch or school_hol_mismatch
+    notes = []
+    if bank_hol_mismatch:
+        notes.append(
+            f"Bank holiday mismatch: {len(ty_holidays)} holiday(s) in the recent window "
+            f"vs {len(ly_holidays)} in the last-year window."
         )
+    if school_hol_mismatch:
+        ty_label = "in school holidays" if ty_in_school_hol else "not in school holidays"
+        ly_label = "in school holidays" if ly_in_school_hol else "not in school holidays"
+        notes.append(f"School holiday mismatch: this year is {ty_label} but last year was {ly_label}.")
+    if notes:
+        result["bank_holiday_note"] = " ".join(notes) + " This may distort YoY comparisons."
 
     # ── Guard: insufficient data ───────────────────────────────────────────
     if len(ty_90d_vals) < 7:
@@ -3235,18 +3287,16 @@ def _compute_confidence(observed, ty_90d_vals, ly_seasonal_vals, persistence_lab
     either_sig = recent_sig or seasonal_sig
 
     if persistence_label == "recurring":
-        confidence = "High" if either_sig else "Medium"
+        confidence = "Very High" if both_sig else ("High" if either_sig else "Medium")
     elif persistence_label == "emerging":
         confidence = "High" if both_sig else ("Medium" if either_sig else "Low")
     else:  # new
-        confidence = "Medium" if both_sig else "Low"
+        confidence = "Medium" if both_sig else ("Low" if either_sig else "Very Low")
 
-    # Bank holiday downgrade
+    # Holiday mismatch downgrade (bank holidays or school holidays)
     if holiday_mismatch:
-        if confidence == "High":
-            confidence = "Medium"
-        elif confidence == "Medium":
-            confidence = "Low"
+        _downgrade = {"Very High": "High", "High": "Medium", "Medium": "Low", "Low": "Very Low"}
+        confidence = _downgrade.get(confidence, confidence)
 
     result["confidence"] = confidence
 
@@ -3520,9 +3570,11 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     # Replace confidence/persistence text tags with styled badges in driver headings
     # New confidence tags (from updated synthesis)
     for _conf_tag, _conf_class in [
+        ('VERY HIGH CONFIDENCE', 'badge-confidence-very-high'),
         ('HIGH CONFIDENCE', 'badge-confidence-high'),
         ('MEDIUM CONFIDENCE', 'badge-confidence-medium'),
         ('LOW CONFIDENCE', 'badge-confidence-low'),
+        ('VERY LOW CONFIDENCE', 'badge-confidence-very-low'),
     ]:
         html_body = re.sub(
             rf'<code>{_conf_tag}</code>',
@@ -3709,7 +3761,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
                 last_end = h3_sections[-1].end()
                 before = html_body[:first_start]
                 after = html_body[last_end:]
-                conf_priority = {"High": 0, "Medium": 1, "Low": 2}
+                conf_priority = {"Very High": 0, "High": 1, "Medium": 2, "Low": 3, "Very Low": 4}
                 section_list = []
                 for m in h3_sections:
                     idx = int(m.group(2))
@@ -4907,6 +4959,14 @@ body::after{{
   0%,100%{{opacity:0.85}} 50%{{opacity:1;box-shadow:0 0 8px rgba(0,212,200,0.3)}}
 }}
 /* ── Confidence badges ── */
+.badge-confidence-very-high{{
+  display:inline-block;
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  background:rgba(46,125,50,0.15);color:#4CAF50;
+  border:1px solid rgba(46,125,50,0.35);
+  padding:2px 8px;border-radius:10px;
+  margin-left:8px;vertical-align:middle;cursor:help;position:relative;
+}}
 .badge-confidence-high{{
   display:inline-block;
   font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
@@ -4931,9 +4991,16 @@ body::after{{
   padding:2px 8px;border-radius:10px;
   margin-left:8px;vertical-align:middle;cursor:help;position:relative;
 }}
-.badge-confidence-high .conf-tip,
-.badge-confidence-medium .conf-tip,
-.badge-confidence-low .conf-tip{{
+.badge-confidence-very-low{{
+  display:inline-block;
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  background:rgba(117,117,117,0.1);color:#9E9E9E;
+  border:1px solid rgba(117,117,117,0.2);
+  padding:2px 8px;border-radius:10px;
+  margin-left:8px;vertical-align:middle;cursor:help;position:relative;
+  opacity:0.8;
+}}
+[class^="badge-confidence-"] .conf-tip{{
   visibility:hidden;opacity:0;
   position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
   background:rgba(20,14,46,0.97);color:#c4b8e0;
@@ -4943,9 +5010,7 @@ body::after{{
   transition:opacity 0.2s;pointer-events:none;
   box-shadow:0 4px 16px rgba(0,0,0,0.4);
 }}
-.badge-confidence-high:hover .conf-tip,
-.badge-confidence-medium:hover .conf-tip,
-.badge-confidence-low:hover .conf-tip{{
+[class^="badge-confidence-"]:hover .conf-tip{{
   visibility:visible;opacity:1;
 }}
 /* ── View Trend button ── */
@@ -6307,7 +6372,7 @@ function renderYoYTrend(container, trendData, title, meta){{
   const bankNote=(meta&&meta.bank_holiday_note)||null;
   let confHTML='';
   if(confExplanation){{
-    const confColor=confLevel==='High'?'#66BB6A':confLevel==='Medium'?'#FFB74D':'#BDBDBD';
+    const confColor=confLevel==='Very High'?'#4CAF50':confLevel==='High'?'#66BB6A':confLevel==='Medium'?'#FFB74D':confLevel==='Low'?'#BDBDBD':'#9E9E9E';
     confHTML=`<div style="margin-bottom:10px;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border)">`+
       `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">Statistical Confidence</div>`+
       `<div style="font-size:12px;color:${{confColor}};font-weight:600;margin-bottom:6px">${{confLevel}} Confidence</div>`+
@@ -7190,13 +7255,13 @@ function openInvestigations(){{
       }}
 
       /* Remove old AI-written badge and replace with confidence badge */
-      const oldBadge=h3.querySelector('.badge-recurring,.badge-emerging,.badge-new,.badge-confidence-high,.badge-confidence-medium,.badge-confidence-low');
+      const oldBadge=h3.querySelector('[class^="badge-confidence-"],.badge-recurring,.badge-emerging,.badge-new');
       if(oldBadge) oldBadge.remove();
 
-      const conf=(td.confidence||'Low').toLowerCase();
-      const confLabel=conf.charAt(0).toUpperCase()+conf.slice(1);
+      const conf=(td.confidence||'Low');
+      const confSlug=conf.toLowerCase().replace(/\s+/g,'-');
       const badge=document.createElement('span');
-      badge.className='badge-confidence-'+conf;
+      badge.className='badge-confidence-'+confSlug;
       badge.textContent=confLabel+' confidence';
       /* Tooltip with natural language explanation */
       const tip=document.createElement('span');
