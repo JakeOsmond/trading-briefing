@@ -3699,13 +3699,6 @@ Output ONLY raw JSON (no markdown fences):
             "sql_evidence": sql_evidence[:3],  # Keep top 3 for HTML display
         }
 
-    # ── TEMPORARY TEST: Force first finding to "disagree" to test contested UI ──
-    # TODO: Remove this block after testing
-    if "finding-0" in verification_results:
-        verification_results["finding-0"]["verdict"] = "disagree"
-        verification_results["finding-0"]["reasoning"] = "TEST: The stated GP impact may overstate the decline. The SQL shows a mix of seasonal and structural factors that are not separated."
-        verification_results["finding-0"]["concern"] = "TEST: Claude disputes the magnitude — seasonal effects may account for 40-60% of the reported decline"
-
     return verification_results
 
 
@@ -3960,15 +3953,17 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         # Embed matched trend key directly as data attribute
         trend_key = _h_to_k.get(idx, '')
         trend_attr = f' data-trend-key="{trend_key}"' if trend_key else ''
-        h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}" data-finding-id="{finding_id}"{trend_attr}>{match.group(1)}'
-        h3_tag += (
-            f' <button class="view-trend-btn" onclick="toggleMatchedTrend(\'{tid}\',this)" '
+        # Title on its own line — pills go below
+        h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}" data-finding-id="{finding_id}"{trend_attr}>{match.group(1)}</h3>'
+        # Pills line: confidence badge will be injected by initDriverTrends, verification pill + trend button here
+        pills_line = f'<div class="driver-pills">'
+        pills_line += (
+            f'<button class="view-trend-btn" onclick="toggleMatchedTrend(\'{tid}\',this)" '
             f'data-trend-id="{tid}" style="display:none">'
             f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
             f'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
             f'Trend</button>'
         )
-        h3_tag += '</h3>'
 
         # Add verification pill (inline, matching confidence pill style)
         vr = _verification.get(finding_id, {})
@@ -3987,19 +3982,27 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         sql_preview = ("\n\n".join(sql_blocks) if sql_blocks else "No SQL evidence available").replace('<', '&lt;').replace('>', '&gt;')
 
         if verdict == "agree":
-            # Inline pill on the h3 line (before </h3>)
             pill = f'<span class="verify-pill verify-pill-agreed" data-finding-id="{finding_id}">&#10003; VERIFIED'
             pill += f'<span class="verify-tip">Independently verified by both OpenAI and Claude. Both models agree this finding is supported by the SQL evidence. {reasoning}</span>'
             pill += '</span>'
-            # Insert pill before the closing </h3> — re-open the h3
-            h3_tag = h3_tag.replace('</h3>', f' {pill}</h3>')
+            pills_line += f' {pill}'
         elif verdict in ("partially_agree", "disagree"):
             label = "DISPUTED" if verdict == "disagree" else "REVIEW"
             pill = f'<span class="verify-pill verify-pill-contested" data-finding-id="{finding_id}">&#9888; {label}'
             pill += f'<span class="verify-tip">OpenAI and Claude disagree on this finding. {concern}. Please speak with Commercial Finance to verify.</span>'
             pill += '</span>'
-            h3_tag = h3_tag.replace('</h3>', f' {pill}</h3>')
-            # Add detail block below the h3 with actions
+            pills_line += f' {pill}'
+        elif verdict == "unverified":
+            pill = f'<span class="verify-pill verify-pill-unverified" data-finding-id="{finding_id}">UNVERIFIED'
+            pill += '<span class="verify-tip">Cross-model verification was unavailable for this finding. The Claude API could not be reached during pipeline execution.</span>'
+            pill += '</span>'
+            pills_line += f' {pill}'
+
+        pills_line += '</div>'  # close .driver-pills
+        h3_tag += pills_line
+
+        # Contested detail block with actions (below pills line)
+        if verdict in ("partially_agree", "disagree"):
             h3_tag += f'<div class="verify-contested-detail" data-finding-id="{finding_id}">'
             h3_tag += f'&#9888; {concern}<br>'
             h3_tag += '<span class="verify-cf-note">Please speak with Commercial Finance to verify this finding.</span><br>'
@@ -4008,11 +4011,6 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
             h3_tag += f'<button class="verify-action-btn" onclick="toggleSqlEvidence(this)">&#128269; View SQL</button>'
             h3_tag += f'<div class="verify-sql-wrap" style="display:none"><button class="verify-action-btn" onclick="copySqlEvidence(this)" style="margin-bottom:4px">&#128203; Copy SQL</button><pre class="verify-sql-evidence">{sql_preview}</pre></div>'
             h3_tag += '</div>'
-        elif verdict == "unverified":
-            pill = f'<span class="verify-pill verify-pill-unverified" data-finding-id="{finding_id}">UNVERIFIED'
-            pill += '<span class="verify-tip">Cross-model verification was unavailable for this finding. The Claude API could not be reached during pipeline execution.</span>'
-            pill += '</span>'
-            h3_tag = h3_tag.replace('</h3>', f' {pill}</h3>')
 
         h3_tag += f'<div id="{tid}" class="yoy-trend-container"></div>'
         return h3_tag
@@ -5690,7 +5688,9 @@ body::after{{
   border-bottom:1px solid var(--border);
 }}
 .nar h2:first-of-type{{margin-top:0}}
-.nar h3{{font-size:14px;font-weight:700;color:var(--text);margin:20px 0 8px}}
+.nar h3{{font-size:17px;font-weight:700;color:var(--text);margin:20px 0 4px;line-height:1.3}}
+.nar h3 .verify-pill,.nar h3 .view-trend-btn,[class^="badge-confidence-"]{{display:inline-block;margin-top:4px}}
+.driver-pills{{display:block;margin:2px 0 8px}}
 .nar p{{font-size:13.5px;color:#cbd5e1;margin-bottom:12px;line-height:1.8}}
 .nar blockquote{{
   border-left:3px solid var(--yellow);padding:14px 18px;margin:16px 0;
