@@ -18,6 +18,7 @@ import datetime
 from datetime import date, timedelta
 from pathlib import Path
 from textwrap import dedent
+import statistics
 
 import openai
 import markdown
@@ -56,6 +57,23 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 MODEL = "gpt-5.4"
 BROWSER = "Arc"
 MAX_INVESTIGATION_LOOPS = 10
+
+# UK bank holidays — used for statistical confidence checks.
+# UPDATE ANNUALLY — next update needed before Jan 2028.
+UK_BANK_HOLIDAYS = {
+    # 2024
+    "2024-01-01", "2024-03-29", "2024-04-01", "2024-05-06", "2024-05-27",
+    "2024-08-26", "2024-12-25", "2024-12-26",
+    # 2025
+    "2025-01-01", "2025-04-18", "2025-04-21", "2025-05-05", "2025-05-26",
+    "2025-08-25", "2025-12-25", "2025-12-26",
+    # 2026
+    "2026-01-01", "2026-04-03", "2026-04-06", "2026-05-04", "2026-05-25",
+    "2026-08-31", "2026-12-25", "2026-12-28",
+    # 2027
+    "2027-01-01", "2027-03-26", "2027-03-29", "2027-05-03", "2027-05-31",
+    "2027-08-30", "2027-12-27", "2027-12-28",
+}
 
 # ---------------------------------------------------------------------------
 # AUTH
@@ -2954,7 +2972,7 @@ Investigate all follow-up questions, then output your refined findings as JSON."
     return {"raw_follow_up": "Max follow-up rounds reached"}, follow_up_log
 
 
-def run_synthesis(baseline_data, analysis, follow_up_results, track_results, run_date):
+def run_synthesis(baseline_data, analysis, follow_up_results, track_results, run_date, driver_trends=None):
     """Phase 5: Two-pass synthesis — draft then self-critique."""
     print("\n📝 Phase 5: Synthesising final briefing (two-pass)...")
 
@@ -3021,13 +3039,24 @@ USE THESE DATE LITERALS in all sql-dig blocks (do NOT use a 'period' column — 
 ## TRACK COVERAGE SUMMARY
 {json.dumps({tid: tr['name'] + ': ' + str(tr['row_count']) + ' rows' for tid, tr in track_results.items()}, indent=2)}
 
+## STATISTICAL CONFIDENCE (from 90-day + seasonal analysis)
+```json
+{json.dumps({k: {"confidence": v.get("confidence", "Low"), "explanation": v.get("confidence_explanation", ""), "bank_holiday_note": v.get("bank_holiday_note")} for k, v in (driver_trends or {}).items()}, indent=2, default=str)}
+```
+
 Now produce the final briefing following the 3-tier format exactly:
 1. Headline (one sentence, like a newspaper)
 2. At a Glance (5 traffic light bullets, biggest £ first)
-3. What's Driving This (ALL 8 movers: RECURRING first by £, then EMERGING by £, then NEW by £. Each needs RECURRING/EMERGING/NEW tag, 2 sentences + sql-dig)
+3. What's Driving This (ALL 8 movers, ordered by CONFIDENCE: HIGH confidence first, then MEDIUM, then LOW. Within each confidence tier, order by absolute £ impact. Each needs its confidence tag: HIGH CONFIDENCE / MEDIUM CONFIDENCE / LOW CONFIDENCE instead of the old RECURRING/EMERGING/NEW tags. 2 sentences + sql-dig)
 4. Customer Search Intent (Google Trends / search behaviour data)
 5. News & Market Context (AI Insights, competitor activity, external factors)
 6. Actions table (max 5, with £ values)
+
+**CONFIDENCE-AWARE LANGUAGE:**
+- For HIGH confidence movers: Use definitive language ("this is clearly...", "the data shows...")
+- For MEDIUM confidence movers: Use moderate language ("this appears to be...", "early signs suggest...")
+- For LOW confidence movers: Use hedged language ("this may be noise...", "too early to tell if...")
+- If a mover has a bank_holiday_note, mention the holiday effect briefly in the narrative
 
 Stay under 500 words (excluding sql-dig blocks). Write like a sharp colleague, not a report.
 Round numbers aggressively. Every claim needs a £ figure and YoY context."""
@@ -3066,6 +3095,9 @@ CHECK:
 7. Market intelligence is referenced with specific data points
 8. Renewal and medical/cruise findings are included if material
 9. Every numerical claim states an explicit timeframe (e.g. "over the last 7 days", "yesterday vs last year") — no orphaned numbers without a time reference
+10. Deep dives are ordered by confidence: HIGH CONFIDENCE first, then MEDIUM, then LOW
+11. Language is hedged appropriately for low-confidence movers ("may be...", "too early to tell...")
+12. High-confidence movers use definitive language ("clearly...", "the data shows...")
 
 Fix any issues and output the FINAL revised briefing in the same markdown format.
 If the draft is already good, output it unchanged."""
@@ -3142,6 +3174,127 @@ def _compute_persistence(ty_vals, ly_vals, direction):
         return consistent, n, "new"
 
 
+def _compute_confidence(observed, ty_90d_vals, ly_seasonal_vals, persistence_label,
+                         consistent_days, total_days, direction,
+                         ty_start, ty_end, ly_start, ly_end):
+    """Compute statistical confidence by combining persistence with z-score analysis.
+
+    Returns dict with confidence level, z-scores, sample sizes, and natural language explanation.
+    """
+    result = {
+        "confidence": "Low",
+        "z_recent": 0.0,
+        "z_seasonal": 0.0,
+        "sample_size_recent": len(ty_90d_vals),
+        "sample_size_seasonal": len(ly_seasonal_vals),
+        "explanation": "",
+        "bank_holiday_note": None,
+    }
+
+    # ── Bank holiday detection ─────────────────────────────────────────────
+    ty_holidays = [h for h in UK_BANK_HOLIDAYS
+                   if ty_start <= h <= ty_end]
+    ly_holidays = [h for h in UK_BANK_HOLIDAYS
+                   if ly_start <= h <= ly_end]
+    holiday_mismatch = len(ty_holidays) != len(ly_holidays)
+    if holiday_mismatch:
+        ty_names = len(ty_holidays)
+        ly_names = len(ly_holidays)
+        result["bank_holiday_note"] = (
+            f"Bank holiday mismatch: {ty_names} holiday(s) in the recent window "
+            f"vs {ly_names} in the last-year window, which may distort comparisons."
+        )
+
+    # ── Guard: insufficient data ───────────────────────────────────────────
+    if len(ty_90d_vals) < 7:
+        result["explanation"] = (
+            f"Low confidence: only {len(ty_90d_vals)} data points in the 90-day window "
+            f"— insufficient for statistical analysis."
+        )
+        return result
+
+    # ── Recent baseline (90-day same-day-of-week) ──────────────────────────
+    mean_recent = statistics.mean(ty_90d_vals)
+    stdev_recent = statistics.pstdev(ty_90d_vals)
+    z_recent = (observed - mean_recent) / stdev_recent if stdev_recent > 0 else 0.0
+    result["z_recent"] = round(z_recent, 2)
+
+    # ── Seasonal baseline (LY equivalent ±3 weeks, same-day-of-week) ──────
+    z_seasonal = 0.0
+    if len(ly_seasonal_vals) >= 4:
+        mean_seasonal = statistics.mean(ly_seasonal_vals)
+        stdev_seasonal = statistics.pstdev(ly_seasonal_vals)
+        z_seasonal = (observed - mean_seasonal) / stdev_seasonal if stdev_seasonal > 0 else 0.0
+        result["z_seasonal"] = round(z_seasonal, 2)
+    has_seasonal = len(ly_seasonal_vals) >= 4
+
+    # ── Confidence matrix ──────────────────────────────────────────────────
+    recent_sig = abs(z_recent) > 2.0
+    seasonal_sig = has_seasonal and abs(z_seasonal) > 2.0
+    both_sig = recent_sig and seasonal_sig
+    either_sig = recent_sig or seasonal_sig
+
+    if persistence_label == "recurring":
+        confidence = "High"
+    elif persistence_label == "emerging":
+        confidence = "High" if both_sig else ("Medium" if either_sig else "Medium")
+    else:  # new
+        confidence = "Medium" if both_sig else ("Medium" if either_sig else "Low")
+
+    # Bank holiday downgrade
+    if holiday_mismatch:
+        if confidence == "High":
+            confidence = "Medium"
+        elif confidence == "Medium":
+            confidence = "Low"
+
+    result["confidence"] = confidence
+
+    # ── Natural language explanation ────────────────────────────────────────
+    parts = []
+
+    # Persistence description
+    if persistence_label == "recurring":
+        parts.append(f"This is a persistent pattern — the movement has been consistent on "
+                      f"{consistent_days} of the last {total_days} trading days.")
+    elif persistence_label == "emerging":
+        parts.append(f"This pattern is building — consistent on {consistent_days} of the "
+                      f"last {total_days} trading days, but not yet fully entrenched.")
+    else:
+        parts.append(f"This is a recent shift — only consistent on {consistent_days} of the "
+                      f"last {total_days} trading days.")
+
+    # Recent baseline
+    if stdev_recent > 0:
+        parts.append(f"Compared to the 90-day average (same day of week, {len(ty_90d_vals)} data points), "
+                      f"the current value is {abs(z_recent):.1f} standard deviations "
+                      f"{'above' if z_recent > 0 else 'below'} the mean"
+                      f"{' — a statistically significant deviation.' if recent_sig else ' — within normal variance.'}")
+    else:
+        parts.append("The 90-day baseline shows zero variance, so no statistical comparison is possible.")
+
+    # Seasonal baseline
+    if has_seasonal:
+        parts.append(f"Against the same period last year (±3 weeks, same day of week, "
+                      f"{len(ly_seasonal_vals)} data points), the value is {abs(z_seasonal):.1f} standard deviations "
+                      f"{'above' if z_seasonal > 0 else 'below'} the seasonal norm"
+                      f"{' — confirming this is unusual for the time of year.' if seasonal_sig else ' — in line with seasonal expectations.'}")
+    else:
+        parts.append("Insufficient last-year data for a seasonal comparison.")
+
+    # Holiday note
+    if holiday_mismatch:
+        parts.append(f"Note: {result['bank_holiday_note']} This has reduced the confidence rating by one level.")
+
+    # Volume note
+    if len(ty_90d_vals) < 20:
+        parts.append(f"Caution: only {len(ty_90d_vals)} same-day-of-week data points in 90 days "
+                      f"— sample size limits the reliability of this analysis.")
+
+    result["explanation"] = " ".join(parts)
+    return result
+
+
 def collect_driver_trends(analysis, run_date):
     """Run a 14-day daily GP query for each material mover to power inline trend charts."""
     movers = analysis.get("material_movers", [])
@@ -3209,6 +3362,61 @@ ORDER BY transaction_date
                 [d["val"] for d in ly_parsed],
                 direction
             )
+
+            # ── 90-day statistical confidence ──────────────────────────
+            confidence_data = {
+                "confidence": "Medium" if label == "recurring" else "Low",
+                "z_recent": 0.0, "z_seasonal": 0.0,
+                "sample_size_recent": 0, "sample_size_seasonal": 0,
+                "explanation": "Statistical analysis not available.",
+                "bank_holiday_note": None,
+            }
+            try:
+                ty_90d_start = (yesterday - datetime.timedelta(days=89)).strftime('%Y-%m-%d')
+                ly_seasonal_start = (yesterday - datetime.timedelta(days=364 + 21)).strftime('%Y-%m-%d')
+                ly_seasonal_end = (yesterday - datetime.timedelta(days=364 - 21)).strftime('%Y-%m-%d')
+
+                sql_90d = f"""
+SELECT 'TY' AS period, transaction_date AS dt,
+  {metric_expr} AS val
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '{ty_90d_start}' AND '{yesterday.strftime('%Y-%m-%d')}'
+  AND {seg_filter}
+GROUP BY period, transaction_date
+UNION ALL
+SELECT 'LY' AS period, transaction_date AS dt,
+  {metric_expr} AS val
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '{ly_seasonal_start}' AND '{ly_seasonal_end}'
+  AND {seg_filter}
+GROUP BY period, transaction_date
+ORDER BY period, dt
+"""
+                stat_result = tool_run_sql(sql_90d)
+                stat_rows = json.loads(stat_result.split("\n\n")[-1]) if "auto-corrected" in stat_result or "AI-corrected" in stat_result else json.loads(stat_result)
+
+                # Split into TY 90d and LY seasonal, filter to same day-of-week
+                target_dow = yesterday.weekday()
+                ty_90d_vals = [float(r.get("val", 0)) for r in stat_rows
+                               if r.get("period") == "TY"
+                               and datetime.date.fromisoformat(str(r.get("dt", ""))[:10]).weekday() == target_dow]
+                ly_seasonal_vals = [float(r.get("val", 0)) for r in stat_rows
+                                     if r.get("period") == "LY"
+                                     and datetime.date.fromisoformat(str(r.get("dt", ""))[:10]).weekday() == target_dow]
+
+                # Observed value = most recent TY data point (last day of 14-day series)
+                observed = ty_parsed[-1]["val"] if ty_parsed else 0.0
+
+                confidence_data = _compute_confidence(
+                    observed, ty_90d_vals, ly_seasonal_vals,
+                    label, consistent, total, direction,
+                    ty_90d_start, yesterday.strftime('%Y-%m-%d'),
+                    ly_seasonal_start, ly_seasonal_end
+                )
+                print(f"     📊 Confidence: {confidence_data['confidence']} (z_recent={confidence_data['z_recent']}, z_seasonal={confidence_data['z_seasonal']})")
+            except Exception as stat_err:
+                print(f"     ⚠ Statistical confidence failed: {stat_err}")
+
             driver_trends[driver_name] = {
                 "ty": ty_parsed,
                 "ly": ly_parsed,
@@ -3217,6 +3425,13 @@ ORDER BY transaction_date
                 "persistence": label,
                 "consistent_days": consistent,
                 "total_days": total,
+                "confidence": confidence_data["confidence"],
+                "z_recent": confidence_data["z_recent"],
+                "z_seasonal": confidence_data["z_seasonal"],
+                "sample_size_recent": confidence_data["sample_size_recent"],
+                "sample_size_seasonal": confidence_data["sample_size_seasonal"],
+                "confidence_explanation": confidence_data["explanation"],
+                "bank_holiday_note": confidence_data.get("bank_holiday_note"),
             }
         except Exception as e:
             print(f"  ⚠ Trend query failed for '{driver_name}': {e}")
@@ -3302,7 +3517,29 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     html_body = _glance_replace('\U0001f7e2', 'glance-good', html_body)  # 🟢 → green shimmer
     html_body = _glance_replace('\U0001f7e1', 'glance-watch', html_body) # 🟡 → amber pulse
 
-    # Replace RECURRING/NEW text tags with styled badges in driver headings
+    # Replace confidence/persistence text tags with styled badges in driver headings
+    # New confidence tags (from updated synthesis)
+    for _conf_tag, _conf_class in [
+        ('HIGH CONFIDENCE', 'badge-confidence-high'),
+        ('MEDIUM CONFIDENCE', 'badge-confidence-medium'),
+        ('LOW CONFIDENCE', 'badge-confidence-low'),
+    ]:
+        html_body = re.sub(
+            rf'<code>{_conf_tag}</code>',
+            f'<span class="{_conf_class}">{_conf_tag.title()}</span>',
+            html_body
+        )
+        html_body = re.sub(
+            rf'\s*{_conf_tag}\s*</h3>',
+            f' <span class="{_conf_class}">{_conf_tag.title()}</span></h3>',
+            html_body
+        )
+        html_body = re.sub(
+            rf'(?<=</h3>)\s*{_conf_tag}\b',
+            f' <span class="{_conf_class}">{_conf_tag.title()}</span>',
+            html_body
+        )
+    # Legacy persistence tags (backwards compat with older briefings)
     html_body = re.sub(
         r'<code>RECURRING</code>',
         '<span class="badge-recurring">Recurring</span>',
@@ -3318,7 +3555,6 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         '<span class="badge-emerging">Emerging</span>',
         html_body
     )
-    # Also handle if LLM outputs without backticks
     html_body = re.sub(
         r'(?<=</h3>)\s*RECURRING\b',
         ' <span class="badge-recurring">Recurring</span>',
@@ -3334,7 +3570,6 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         ' <span class="badge-new">New</span>',
         html_body
     )
-    # Handle inline RECURRING/EMERGING/NEW within h3 tags
     html_body = re.sub(
         r'\s*RECURRING\s*</h3>',
         ' <span class="badge-recurring">Recurring</span></h3>',
@@ -3462,6 +3697,30 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         h3_tag += f'</h3><div id="{tid}" class="yoy-trend-container"></div>'
         return h3_tag
     html_body = re.sub(r'<h3>(.*?)</h3>', _add_driver_id, html_body)
+
+    # ── Reorder deep dive sections by confidence (High → Medium → Low) ────
+    if _all_trends_for_js and _h_to_k:
+        try:
+            # Split HTML into h3 sections within "What's Driving This"
+            h3_pattern = re.compile(r'(<h3\s[^>]*data-driver-idx="(\d+)"[^>]*>.*?)(?=<h3\s|<h2\s|$)', re.DOTALL)
+            h3_sections = list(h3_pattern.finditer(html_body))
+            if h3_sections:
+                first_start = h3_sections[0].start()
+                last_end = h3_sections[-1].end()
+                before = html_body[:first_start]
+                after = html_body[last_end:]
+                conf_priority = {"High": 0, "Medium": 1, "Low": 2}
+                section_list = []
+                for m in h3_sections:
+                    idx = int(m.group(2))
+                    trend_key = _h_to_k.get(idx, '')
+                    td = _all_trends_for_js.get(trend_key, {})
+                    conf = td.get("confidence", "Low")
+                    section_list.append((conf_priority.get(conf, 2), m.group(0)))
+                section_list.sort(key=lambda x: x[0])
+                html_body = before + ''.join(s[1] for s in section_list) + after
+        except Exception as e:
+            print(f"  ⚠ Section reorder failed (non-fatal): {e}")
 
     ty = next((r for r in trading_data if r["period"] == "yesterday"), {})
     ly = next((r for r in trading_data if r["period"] == "yesterday_ly"), {})
@@ -4646,6 +4905,48 @@ body::after{{
 }}
 @keyframes recovery-pulse{{
   0%,100%{{opacity:0.85}} 50%{{opacity:1;box-shadow:0 0 8px rgba(0,212,200,0.3)}}
+}}
+/* ── Confidence badges ── */
+.badge-confidence-high{{
+  display:inline-block;
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  background:rgba(76,175,80,0.12);color:#66BB6A;
+  border:1px solid rgba(76,175,80,0.25);
+  padding:2px 8px;border-radius:10px;
+  margin-left:8px;vertical-align:middle;cursor:help;position:relative;
+}}
+.badge-confidence-medium{{
+  display:inline-block;
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  background:rgba(255,183,77,0.12);color:#FFB74D;
+  border:1px solid rgba(255,183,77,0.25);
+  padding:2px 8px;border-radius:10px;
+  margin-left:8px;vertical-align:middle;cursor:help;position:relative;
+}}
+.badge-confidence-low{{
+  display:inline-block;
+  font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  background:rgba(158,158,158,0.12);color:#BDBDBD;
+  border:1px solid rgba(158,158,158,0.25);
+  padding:2px 8px;border-radius:10px;
+  margin-left:8px;vertical-align:middle;cursor:help;position:relative;
+}}
+.badge-confidence-high .conf-tip,
+.badge-confidence-medium .conf-tip,
+.badge-confidence-low .conf-tip{{
+  visibility:hidden;opacity:0;
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:rgba(20,14,46,0.97);color:#c4b8e0;
+  font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;
+  padding:10px 14px;border-radius:8px;border:1px solid var(--border);
+  width:300px;white-space:normal;z-index:100;line-height:1.5;
+  transition:opacity 0.2s;pointer-events:none;
+  box-shadow:0 4px 16px rgba(0,0,0,0.4);
+}}
+.badge-confidence-high:hover .conf-tip,
+.badge-confidence-medium:hover .conf-tip,
+.badge-confidence-low:hover .conf-tip{{
+  visibility:visible;opacity:1;
 }}
 /* ── View Trend button ── */
 .view-trend-btn{{
@@ -6000,12 +6301,27 @@ function renderYoYTrend(container, trendData, title, meta){{
       `</div>`;
   }});
 
+  /* Confidence explanation paragraph */
+  const confLevel=(meta&&meta.confidence)||null;
+  const confExplanation=(meta&&meta.confidence_explanation)||null;
+  const bankNote=(meta&&meta.bank_holiday_note)||null;
+  let confHTML='';
+  if(confExplanation){{
+    const confColor=confLevel==='High'?'#66BB6A':confLevel==='Medium'?'#FFB74D':'#BDBDBD';
+    confHTML=`<div style="margin-bottom:10px;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border)">`+
+      `<div style="font-size:10px;color:var(--muted);margin-bottom:4px">Statistical Confidence</div>`+
+      `<div style="font-size:12px;color:${{confColor}};font-weight:600;margin-bottom:6px">${{confLevel}} Confidence</div>`+
+      `<div style="font-size:11px;color:var(--muted);line-height:1.6">${{confExplanation}}</div>`+
+      (bankNote?`<div style="font-size:10px;color:#FFB74D;margin-top:6px">⚠ ${{bankNote}}</div>`:'')+
+      `</div>`;
+  }}
+
   /* Trendline canvas */
   const wrap=document.createElement('div');
   wrap.className='yoy-trend-wrap';
   wrap.innerHTML=
     `<div class="yoy-trend-header"><span>${{title}} — 14 day daily GP</span><span>YoY growth coloured</span></div>`+
-    persHTML+
+    persHTML+confHTML+
     barsHTML+
     `<div class="yoy-trendline-wrap"><canvas></canvas></div>`;
   container.innerHTML='';
@@ -6873,35 +7189,35 @@ function openInvestigations(){{
         if(container) container._matchedData=td;
       }}
 
-      /* Remove old AI-written badge and replace with computed one */
-      const oldBadge=h3.querySelector('.badge-recurring,.badge-emerging,.badge-new');
+      /* Remove old AI-written badge and replace with confidence badge */
+      const oldBadge=h3.querySelector('.badge-recurring,.badge-emerging,.badge-new,.badge-confidence-high,.badge-confidence-medium,.badge-confidence-low');
       if(oldBadge) oldBadge.remove();
 
-      if(p==='recurring'||p==='emerging'){{
-        const badge=document.createElement('span');
-        badge.className=p==='recurring'?'badge-recurring':'badge-emerging';
-        badge.textContent=p==='recurring'?'Recurring':'Emerging';
-        if(btn) h3.insertBefore(badge,btn);
-        else h3.appendChild(badge);
+      const conf=(td.confidence||'Low').toLowerCase();
+      const confLabel=conf.charAt(0).toUpperCase()+conf.slice(1);
+      const badge=document.createElement('span');
+      badge.className='badge-confidence-'+conf;
+      badge.textContent=confLabel+' confidence';
+      /* Tooltip with natural language explanation */
+      const tip=document.createElement('span');
+      tip.className='conf-tip';
+      tip.textContent=td.confidence_explanation||'Statistical analysis not available.';
+      if(td.bank_holiday_note) tip.textContent+=' '+td.bank_holiday_note;
+      badge.appendChild(tip);
+      if(btn) h3.insertBefore(badge,btn);
+      else h3.appendChild(badge);
 
-        if(btn){{
-          btn.style.display='';
-          btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend ('+cd+'/'+tot+'d)';
-        }}
+      if(btn){{
+        btn.style.display='';
+        btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend';
+      }}
 
-        if(recovery){{
-          const recBadge=document.createElement('span');
-          recBadge.className='badge-recovery';
-          recBadge.textContent='Recovery';
-          if(btn) h3.insertBefore(recBadge,btn);
-          else h3.appendChild(recBadge);
-        }}
-      }} else {{
-        const badge=document.createElement('span');
-        badge.className='badge-new';
-        badge.textContent='New';
-        if(btn) h3.insertBefore(badge,btn);
-        else h3.appendChild(badge);
+      if(recovery){{
+        const recBadge=document.createElement('span');
+        recBadge.className='badge-recovery';
+        recBadge.textContent='Recovery';
+        if(btn) h3.insertBefore(recBadge,btn);
+        else h3.appendChild(recBadge);
       }}
     }});
   }})();
@@ -7088,12 +7404,16 @@ def main():
     # Phase 4: AI-driven follow-up investigations
     follow_up_results, follow_up_log = run_ai_follow_ups(analysis, baseline, run_date)
 
-    # Phase 5: Two-pass synthesis
-    briefing = run_synthesis(baseline, analysis, follow_up_results, track_results, run_date)
+    # Phase 4b: Collect per-driver trend data + statistical confidence
+    print("\n📈 Phase 4b: Collecting driver trends & statistical confidence...")
+    try:
+        driver_trends = collect_driver_trends(analysis, run_date)
+    except Exception as e:
+        print(f"  ⚠ Driver trend collection failed: {e}")
+        driver_trends = {}
 
-    # Phase 5b: Collect per-driver trend data for inline charts
-    print("\n📈 Phase 5b: Collecting driver trend data...")
-    driver_trends = collect_driver_trends(analysis, run_date)
+    # Phase 5: Two-pass synthesis (with confidence data)
+    briefing = run_synthesis(baseline, analysis, follow_up_results, track_results, run_date, driver_trends)
 
     # Bundle investigation data for the trail
     inv_log = {
