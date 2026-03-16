@@ -93,3 +93,12 @@ jobs:
         run: |
           git fetch origin staging 2>/dev/null || true
           git push origin HEAD:staging --force
+
+      - name: Alert on failure
+        if: failure()
+        run: |
+          echo "::error::Trading Covered pipeline failed! Check the logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo ""
+          echo "Pipeline failed at $(date -u '+%Y-%m-%d %H:%M UTC')"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

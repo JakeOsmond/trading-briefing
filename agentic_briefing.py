@@ -19,6 +19,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from textwrap import dedent
 import statistics
+import time
+import traceback
 
 import openai
 import markdown
@@ -3996,6 +3998,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     # Banner date is set dynamically via JS to always show today's date when viewed
     day_name = ""
     now_str = datetime.datetime.now().strftime("%H:%M %d %b %Y")
+    generated_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # Build investigation trail HTML — human-readable story of the investigation
     inv_trail_html = ""
@@ -4562,7 +4565,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 </div>"""
 
     return f"""<!DOCTYPE html>
-<html lang="en"><head>
+<html lang="en" data-generated-utc="{generated_utc}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trading Covered</title>
 <link rel="icon" type="image/png" href="https://dmy0b9oeprz0f.cloudfront.net/holidayextras.co.uk/brand-guidelines/logo-tags/png/better-future.png">
@@ -5959,6 +5962,21 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
 </style></head><body>
 <div id="staging-banner" style="display:none;background:linear-gradient(90deg,#f59e0b,#f97316);color:#000;text-align:center;padding:6px 12px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;position:sticky;top:0;z-index:9999;">&#9888; Staging Environment &mdash; Changes here are not live</div>
 <script>if(location.hostname.includes('staging'))document.getElementById('staging-banner').style.display='block';</script>
+<div id="stale-banner" style="display:none;background:linear-gradient(90deg,#dc2626,#ef4444);color:#fff;text-align:center;padding:8px 12px;font-size:13px;font-weight:600;position:sticky;top:0;z-index:9998;">&#9888; This briefing may be stale &mdash; generated <span id="stale-age"></span> ago. <a href="https://github.com/JakeOsmond/trading-briefing/actions/workflows/daily-briefing.yml" target="_blank" style="color:#fde68a;text-decoration:underline;margin-left:8px;">Re-run pipeline</a></div>
+<script>
+(function(){{
+  var utc=document.documentElement.getAttribute('data-generated-utc');
+  if(!utc)return;
+  var gen=new Date(utc);
+  var now=new Date();
+  var hrs=Math.round((now-gen)/3600000);
+  if(hrs>=20){{
+    var d=Math.floor(hrs/24),h=hrs%24;
+    document.getElementById('stale-age').textContent=d>0?(d+'d '+h+'h'):(h+'h');
+    document.getElementById('stale-banner').style.display='block';
+  }}
+}})();
+</script>
 <div class="c">
 
 <!-- Banner -->
@@ -6017,7 +6035,7 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
 
 <!-- Footer -->
 <div class="foot">
-<div>Generated {now_str} &middot; {inv_count} investigations ({len(track_results) if track_results else 0} tracks + {len(follow_up_log) if follow_up_log else 0} follow-ups) via {MODEL} &middot; Data: BigQuery + Sheets + Drive + Web</div>
+<div>Generated {now_str} (UTC: {generated_utc}) &middot; {inv_count} investigations ({len(track_results) if track_results else 0} tracks + {len(follow_up_log) if follow_up_log else 0} follow-ups) via {MODEL} &middot; Data: BigQuery + Sheets + Drive + Web</div>
 <div class="foot-brand">Trading Covered &mdash; Powered by AI for Holiday Extras</div>
 </div>
 
@@ -7545,10 +7563,18 @@ def main():
         print("\n⚠️  Set OPENAI_API_KEY in .env file")
         return
 
+    _pipeline_start = time.time()
+
+    def _log_phase(name, start):
+        elapsed = time.time() - start
+        print(f"  ⏱  {name} completed in {elapsed:.1f}s")
+        return time.time()
+
     print("\n🔐 Authenticating...")
     init_services()
 
     # Phase 1: Baseline
+    _phase_start = time.time()
     baseline = run_baseline_queries(dp)
 
     for row in baseline["trading"]:
@@ -7557,14 +7583,19 @@ def main():
         elif row.get("period") == "yesterday":
             print(f"\n  Yesterday GP: £{row['total_gp']:,.2f} | Policies: {row['new_policies']}")
 
+    _phase_start = _log_phase("Phase 1: Baseline queries", _phase_start)
+
     # Phase 2: Deterministic investigation tracks
     track_results = run_investigation_tracks(dp)
+    _phase_start = _log_phase("Phase 2: Investigation tracks", _phase_start)
 
     # Phase 3: AI analysis of track results
     analysis = run_ai_analysis(baseline, track_results, run_date)
+    _phase_start = _log_phase("Phase 3: AI analysis", _phase_start)
 
     # Phase 4: AI-driven follow-up investigations
     follow_up_results, follow_up_log = run_ai_follow_ups(analysis, baseline, run_date)
+    _phase_start = _log_phase("Phase 4: AI follow-ups", _phase_start)
 
     # Phase 4b: Collect per-driver trend data + statistical confidence
     print("\n📈 Phase 4b: Collecting driver trends & statistical confidence...")
@@ -7574,8 +7605,11 @@ def main():
         print(f"  ⚠ Driver trend collection failed: {e}")
         driver_trends = {}
 
+    _phase_start = _log_phase("Phase 4b: Driver trends & confidence", _phase_start)
+
     # Phase 5: Two-pass synthesis (with confidence data)
     briefing = run_synthesis(baseline, analysis, follow_up_results, track_results, run_date, driver_trends)
+    _phase_start = _log_phase("Phase 5: Synthesis", _phase_start)
 
     # Bundle investigation data for the trail
     inv_log = {
@@ -7625,10 +7659,18 @@ def main():
     if not os.environ.get("CI"):
         os.system(f'open -a "{BROWSER}" "{briefings_dir}/latest.html"')
 
+    _total_elapsed = time.time() - _pipeline_start
+    _mins, _secs = divmod(int(_total_elapsed), 60)
+    print(f"\n⏱  Total pipeline time: {_mins}m {_secs}s")
     print("\n" + "=" * 60)
     print(briefing)
     print("=" * 60)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"\n❌ PIPELINE FAILED: {e}")
+        traceback.print_exc()
+        sys.exit(1)
