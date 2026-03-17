@@ -1,0 +1,38 @@
+# Insurance domain configuration for Trading Covered
+# This is the contract between the shared pipeline and the insurance domain.
+
+domain: insurance
+display_name: "HX Insurance Trading"
+
+# BigQuery
+bq_project: hx-data-production
+tables:
+  policies: "hx-data-production.commercial_finance.insurance_policies_new"
+  web: "hx-data-production.commercial_finance.insurance_web_utm_4"
+
+# Market intelligence
+market_sheet_id: "1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg"
+
+# Model assignments (override MODELS dict in pipeline)
+models:
+  analyst: "gpt-5.4"
+  verifier: "claude-sonnet-4-20250514"
+  lightweight: "gpt-5-mini"
+
+# Materiality threshold for flagging movers
+materiality_gp_impact: 5000  # £5k GP
+
+# Investigation tracks module
+tracks_module: "domains.insurance.tracks"
+
+# Context folder
+context_path: "context"
+
+# Synthesis template
+synthesis_template: "SYNTHESIS_TEMPLATE.md"
+
+# Cloudflare deployment
+cloudflare_project: "trading-covered"
+
+# Pipeline settings
+max_investigation_loops: 10

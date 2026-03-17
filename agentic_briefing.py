@@ -66,22 +66,39 @@ def _load_trading_context():
 
 TRADING_CONTEXT = _load_trading_context()
 
-BQ_PROJECT = "hx-data-production"
-MARKET_SHEET_ID = "1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg"
+# ---------------------------------------------------------------------------
+# DOMAIN CONFIG — load from domains/{domain}/config.yaml or use defaults
+# ---------------------------------------------------------------------------
+def _load_domain_config(domain="insurance"):
+    """Load domain config. Falls back to hardcoded defaults if config file or yaml missing."""
+    config_path = Path(__file__).parent / "domains" / domain / "config.yaml"
+    if config_path.exists():
+        try:
+            import yaml
+            return yaml.safe_load(config_path.read_text())
+        except ImportError:
+            print("⚠ pyyaml not installed — using default config. pip install pyyaml to enable domain config.")
+    return {}
+
+_DOMAIN_CONFIG = _load_domain_config()
+
+BQ_PROJECT = _DOMAIN_CONFIG.get("bq_project", "hx-data-production")
+MARKET_SHEET_ID = _DOMAIN_CONFIG.get("market_sheet_id", "1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 # Model configuration — roles map to specific models.
-# Change model assignments here without touching pipeline code.
-MODELS = {
-    "analyst": "gpt-5.4",           # Main reasoning: investigation, follow-ups, synthesis
-    "verifier": "claude-sonnet-4-20250514",  # Cross-model verification of findings
-    "lightweight": "gpt-5-mini",     # Web search, fallback tasks
+# Change model assignments here or in domains/{domain}/config.yaml.
+_model_defaults = {
+    "analyst": "gpt-5.4",
+    "verifier": "claude-sonnet-4-20250514",
+    "lightweight": "gpt-5-mini",
 }
+MODELS = {**_model_defaults, **_DOMAIN_CONFIG.get("models", {})}
 MODEL = MODELS["analyst"]
 VERIFY_MODEL = MODELS["verifier"]
 LIGHTWEIGHT_MODEL = MODELS["lightweight"]
 BROWSER = "Arc"
-MAX_INVESTIGATION_LOOPS = 10
+MAX_INVESTIGATION_LOOPS = _DOMAIN_CONFIG.get("max_investigation_loops", 10)
 
 # ---------------------------------------------------------------------------
 # UK HOLIDAYS [DOMAIN-AGNOSTIC — UK-wide, applies to all HX products]
