@@ -18,7 +18,7 @@ from datetime import date, timedelta
 # Add project root to path so we can import from agentic_briefing
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agentic_briefing import _autocorrect_sql, _parse_llm_json, _compute_confidence
+from agentic_briefing import _autocorrect_sql, _parse_llm_json, _compute_confidence, generate_dashboard_html
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -257,3 +257,45 @@ class TestVerificationVerdicts:
         # SQL evidence should be available
         assert len(vr["sql_evidence"]) == 1
         assert "SELECT 1" in vr["sql_evidence"][0]["sql"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 5. HTML GENERATION SMOKE TEST (1 test)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestHTMLGeneration:
+    """Smoke test for generate_dashboard_html — catches template loading and placeholder issues."""
+
+    def test_dashboard_html_contains_key_elements(self):
+        """Generate HTML with fixture data and verify essential elements exist."""
+        trading_data = [
+            {"period": "yesterday", "total_gp": 100000, "new_policies": 500, "avg_gp_per_policy": 200, "avg_customer_price": 150},
+            {"period": "yesterday_ly", "total_gp": 95000, "new_policies": 480, "avg_gp_per_policy": 198, "avg_customer_price": 145},
+            {"period": "trailing_7d", "total_gp": 250000},
+            {"period": "trailing_7d_ly", "total_gp": 240000},
+            {"period": "trailing_28d", "total_gp": 900000},
+            {"period": "trailing_28d_ly", "total_gp": 850000},
+        ]
+        html = generate_dashboard_html(
+            briefing_md="# Test\n\n## At a Glance\n- GP up 5%\n\n## What's Driving This\n\n### Test Driver\nTest content.",
+            trading_data=trading_data,
+            trend_data={},
+            today_str="2026-03-17",
+            run_date="2026-03-17",
+        )
+        # Template loading
+        assert "<!DOCTYPE html>" in html, "Missing DOCTYPE"
+        assert "<style>" in html, "Missing style tag — CSS template not loaded"
+        assert "--bg:#1a0e2e" in html, "Missing HX brand CSS variable"
+        assert "</style>" in html, "Missing closing style tag"
+        # JS template injection
+        assert "window.__driverTrends=" in html, "Driver trends JSON not injected"
+        assert "window.__fieldDiscovery=" in html, "Field discovery JSON not injected"
+        assert "const data=" in html, "Chart data JSON not injected"
+        # Verification JS
+        assert "toggleSqlEvidence" in html, "Verification JS not loaded"
+        # Dashboard structure
+        assert "Trading Covered" in html, "Missing title"
+        assert "</html>" in html, "HTML not closed"
+        # Minimum size (should be substantial with templates)
+        assert len(html) > 50000, f"HTML suspiciously small: {len(html)} chars"
