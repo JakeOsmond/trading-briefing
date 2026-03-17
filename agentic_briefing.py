@@ -7603,7 +7603,7 @@ function openInvestigations(){{
       /* Insert confidence badge into pills line */
       const target=pillsDiv||h3;
       const conf=(td.confidence||'Low');
-      const confSlug=conf.toLowerCase().replace(/\s+/g,'-');
+      const confSlug=conf.toLowerCase().replace(/\\s+/g,'-');
       const badge=document.createElement('span');
       badge.className='badge-confidence-'+confSlug;
       badge.textContent=conf+' confidence';
@@ -7834,7 +7834,7 @@ function applyVerificationState(findingId,action,verifiedBy,note){{
         var lis=glance.querySelectorAll('li');
         lis.forEach(function(li){{
           var txt=li.textContent.toLowerCase();
-          var words=driverName.split(/[\s\-\u2014]+/).filter(function(w){{return w.length>3;}});
+          var words=driverName.split(/[\\s\\-\\u2014]+/).filter(function(w){{return w.length>3;}});
           var matches=words.filter(function(w){{return txt.indexOf(w)!==-1;}});
           if(matches.length>=2){{
             li.style.opacity='0.2';
