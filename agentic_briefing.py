@@ -5241,7 +5241,7 @@ body::after{{
 }}
 .verify-pill .verify-tip{{
   visibility:hidden;opacity:0;
-  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  position:absolute;top:calc(100% + 8px);left:0;
   background:rgba(20,14,46,0.97);color:#c4b8e0;
   font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;
   padding:10px 14px;border-radius:8px;border:1px solid var(--border);
@@ -5268,10 +5268,10 @@ body::after{{
 .verify-action-btn:hover{{background:rgba(255,255,255,0.12);}}
 .verify-remove-btn:hover{{background:rgba(255,95,104,0.2);color:#FF5F68;}}
 .verify-revert{{
-  font-size:9px;color:rgba(255,255,255,0.3);margin-left:8px;text-decoration:none;
+  font-size:9px;color:rgba(255,255,255,0.5);margin-left:8px;text-decoration:none;
   cursor:pointer;vertical-align:middle;
 }}
-.verify-revert:hover{{color:rgba(255,255,255,0.6);text-decoration:underline;}}
+.verify-revert:hover{{color:rgba(255,255,255,0.7);text-decoration:underline;}}
 .verify-sql-evidence{{
   margin-top:8px;padding:10px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:10px;
   color:rgba(255,255,255,0.6);white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;
@@ -5728,7 +5728,7 @@ body::after{{
 .nar h3{{font-size:14px;font-weight:700;color:var(--text);margin:20px 0 8px}}
 .nar h3[data-driver-idx]{{font-size:17px;margin:20px 0 4px;line-height:1.3}}
 .driver-pills .verify-pill,.driver-pills .view-trend-btn,.driver-pills [class^="badge-confidence-"],.driver-pills .badge-recovery{{display:inline-block;vertical-align:middle}}
-.driver-pills{{display:block;margin:2px 0 8px}}
+.driver-pills{{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin:2px 0 8px}}
 .nar p{{font-size:13.5px;color:#cbd5e1;margin-bottom:12px;line-height:1.8}}
 .nar blockquote{{
   border-left:3px solid var(--yellow);padding:14px 18px;margin:16px 0;
