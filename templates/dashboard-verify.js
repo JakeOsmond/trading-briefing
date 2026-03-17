@@ -1,4 +1,6 @@
-/* ── Verification system ── */
+/* ── Verification system with session auth ── */
+var __verifySession=null; /* session token — authenticate once, use for all actions */
+
 function toggleSqlEvidence(btn){
   var wrap=btn.nextElementSibling;
   wrap.style.display=wrap.style.display==='none'?'block':'none';
@@ -12,6 +14,28 @@ function copySqlEvidence(btn){
   });
 }
 
+function _ensureAuth(){
+  /* Returns a promise that resolves with auth params (session_token or password) */
+  if(__verifySession) return Promise.resolve({session_token:__verifySession});
+  var pwd=prompt('Enter verification password (authenticates for this session):');
+  if(!pwd) return Promise.resolve(null);
+  /* Try session auth first */
+  return fetch(window.__apiBase+'/api/verify',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'auth',password:pwd})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.session_token){
+      __verifySession=d.session_token;
+      return {session_token:d.session_token};
+    }
+    /* Fallback: use password directly */
+    return {password:pwd};
+  }).catch(function(){
+    return {password:pwd};
+  });
+}
+
 function verifyFinding(findingId,action){
   var verifiedBy=null,note=null;
   if(action==='verify'){
@@ -19,36 +43,39 @@ function verifyFinding(findingId,action){
     if(!verifiedBy)return;
     note=prompt('Add a note (optional):');
   }
-  var pwd=prompt('Enter verification password:');
-  if(!pwd)return;
-  var dt=document.documentElement.getAttribute('data-generated-utc');
-  var dateStr=dt?dt.split('T')[0]:'unknown';
-  var payload={finding_id:findingId,action:action,date:dateStr,password:pwd};
-  if(verifiedBy)payload.verified_by=verifiedBy;
-  if(note)payload.note=note;
-  fetch(window.__apiBase+'/api/verify',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(payload)
-  }).then(function(r){return r.json()}).then(function(d){
-    if(d.error){alert('Error: '+d.error);return;}
-    applyVerificationState(findingId,action,verifiedBy,note);
-  }).catch(function(e){alert('Verification failed: '+e);});
+  _ensureAuth().then(function(auth){
+    if(!auth)return;
+    var dt=document.documentElement.getAttribute('data-generated-utc');
+    var dateStr=dt?dt.split('T')[0]:'unknown';
+    var payload=Object.assign({finding_id:findingId,action:action,date:dateStr},auth);
+    if(verifiedBy)payload.verified_by=verifiedBy;
+    if(note)payload.note=note;
+    fetch(window.__apiBase+'/api/verify',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.error){__verifySession=null;alert('Error: '+d.error);return;}
+      applyVerificationState(findingId,action,verifiedBy,note);
+    }).catch(function(e){alert('Verification failed: '+e);});
+  });
 }
 
 function revertFinding(findingId){
-  var pwd=prompt('Enter password to revert:');
-  if(!pwd)return;
-  var dt=document.documentElement.getAttribute('data-generated-utc');
-  var dateStr=dt?dt.split('T')[0]:'unknown';
-  fetch(window.__apiBase+'/api/verify',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({finding_id:findingId,action:'revert',date:dateStr,password:pwd})
-  }).then(function(r){return r.json()}).then(function(d){
-    if(d.error){alert('Error: '+d.error);return;}
-    location.reload();
-  }).catch(function(e){alert('Revert failed: '+e);});
+  _ensureAuth().then(function(auth){
+    if(!auth)return;
+    var dt=document.documentElement.getAttribute('data-generated-utc');
+    var dateStr=dt?dt.split('T')[0]:'unknown';
+    var payload=Object.assign({finding_id:findingId,action:'revert',date:dateStr},auth);
+    fetch(window.__apiBase+'/api/verify',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.error){__verifySession=null;alert('Error: '+d.error);return;}
+      location.reload();
+    }).catch(function(e){alert('Revert failed: '+e);});
+  });
 }
 
 function applyVerificationState(findingId,action,verifiedBy,note){

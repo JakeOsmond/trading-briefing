@@ -50,7 +50,7 @@ export async function onRequest(context) {
     return Response.json({ findings }, { headers: corsHeaders });
   }
 
-  // POST — verify, remove, or revert a finding
+  // POST — verify, remove, or revert a finding (or authenticate for session)
   if (request.method === "POST") {
     let body;
     try {
@@ -59,11 +59,26 @@ export async function onRequest(context) {
       return Response.json({ error: "Invalid JSON body" }, { status: 400, headers: corsHeaders });
     }
 
-    const { finding_id, action, date, password, verified_by, note } = body;
+    const { finding_id, action, date, password, session_token, verified_by, note } = body;
+
+    // Session auth — authenticate once, get a token for subsequent requests
+    if (action === "auth") {
+      const expectedPassword = env.VERIFY_PASSWORD;
+      if (!expectedPassword || password !== expectedPassword) {
+        return Response.json({ error: "Incorrect password" }, { status: 403, headers: corsHeaders });
+      }
+      // Generate a session token (random hex, 4h TTL)
+      const token = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+      if (env.VERIFICATION_KV) {
+        await env.VERIFICATION_KV.put(`session:${token}`, "valid", { expirationTtl: 4 * 60 * 60 });
+      }
+      return Response.json({ success: true, session_token: token, expires_in: "4h" }, { headers: corsHeaders });
+    }
 
     // Validate required fields
-    if (!finding_id || !action || !date || !password) {
-      return Response.json({ error: "Missing required fields: finding_id, action, date, password" }, { status: 400, headers: corsHeaders });
+    if (!finding_id || !action || !date) {
+      return Response.json({ error: "Missing required fields: finding_id, action, date" }, { status: 400, headers: corsHeaders });
     }
 
     // Validate action
@@ -71,13 +86,17 @@ export async function onRequest(context) {
       return Response.json({ error: "Action must be 'verify', 'remove', or 'revert'" }, { status: 400, headers: corsHeaders });
     }
 
-    // Check password
+    // Authenticate via password OR session token
     const expectedPassword = env.VERIFY_PASSWORD;
-    if (!expectedPassword) {
-      return Response.json({ error: "Verification not configured — VERIFY_PASSWORD secret missing" }, { status: 500, headers: corsHeaders });
+    let authenticated = false;
+    if (password && expectedPassword && password === expectedPassword) {
+      authenticated = true;
+    } else if (session_token && env.VERIFICATION_KV) {
+      const tokenValid = await env.VERIFICATION_KV.get(`session:${session_token}`);
+      if (tokenValid === "valid") authenticated = true;
     }
-    if (password !== expectedPassword) {
-      return Response.json({ error: "Incorrect password" }, { status: 403, headers: corsHeaders });
+    if (!authenticated) {
+      return Response.json({ error: "Authentication required — provide password or valid session_token" }, { status: 403, headers: corsHeaders });
     }
 
     // Check KV binding
