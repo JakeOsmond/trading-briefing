@@ -8068,6 +8068,38 @@ def main():
         }, indent=2, default=str)
     )
 
+    # Confidence calibration log — tracks confidence vs verification for future analysis
+    calibration_path = Path(__file__).resolve().parent / "calibration.jsonl"
+    movers = analysis.get("material_movers", [])
+    for i, mover in enumerate(movers):
+        finding_id = f"finding-{i}"
+        trend_key = mover.get("driver", "")
+        td = driver_trends.get(trend_key, {}) if driver_trends else {}
+        # Find matching trend data by partial name match if exact key fails
+        if not td:
+            for tk, tv in (driver_trends or {}).items():
+                if any(w in tk.lower() for w in trend_key.lower().split()[:3] if len(w) > 3):
+                    td = tv
+                    break
+        vr = verification.get(finding_id, {})
+        entry = {
+            "date": today_str,
+            "finding_id": finding_id,
+            "driver": mover.get("driver", ""),
+            "impact_gbp": mover.get("impact_gbp_weekly", 0),
+            "direction": mover.get("direction", ""),
+            "confidence": td.get("confidence", "Unknown"),
+            "z_recent": td.get("z_recent", None),
+            "z_seasonal": td.get("z_seasonal", None),
+            "persistence": td.get("persistence", ""),
+            "verification_verdict": vr.get("verdict", "none"),
+            "verification_concern": vr.get("concern", None),
+        }
+        with open(calibration_path, "a") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    if movers:
+        print(f"   📊 Calibration log: {len(movers)} entries → calibration.jsonl")
+
     print(f"\n✅ Briefing saved:")
     print(f"   📄 {md_path}")
     print(f"   🌐 {briefings_dir}/{today_str}.html")
