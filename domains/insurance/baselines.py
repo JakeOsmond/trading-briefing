@@ -2,6 +2,7 @@
 
 Each new domain needs its own baselines.py with the same function signatures.
 """
+from datetime import timedelta
 
 
 def get_tables(bq_project):
