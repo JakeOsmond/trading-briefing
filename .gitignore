@@ -11,3 +11,5 @@ schemas/
 *-this-session-*.txt
 .wrangler/
 .dev.vars
+# Generated at deploy time by scripts/inject-ask-context.sh
+functions/api/_generated-context.js

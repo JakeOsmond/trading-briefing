@@ -74,8 +74,12 @@ jobs:
           git pull --rebase origin main
           git push
 
+      - name: Inject schema/business context into ask.js
+        run: bash scripts/inject-ask-context.sh insurance
+
       - name: Stage deployment (briefings + functions)
         run: |
+          test -f functions/api/_generated-context.js || { echo "ERROR: _generated-context.js missing — run inject-ask-context.sh first"; exit 1; }
           mkdir -p _deploy
           cp -r briefings/* _deploy/
           cp -r functions _deploy/functions
