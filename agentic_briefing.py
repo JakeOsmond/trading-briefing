@@ -2504,8 +2504,6 @@ No vague actions like "monitor closely" — say what to actually do._
 
 ---
 
-_Generated {HH:MM DD Mon YYYY} | {N} investigation tracks | {model}_
-
 ## WHAT TO SKIP
 
 Do NOT include a section if the data shows no material movement. Specifically:
@@ -3743,6 +3741,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     review_patterns = [
         r'\n---\n+\*\*(?:Review|Check|Note|Verification).*$',
         r'\n---\n+_(?:Generated|Review|Check).*$',
+        r'\n+_Generated \d.*$',  # Catch AI-generated footer without --- separator
     ]
     review_block = ""
     for pat in review_patterns:
