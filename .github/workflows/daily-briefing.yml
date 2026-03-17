@@ -46,6 +46,9 @@ jobs:
           node --check templates/dashboard.js
           node --check templates/dashboard-verify.js
 
+      - name: Lint template JS
+        run: npx eslint@8 templates/dashboard.js templates/dashboard-verify.js --no-eslintrc -c templates/.eslintrc.json --max-warnings 5
+
       - name: Write GCP credentials file
         run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
 

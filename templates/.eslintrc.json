@@ -1,0 +1,17 @@
+{
+  "env": {
+    "browser": true,
+    "es2020": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "script"
+  },
+  "rules": {
+    "no-undef": "off",
+    "no-unused-vars": "off",
+    "no-redeclare": "warn",
+    "no-constant-condition": "warn",
+    "no-unreachable": "warn"
+  }
+}
