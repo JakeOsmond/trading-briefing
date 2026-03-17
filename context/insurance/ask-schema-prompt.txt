@@ -1,9 +1,9 @@
 ## BigQuery Tables — USE THESE EXACT TABLE NAMES (backtick-quoted)
 
-### \`hx-data-production.commercial_finance.insurance_policies_new\`
+### `hx-data-production.commercial_finance.insurance_policies_new`
 This is the ONLY policy table. Project: hx-data-production. Dataset: commercial_finance.
 CRITICAL RULES:
-- ALWAYS use the full name: \`hx-data-production.commercial_finance.insurance_policies_new\`
+- ALWAYS use the full name: `hx-data-production.commercial_finance.insurance_policies_new`
 - Use SUM(policy_count) not COUNT(*) for policy counts
 - Use SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) for GP — NEVER AVG()
 - Avg GP = SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
@@ -17,7 +17,7 @@ total_gross_exc_ipt_ntu_comm (THIS IS GP), total_gross_inc_ipt (customer price),
 total_discount_value, total_paid_commission_value, total_net_to_underwriter_inc_gadget,
 customer_type (New/Existing/Lapsed/Re-engaged — indicates customer relationship status).
 
-### \`hx-data-production.commercial_finance.insurance_web_utm_4\`
+### `hx-data-production.commercial_finance.insurance_web_utm_4`
 Web analytics. Direct channel ONLY (no aggregator/renewal web data).
 Key cols: session_id, visitor_id, device_type, booking_flow_stage, session_start_date, page_type, event_name,
 customer_type (New/Existing/Lapsed/Re-engaged).

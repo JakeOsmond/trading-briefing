@@ -3748,7 +3748,6 @@ Output ONLY raw JSON (no markdown fences):
 def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, investigation_log=None, run_date=None, trend_data_ly=None, driver_trends=None, verification=None):
     """Generate styled dark-mode dashboard with interactive charts and SQL dig buttons."""
     import re
-    from pathlib import Path
 
     # Load extracted CSS/JS templates (un-escaped, lintable files)
     _tpl_dir = Path(__file__).parent / "templates"

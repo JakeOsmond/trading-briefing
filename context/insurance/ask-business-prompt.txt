@@ -26,14 +26,14 @@
     WITH expiry_pols AS (
       SELECT travel_end_date AS expiry_date, SUM(policy_count) AS expiring,
              SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS expiring_gp
-      FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
+      FROM `hx-data-production.commercial_finance.insurance_policies_new`
       WHERE travel_end_date BETWEEN @start AND @end AND LOWER(policy_type) = LOWER('Annual')
       GROUP BY travel_end_date
     ),
     renewal_pols AS (
       SELECT transaction_date, SUM(policy_count) AS renewed,
              SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS renewed_gp
-      FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
+      FROM `hx-data-production.commercial_finance.insurance_policies_new`
       WHERE transaction_date BETWEEN @start AND @end AND LOWER(distribution_channel) = LOWER('Renewals')
       GROUP BY transaction_date
     )
@@ -48,7 +48,7 @@
            SUM(policy_count) AS expiring_policies,
            SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS expiring_gp,
            SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)), NULLIF(SUM(policy_count),0)) AS avg_gp_per_policy
-    FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
+    FROM `hx-data-production.commercial_finance.insurance_policies_new`
     WHERE travel_end_date BETWEEN @start AND @end AND LOWER(policy_type) = LOWER('Annual')
     GROUP BY distribution_channel
     ORDER BY expiring_policies DESC
