@@ -1,3 +1,6 @@
+// Schema + business context injected at deploy time by scripts/inject-ask-context.sh
+import { SCHEMA_KNOWLEDGE, BUSINESS_CONTEXT } from './_generated-context.js';
+
 /**
  * Trading Covered — Interactive Q&A API
  * Cloudflare Pages Function
@@ -204,104 +207,6 @@ async function callOpenAI(messages, tools, apiKey, maxTokens = 4096, model = 'gp
   });
   return res.json();
 }
-
-
-// ── Schema knowledge (condensed for Worker size limits) ───────────────────
-
-// AUTHORITATIVE SOURCE: context/insurance/schema-knowledge.md
-// If schema changes, update that file AND this constant.
-const SCHEMA_KNOWLEDGE = `
-## BigQuery Tables — USE THESE EXACT TABLE NAMES (backtick-quoted)
-
-### \`hx-data-production.commercial_finance.insurance_policies_new\`
-This is the ONLY policy table. Project: hx-data-production. Dataset: commercial_finance.
-CRITICAL RULES:
-- ALWAYS use the full name: \`hx-data-production.commercial_finance.insurance_policies_new\`
-- Use SUM(policy_count) not COUNT(*) for policy counts
-- Use SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) for GP — NEVER AVG()
-- Avg GP = SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
-- YoY = 364-day offset (matches day-of-week)
-- transaction_date is DATE type — use directly, no EXTRACT()
-
-Key columns: transaction_date, travel_end_date (policy expiry date), policy_type (Annual/Single), distribution_channel (Direct/Aggregator/Partner Referral/Renewals),
-channel, scheme_name, cover_level_name, booking_source, device_type, medical_split, max_medical_score_grouped,
-max_age_at_purchase, trip_duration_band, days_to_travel, policy_count,
-total_gross_exc_ipt_ntu_comm (THIS IS GP), total_gross_inc_ipt (customer price),
-total_discount_value, total_paid_commission_value, total_net_to_underwriter_inc_gadget,
-customer_type (New/Existing/Lapsed/Re-engaged — indicates customer relationship status).
-
-### \`hx-data-production.commercial_finance.insurance_web_utm_4\`
-Web analytics. Direct channel ONLY (no aggregator/renewal web data).
-Key cols: session_id, visitor_id, device_type, booking_flow_stage, session_start_date, page_type, event_name,
-customer_type (New/Existing/Lapsed/Re-engaged).
-Sessions = COUNT(DISTINCT session_id). Users = COUNT(DISTINCT visitor_id).
-
-### customer_type field (both tables)
-- "New" = never seen by Holiday Extras before
-- "Existing" = in our database, has booked in the last 3 years
-- "Lapsed" = in our database but hasn't booked in the last 3 years
-- "Re-engaged" = was lapsed but a recent purchase moved them out of lapsed
-This is a key drill-down dimension for understanding customer mix.
-`;
-
-// AUTHORITATIVE SOURCE: context/insurance/policy-economics.md, channels.md, renewal-rates.md
-// If business rules change, update context files AND this constant.
-const BUSINESS_CONTEXT = `
-- HX runs NEGATIVE margins on annual policies deliberately (lifetime value strategy). Never flag as problem.
-- Single trip losses ARE problems — no renewal pathway.
-- Traffic x Conversion x Avg GP = Total GP. Always decompose.
-- Aggregators have no web journey data. Direct has full web data.
-- Use SUM(policy_count) for counts. Use SUM(CAST(col AS FLOAT64))/NULLIF(SUM(policy_count),0) for averages.
-- YoY comparison = 364-day offset to match day-of-week.
-- Financial Year To Date (FYTD) runs 1 April to 31 March. "YTD" or "FYTD" means from 1 April of the current financial year.
-- RENEWAL RATE & VOLUME — two drivers: (1) how many policies are expiring, (2) the renewal rate.
-  Expiring policies = Annual policies (policy_type='Annual', ANY distribution channel) where travel_end_date falls in the period.
-  Renewal policies = policies where distribution_channel='Renewals' with transaction_date in the period.
-  Renewal rate = renewed / expiring, joined on travel_end_date = transaction_date.
-  CRITICAL: Renewal rate can ONLY be calculated at a BLENDED level (all channels combined).
-  There is NO column linking a renewal back to the original expiry channel, so you CANNOT
-  calculate per-channel renewal rates. NEVER join renewals to expiries broken out by channel —
-  this DUPLICATES the renewal count across every channel row, producing nonsensical rates.
-  The expiry CHANNEL BREAKDOWN is useful ONLY for understanding the MIX of expiring policies
-  (volume and proportion by channel). The mix matters because different channels have different
-  typical renewal rates, so a shift in the expiry mix changes the blended rate even if
-  underlying renewal behaviour is unchanged.
-  ALSO consider GP: the GP of expiring policies affects the GP of renewals.
-  If high-GP channels (e.g. Direct) make up more of the expiry mix, renewed GP will be higher
-  even at the same renewal rate. Conversely, if low-GP channels dominate expiries, renewed GP
-  drops. Always include GP in the expiry mix query to show this effect.
-  CORRECT approach — use TWO SEPARATE queries:
-  Query 1 — Blended renewal rate + GP:
-    WITH expiry_pols AS (
-      SELECT travel_end_date AS expiry_date, SUM(policy_count) AS expiring,
-             SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS expiring_gp
-      FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
-      WHERE travel_end_date BETWEEN @start AND @end AND LOWER(policy_type) = LOWER('Annual')
-      GROUP BY travel_end_date
-    ),
-    renewal_pols AS (
-      SELECT transaction_date, SUM(policy_count) AS renewed,
-             SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS renewed_gp
-      FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
-      WHERE transaction_date BETWEEN @start AND @end AND LOWER(distribution_channel) = LOWER('Renewals')
-      GROUP BY transaction_date
-    )
-    SELECT e.expiry_date, e.expiring, e.expiring_gp,
-           COALESCE(r.renewed,0) AS renewed, COALESCE(r.renewed_gp,0) AS renewed_gp,
-           SAFE_DIVIDE(COALESCE(r.renewed,0), e.expiring) AS renewal_rate,
-           SAFE_DIVIDE(e.expiring_gp, e.expiring) AS avg_expiry_gp,
-           SAFE_DIVIDE(COALESCE(r.renewed_gp,0), NULLIF(COALESCE(r.renewed,0),0)) AS avg_renewed_gp
-    FROM expiry_pols e LEFT JOIN renewal_pols r ON e.expiry_date = r.transaction_date
-  Query 2 — Expiry mix breakdown with GP (to explain rate AND GP movements):
-    SELECT distribution_channel AS expiry_channel,
-           SUM(policy_count) AS expiring_policies,
-           SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS expiring_gp,
-           SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)), NULLIF(SUM(policy_count),0)) AS avg_gp_per_policy
-    FROM \\\`hx-data-production.commercial_finance.insurance_policies_new\\\`
-    WHERE travel_end_date BETWEEN @start AND @end AND LOWER(policy_type) = LOWER('Annual')
-    GROUP BY distribution_channel
-    ORDER BY expiring_policies DESC
-`;
 
 
 // ── Extract chart data from SQL results ────────────────────────────────────

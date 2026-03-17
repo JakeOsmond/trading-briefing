@@ -74,6 +74,9 @@ jobs:
           git pull --rebase origin main
           git push
 
+      - name: Inject schema/business context into ask.js
+        run: bash scripts/inject-ask-context.sh insurance
+
       - name: Stage deployment (briefings + functions)
         run: |
           mkdir -p _deploy
