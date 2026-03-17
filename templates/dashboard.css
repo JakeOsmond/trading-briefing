@@ -1311,6 +1311,29 @@ table.ai-table tr:hover td{background:rgba(51,65,85,0.3);}
   background:rgba(0,176,166,0.15);border-color:rgba(0,176,166,0.4);
   box-shadow:0 0 12px rgba(0,176,166,0.15);
 }
+/* ── Chat FAB — always-visible floating button ── */
+.chat-fab{
+  position:fixed;bottom:24px;right:24px;z-index:9990;
+  width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#00B0A6,#00D4C8);
+  box-shadow:0 4px 20px rgba(0,176,166,0.4);
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.3s;
+}
+.chat-fab:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(0,176,166,0.5);}
+.chat-fab svg{width:24px;height:24px;color:#fff;stroke:#fff;fill:none;}
+.chat-fab-label{
+  position:fixed;bottom:32px;right:88px;z-index:9990;
+  background:rgba(0,0,0,0.8);color:#5FFFF0;padding:8px 14px;border-radius:8px;
+  font-size:12px;font-weight:600;pointer-events:none;
+  opacity:0;transform:translateX(8px);transition:all 0.3s;white-space:nowrap;
+}
+.chat-fab:hover+.chat-fab-label{opacity:1;transform:translateX(0);}
+.chat-welcome{
+  padding:16px;text-align:center;color:rgba(255,255,255,0.5);font-size:13px;
+  line-height:1.6;
+}
+.chat-welcome strong{color:#5FFFF0;}
 
 /* ── Investigation trail ── */
 .trail-section{margin-bottom:24px}

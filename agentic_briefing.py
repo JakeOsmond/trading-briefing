@@ -3017,7 +3017,15 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     <span class="chat-title">Ask Trading Covered</span>
     <button class="chat-close" onclick="toggleChat()">&times;</button>
   </div>
-  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-welcome" id="chatWelcome">
+      <strong>Ask Trading Covered</strong><br>
+      Ask anything about today's data. Try:<br>
+      "What drove the GP decline yesterday?"<br>
+      "Show me renewal rate trend for March"<br>
+      "Compare direct vs aggregator this week"
+    </div>
+  </div>
   <div class="chat-input-wrap">
     <input type="text" id="chatInput" class="chat-input" placeholder="Ask anything about today's trading data..."
            onkeydown="if(event.key==='Enter')submitChat()">
@@ -3026,6 +3034,12 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     </button>
   </div>
 </div>
+
+<!-- Chat FAB — always-visible floating button -->
+<button class="chat-fab" onclick="toggleChat()" id="chatFab" aria-label="Ask Trading Covered">
+  <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</button>
+<div class="chat-fab-label">Ask Trading Covered</div>
 
 <script>
 {js_verify_content}

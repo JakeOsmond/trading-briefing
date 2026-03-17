@@ -922,10 +922,13 @@ function submitDriverReply(btn,id){
 let chatHistory=[];
 function toggleChat(){
   const panel=document.getElementById('chatPanel');
+  const fab=document.getElementById('chatFab');
+  const fabLabel=document.querySelector('.chat-fab-label');
   const isOpen=panel.style.display!=='none';
   panel.style.display=isOpen?'none':'flex';
+  if(fab)fab.style.display=isOpen?'flex':'none';
+  if(fabLabel)fabLabel.style.display=isOpen?'block':'none';
   if(!isOpen){
-    /* Show input bar on first open */
     const inputWrap=document.querySelector('.chat-input-wrap');
     inputWrap.style.display='flex';
     document.getElementById('chatInput').focus();
@@ -988,6 +991,10 @@ function submitChat(){
   const messagesDiv=document.getElementById('chatMessages');
   const question=input.value.trim();
   if(!question) return;
+
+  /* Remove welcome message on first submit */
+  const welcome=document.getElementById('chatWelcome');
+  if(welcome)welcome.remove();
 
   /* Add user message bubble */
   const userMsg=document.createElement('div');
