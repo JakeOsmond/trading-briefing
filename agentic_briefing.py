@@ -30,7 +30,7 @@ from google.cloud import bigquery
 from googleapiclient.discovery import build
 
 # ---------------------------------------------------------------------------
-# CONFIG
+# CONFIG [DOMAIN-AGNOSTIC — except BQ_PROJECT and MARKET_SHEET_ID]
 # ---------------------------------------------------------------------------
 
 def _load_env():
@@ -76,7 +76,7 @@ BROWSER = "Arc"
 MAX_INVESTIGATION_LOOPS = 10
 
 # ---------------------------------------------------------------------------
-# UK HOLIDAYS — bank holidays (API + fallback) and school holidays (computed)
+# UK HOLIDAYS [DOMAIN-AGNOSTIC — UK-wide, applies to all HX products]
 # ---------------------------------------------------------------------------
 
 # Fallback bank holidays if gov.uk API unavailable
@@ -240,7 +240,7 @@ def init_services():
 
 
 # ---------------------------------------------------------------------------
-# TOOL IMPLEMENTATIONS — these are what GPT can call
+# TOOL IMPLEMENTATIONS [DOMAIN-AGNOSTIC — SQL runner, market data, web search, drive scanner]
 # ---------------------------------------------------------------------------
 
 def _autocorrect_sql(sql: str) -> tuple[str, list[str]]:
@@ -633,7 +633,7 @@ TOOLS = [
 
 
 # ---------------------------------------------------------------------------
-# TABLE SCHEMA KNOWLEDGE — injected into the system prompt
+# TABLE SCHEMA KNOWLEDGE [INSURANCE-SPECIFIC — replace for new domains]
 # ---------------------------------------------------------------------------
 
 SCHEMA_KNOWLEDGE = dedent("""\
@@ -971,7 +971,7 @@ GROUP BY device_type
 
 
 # ---------------------------------------------------------------------------
-# INVESTIGATION TRACKS — deterministic SQL covering all trading dimensions
+# INVESTIGATION TRACKS [INSURANCE-SPECIFIC — replace entirely for new domains]
 # ---------------------------------------------------------------------------
 
 def build_investigation_tracks(dp):
@@ -2080,7 +2080,7 @@ ORDER BY source, yr, customer_type
 
 
 # ---------------------------------------------------------------------------
-# SYSTEM PROMPT — the analyst's brain
+# SYSTEM PROMPT [PARTIALLY DOMAIN-SPECIFIC — analysis framework is agnostic, output format is agnostic, schema refs are insurance-specific]
 # ---------------------------------------------------------------------------
 
 ANALYSIS_SYSTEM = dedent("""\
@@ -3255,7 +3255,7 @@ If the draft is already good, output it unchanged."""
 
 
 # ---------------------------------------------------------------------------
-# DRIVER TREND DATA — 14-day daily series per material mover
+# DRIVER TREND DATA [DOMAIN-AGNOSTIC — statistical confidence system works for any metric]
 # ---------------------------------------------------------------------------
 
 def _infer_segment_filter(mover):
@@ -3606,7 +3606,7 @@ ORDER BY period, dt
 
 
 # ---------------------------------------------------------------------------
-# CROSS-MODEL VERIFICATION (Phase 4c)
+# CROSS-MODEL VERIFICATION [DOMAIN-AGNOSTIC — verifies any finding against SQL evidence]
 # ---------------------------------------------------------------------------
 
 def verify_findings(analysis, track_results, follow_up_results):
@@ -3714,7 +3714,7 @@ Output ONLY raw JSON (no markdown fences):
 
 
 # ---------------------------------------------------------------------------
-# HTML DASHBOARD (same as before but using the new data)
+# HTML DASHBOARD [DOMAIN-AGNOSTIC — layout, CSS, JS, charts, verification UI. Only the banner image is insurance-branded]
 # ---------------------------------------------------------------------------
 
 def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, investigation_log=None, run_date=None, trend_data_ly=None, driver_trends=None, verification=None):
