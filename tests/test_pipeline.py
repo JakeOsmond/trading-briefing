@@ -18,7 +18,7 @@ from datetime import date, timedelta
 # Add project root to path so we can import from agentic_briefing
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agentic_briefing import _autocorrect_sql, _parse_llm_json, _compute_confidence, generate_dashboard_html
+from agentic_briefing import _autocorrect_sql, _parse_llm_json, _compute_confidence, generate_dashboard_html, _load_domain_config
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -299,3 +299,26 @@ class TestHTMLGeneration:
         assert "</html>" in html, "HTML not closed"
         # Minimum size (should be substantial with templates)
         assert len(html) > 50000, f"HTML suspiciously small: {len(html)} chars"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 6. DOMAIN CONFIG VALIDATION (2 tests)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestDomainConfig:
+    """Validates domain config files have all required fields."""
+
+    REQUIRED_KEYS = ["domain", "bq_project", "tables", "models", "materiality_gp_impact", "tracks_module"]
+    REQUIRED_MODEL_ROLES = ["analyst", "verifier", "lightweight"]
+
+    def test_insurance_config_has_required_keys(self):
+        config = _load_domain_config("insurance")
+        assert config, "Insurance config failed to load"
+        for key in self.REQUIRED_KEYS:
+            assert key in config, f"Missing required config key: {key}"
+
+    def test_insurance_config_has_all_model_roles(self):
+        config = _load_domain_config("insurance")
+        models = config.get("models", {})
+        for role in self.REQUIRED_MODEL_ROLES:
+            assert role in models, f"Missing model role: {role}"
