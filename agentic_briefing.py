@@ -44,8 +44,21 @@ def _load_env():
 
 _load_env()
 
-# Load trading context file (business knowledge for AI prompts)
+# Load trading context (business knowledge for AI prompts)
+# Reads from context/ folder if present, falls back to trading_context.md
 def _load_trading_context():
+    ctx_dir = Path(__file__).parent / "context"
+    if ctx_dir.is_dir():
+        # Load all markdown files from context/ in order: universal → domain → operational
+        parts = []
+        for subdir in ["universal", "insurance", "operational"]:
+            sub_path = ctx_dir / subdir
+            if sub_path.is_dir():
+                for f in sorted(sub_path.glob("*.md")):
+                    parts.append(f.read_text())
+        if parts:
+            return "\n\n---\n\n".join(parts)
+    # Fallback to single file
     ctx_path = Path(__file__).parent / "trading_context.md"
     if ctx_path.exists():
         return ctx_path.read_text()
