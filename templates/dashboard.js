@@ -1328,12 +1328,19 @@ function openInvestigations(){
         if(container) container._matchedData=td;
       }
 
-      /* Remove old AI-written badge from h3 */
-      const oldBadge=h3.querySelector('[class^="badge-confidence-"],.badge-recurring,.badge-emerging,.badge-new');
-      if(oldBadge) oldBadge.remove();
+      /* Move persistence badge (recurring/emerging/new) from h3 to pills line */
+      const target=pillsDiv||h3;
+      const oldBadge=h3.querySelector('.badge-recurring,.badge-emerging,.badge-new');
+      if(oldBadge&&target!==h3){
+        oldBadge.remove();
+        target.prepend(oldBadge);
+      }
+
+      /* Remove any old confidence badge from h3 (shouldn't be there, but defensive) */
+      const oldConfBadge=h3.querySelector('[class^="badge-confidence-"]');
+      if(oldConfBadge) oldConfBadge.remove();
 
       /* Insert confidence badge into pills line */
-      const target=pillsDiv||h3;
       const conf=(td.confidence||'Low');
       const confSlug=conf.toLowerCase().replace(/\\s+/g,'-');
       const badge=document.createElement('span');
@@ -1343,9 +1350,9 @@ function openInvestigations(){
       tip.className='conf-tip';
       tip.textContent=cd+'/'+tot+' days consistent. Click Trend for full analysis.';
       badge.appendChild(tip);
-      /* Insert confidence pill at the start of the pills line (before trend btn) */
+      /* Insert confidence pill at the start of the pills line (before trend btn, after persistence badge) */
       if(btn) target.insertBefore(badge,btn);
-      else target.prepend(badge);
+      else target.appendChild(badge);
 
       if(btn){
         btn.style.display='';
@@ -1362,6 +1369,9 @@ function openInvestigations(){
     });
   })();
 })();
+
+/* Chart fallback — if intersection observer didn't trigger (e.g. chart visible on load) */
+setTimeout(function(){if(!chartBuilt&&data&&data.length)buildChart();},800);
 
 /* (Sticky section label removed — replaced by banner) */
 
