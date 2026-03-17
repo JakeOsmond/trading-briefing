@@ -32,4 +32,8 @@ This produces: longer-lead bookings decline, short-lead bookings hold/grow, forw
 
 ## Travel Events Log
 
-A structured log of past and upcoming travel events is maintained in a shared Google Sheet. This feeds the Market Factors annotation in weekly trading reports.
+A structured log of past and upcoming travel events is maintained in a shared Google Sheet:
+
+**Travel Events Log:** `1lqLYxLTnfFyBSsIPRyPr8vpr25S7Fhz3p-nlWNToZpU`
+
+This feeds the Market Factors annotation in weekly trading reports. The pipeline can reference this sheet for event context when analysing YoY variances.
