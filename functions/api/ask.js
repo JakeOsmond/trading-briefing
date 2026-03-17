@@ -208,6 +208,8 @@ async function callOpenAI(messages, tools, apiKey, maxTokens = 4096, model = 'gp
 
 // ── Schema knowledge (condensed for Worker size limits) ───────────────────
 
+// AUTHORITATIVE SOURCE: context/insurance/schema-knowledge.md
+// If schema changes, update that file AND this constant.
 const SCHEMA_KNOWLEDGE = `
 ## BigQuery Tables — USE THESE EXACT TABLE NAMES (backtick-quoted)
 
@@ -242,6 +244,8 @@ Sessions = COUNT(DISTINCT session_id). Users = COUNT(DISTINCT visitor_id).
 This is a key drill-down dimension for understanding customer mix.
 `;
 
+// AUTHORITATIVE SOURCE: context/insurance/policy-economics.md, channels.md, renewal-rates.md
+// If business rules change, update context files AND this constant.
 const BUSINESS_CONTEXT = `
 - HX runs NEGATIVE margins on annual policies deliberately (lifetime value strategy). Never flag as problem.
 - Single trip losses ARE problems — no renewal pathway.

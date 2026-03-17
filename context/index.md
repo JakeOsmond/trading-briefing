@@ -31,6 +31,7 @@ These are specific to the insurance trading domain. Replace entirely for other p
 | [drill-dimensions.md](insurance/drill-dimensions.md) | Column names for channel, cover level, device, medical, booking source |
 | [funnel-stages.md](insurance/funnel-stages.md) | 9-stage customer journey from Landing to Just Booked |
 | [aggregator-position.md](insurance/aggregator-position.md) | Aggregator economics, commission, data limitations |
+| [schema-knowledge.md](insurance/schema-knowledge.md) | BigQuery table schemas, column definitions, SQL rules (authoritative source for ask.js) |
 
 ## Operational (partially transferable)
 
