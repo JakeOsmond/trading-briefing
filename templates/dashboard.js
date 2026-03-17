@@ -73,7 +73,7 @@ function toggleSQL(id){
     const code=el.querySelector('code');
     if(code&&!code.dataset.highlighted){
       code.dataset.highlighted='1';
-      const keywords=/\\b(SELECT|FROM|WHERE|AND|OR|GROUP BY|ORDER BY|JOIN|LEFT|RIGHT|INNER|ON|AS|IN|NOT|NULL|IS|BETWEEN|LIKE|LIMIT|OFFSET|HAVING|UNION|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TABLE|INTO|VALUES|SET|CASE|WHEN|THEN|ELSE|END|COUNT|SUM|AVG|MIN|MAX|DISTINCT|WITH|OVER|PARTITION BY|ROW_NUMBER|RANK|DENSE_RANK|COALESCE|CAST|EXTRACT|DATE|TIMESTAMP|INTERVAL|TRUE|FALSE|ASC|DESC|EXISTS|ANY|ALL|EXCEPT|INTERSECT|CROSS|FULL|OUTER|NATURAL|USING|RECURSIVE|LATERAL|WINDOW|FILTER|WITHIN|ARRAY_AGG|STRING_AGG|UNNEST|STRUCT|SAFE_DIVIDE|IF|IFNULL|NULLIF|FORMAT_DATE|DATE_DIFF|DATE_ADD|DATE_SUB|DATE_TRUNC|PARSE_DATE|CURRENT_DATE|CURRENT_TIMESTAMP|GENERATE_DATE_ARRAY|LAG|LEAD)\\b/gi;
+      const keywords=/\b(SELECT|FROM|WHERE|AND|OR|GROUP BY|ORDER BY|JOIN|LEFT|RIGHT|INNER|ON|AS|IN|NOT|NULL|IS|BETWEEN|LIKE|LIMIT|OFFSET|HAVING|UNION|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TABLE|INTO|VALUES|SET|CASE|WHEN|THEN|ELSE|END|COUNT|SUM|AVG|MIN|MAX|DISTINCT|WITH|OVER|PARTITION BY|ROW_NUMBER|RANK|DENSE_RANK|COALESCE|CAST|EXTRACT|DATE|TIMESTAMP|INTERVAL|TRUE|FALSE|ASC|DESC|EXISTS|ANY|ALL|EXCEPT|INTERSECT|CROSS|FULL|OUTER|NATURAL|USING|RECURSIVE|LATERAL|WINDOW|FILTER|WITHIN|ARRAY_AGG|STRING_AGG|UNNEST|STRUCT|SAFE_DIVIDE|IF|IFNULL|NULLIF|FORMAT_DATE|DATE_DIFF|DATE_ADD|DATE_SUB|DATE_TRUNC|PARSE_DATE|CURRENT_DATE|CURRENT_TIMESTAMP|GENERATE_DATE_ARRAY|LAG|LEAD)\b/gi;
       const strings=/'([^']*)'/g;
       let html=code.innerHTML;
       html=html.replace(strings,`<span class="str">'$1'</span>`);
@@ -98,7 +98,7 @@ function copySQL(id){
 /* ── Animated AI loading stepper ── */
 const AI_STEPS_INITIAL=[
   'Connecting to BigQuery…',
-  'Checking today\\'s date…',
+  'Checking today\'s date…',
   'Writing SQL query…',
   'Running query against BigQuery…',
   'Analysing results…',
@@ -206,7 +206,7 @@ function _matchTrend(headingText){
   if(!keys.length) return null;
   const stop=new Set(['the','a','an','and','or','of','in','on','to','for','is','from','by','with','not','recurring','emerging','new','trend']);
   function tokens(s){
-    return s.toLowerCase().replace(/[^a-z0-9\\s/]/g,' ').split(/\\s+/)
+    return s.toLowerCase().replace(/[^a-z0-9\s/]/g,' ').split(/\s+/)
       .flatMap(w=>w.split('/')).filter(w=>w.length>1&&!stop.has(w));
   }
   const hTokens=new Set(tokens(headingText));
@@ -304,7 +304,7 @@ function fetchDriverTrend(trendId, btn){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
-      question:'Return ONLY a JSON object with a single key "segment_filter" containing a SQL WHERE clause fragment that isolates this segment: "'+headingText+'". Examples: "distribution_channel=\\'Direct\\' AND policy_type=\\'Single\\'", "cover_level_name=\\'Bronze\\'". Return ONLY valid JSON, no explanation.',
+      question:'Return ONLY a JSON object with a single key "segment_filter" containing a SQL WHERE clause fragment that isolates this segment: "'+headingText+'". Examples: "distribution_channel=\'Direct\' AND policy_type=\'Single\'", "cover_level_name=\'Bronze\'". Return ONLY valid JSON, no explanation.',
       mode:'general'
     })
   })
@@ -314,19 +314,19 @@ function fetchDriverTrend(trendId, btn){
     let segFilter='1=1';
     try{
       const answer=data.answer||'';
-      const jsonMatch=answer.match(/\\{[^{}]*"segment_filter"[^{}]*\\}/);
+      const jsonMatch=answer.match(/\{[^{}]*"segment_filter"[^{}]*\}/);
       if(jsonMatch){
         segFilter=JSON.parse(jsonMatch[0]).segment_filter||'1=1';
       }else{
         /* Try to find a WHERE clause fragment */
-        const whereMatch=answer.match(/(?:distribution_channel|policy_type|cover_level_name|insurance_group)[^"\\n]{5,120}/i);
+        const whereMatch=answer.match(/(?:distribution_channel|policy_type|cover_level_name|insurance_group)[^"\n]{5,120}/i);
         if(whereMatch) segFilter=whereMatch[0].replace(/[`]/g,"'");
       }
     }catch(e){}
 
     /* Now run the actual trend queries */
-    const tySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \\`hx-data-production.commercial_finance.insurance_policies_new\\` WHERE transaction_date BETWEEN '${fmt(start)}' AND '${fmt(yesterday)}' AND ${segFilter} GROUP BY transaction_date ORDER BY transaction_date`;
-    const lySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \\`hx-data-production.commercial_finance.insurance_policies_new\\` WHERE transaction_date BETWEEN '${fmt(lyStart)}' AND '${fmt(lyEnd)}' AND ${segFilter} GROUP BY transaction_date ORDER BY transaction_date`;
+    const tySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \`hx-data-production.commercial_finance.insurance_policies_new\` WHERE transaction_date BETWEEN '${fmt(start)}' AND '${fmt(yesterday)}' AND ${segFilter} GROUP BY transaction_date ORDER BY transaction_date`;
+    const lySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \`hx-data-production.commercial_finance.insurance_policies_new\` WHERE transaction_date BETWEEN '${fmt(lyStart)}' AND '${fmt(lyEnd)}' AND ${segFilter} GROUP BY transaction_date ORDER BY transaction_date`;
 
     return fetch((window.__apiBase||'')+'/api/ask',{
       method:'POST',
@@ -545,10 +545,10 @@ function getDriverContext(panel){
       if(prev.tagName==='H3') break;
       prev=prev.previousElementSibling;
     }
-    ctx=parts.join('\\n');
+    ctx=parts.join('\n');
     /* Also grab the SQL query if present — tells the AI exactly which table/filters apply */
     const sqlCode=wrap.querySelector('pre.dig-sql code');
-    if(sqlCode) ctx+='\\n\\nOriginal SQL used for this driver:\\n'+sqlCode.textContent;
+    if(sqlCode) ctx+='\n\nOriginal SQL used for this driver:\n'+sqlCode.textContent;
   }
   return ctx;
 }
@@ -600,7 +600,7 @@ function buildSqlButton(sqlQueries){
         +'</div>';
       /* Show sample data preview if available */
       if(q.sample_data){
-        const sampleLines=q.sample_data.split('\\n').slice(0,3);
+        const sampleLines=q.sample_data.split('\n').slice(0,3);
         html+='<div style="font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Sample results</div>';
         html+='<div style="font-size:11px;color:#cbd5e1;margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;overflow-x:auto;max-height:80px">';
         sampleLines.forEach(line=>{
@@ -668,13 +668,13 @@ function renderAIChart(container,chartData){
     }else{
       label=p.category||'';
     }
-    const fmtVal=p.value>=1000?'\\u00A3'+Math.round(p.value).toLocaleString():p.value.toFixed(1);
+    const fmtVal=p.value>=1000?'\u00A3'+Math.round(p.value).toLocaleString():p.value.toFixed(1);
     /* Growth tooltip: show vs LY with % change, or delta, or vs previous */
     let growthHTML='';
     if(lyVal!==null){
       const diff=p.value-lyVal;
       const pct=lyVal!==0?((diff/lyVal)*100).toFixed(1):'n/a';
-      growthHTML='<div style="color:'+(isUp?'#34d399':'#f87171')+'">vs LY: \\u00A3'+Math.round(lyVal).toLocaleString()+' ('+(isUp?'+':'')+pct+'%)</div>';
+      growthHTML='<div style="color:'+(isUp?'#34d399':'#f87171')+'">vs LY: \u00A3'+Math.round(lyVal).toLocaleString()+' ('+(isUp?'+':'')+pct+'%)</div>';
     }else if(deltaVal!==null){
       growthHTML='<div style="color:'+(isUp?'#34d399':'#f87171')+'">'+(isUp?'+':'')+deltaVal.toFixed(1)+'% vs LY</div>';
     }else if(prevVal!==null){
@@ -787,7 +787,7 @@ function addDriverReplyInput(responseDiv,id){
   const wrap=document.createElement('div');
   wrap.className='chat-reply-wrap';
   wrap.innerHTML='<input type="text" class="chat-input chat-reply-input" placeholder="Ask a follow-up…">'
-    +'<button class="chat-send chat-reply-send" onclick="submitDriverReply(this,\\''+id+'\\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>';
+    +'<button class="chat-send chat-reply-send" onclick="submitDriverReply(this,\''+id+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>';
   responseDiv.appendChild(wrap);
   const inp=wrap.querySelector('.chat-reply-input');
   inp.addEventListener('keydown',function(e){if(e.key==='Enter')submitDriverReply(wrap.querySelector('.chat-reply-send'),id)});
@@ -1031,7 +1031,7 @@ function submitChat(){
     if(data.needs_clarification){
       content='<span class="ask-clarification">🤔 '+content+'</span>';
     } else if(data.sql_queries&&data.sql_queries.length>0){
-      content+='\\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+      content+='\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
       content+=buildSqlButton(data.sql_queries);
     }
     assistantMsg.innerHTML=content;
@@ -1115,7 +1115,7 @@ function submitChatReply(btn){
     if(data.needs_clarification){
       content='<span class="ask-clarification">🤔 '+content+'</span>';
     } else if(data.sql_queries&&data.sql_queries.length>0){
-      content+='\\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
+      content+='\n<span class="chat-sql-count">'+data.sql_queries.length+' SQL quer'+(data.sql_queries.length===1?'y':'ies')+' · '+data.rounds+' round'+(data.rounds===1?'':'s')+'</span>';
       content+=buildSqlButton(data.sql_queries);
     }
     assistantMsg.innerHTML=content;
@@ -1342,7 +1342,7 @@ function openInvestigations(){
 
       /* Insert confidence badge into pills line */
       const conf=(td.confidence||'Low');
-      const confSlug=conf.toLowerCase().replace(/\\s+/g,'-');
+      const confSlug=conf.toLowerCase().replace(/\s+/g,'-');
       const badge=document.createElement('span');
       badge.className='badge-confidence-'+confSlug;
       badge.textContent=conf+' confidence';

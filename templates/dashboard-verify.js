@@ -114,7 +114,7 @@ function applyVerificationState(findingId,action,verifiedBy,note){
         var lis=glance.querySelectorAll('li');
         lis.forEach(function(li){
           var txt=li.textContent.toLowerCase();
-          var words=driverName.split(/[\\s\\-\\u2014]+/).filter(function(w){return w.length>3;});
+          var words=driverName.split(/[\s\-\u2014]+/).filter(function(w){return w.length>3;});
           var matches=words.filter(function(w){return txt.indexOf(w)!==-1;});
           if(matches.length>=2){
             li.style.opacity='0.2';
