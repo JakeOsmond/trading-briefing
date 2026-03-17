@@ -18,6 +18,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate template JS syntax
+        run: |
+          node --check templates/dashboard.js
+          node --check templates/dashboard-verify.js
+
       - name: Inject schema/business context into ask.js
         run: bash scripts/inject-ask-context.sh insurance
 

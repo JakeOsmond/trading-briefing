@@ -41,6 +41,11 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/test_pipeline.py -v
 
+      - name: Validate template JS syntax
+        run: |
+          node --check templates/dashboard.js
+          node --check templates/dashboard-verify.js
+
       - name: Write GCP credentials file
         run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
 
