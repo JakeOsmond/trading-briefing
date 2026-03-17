@@ -70,8 +70,16 @@ BQ_PROJECT = "hx-data-production"
 MARKET_SHEET_ID = "1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg"
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-MODEL = "gpt-5.4"
-VERIFY_MODEL = "claude-sonnet-4-20250514"
+# Model configuration — roles map to specific models.
+# Change model assignments here without touching pipeline code.
+MODELS = {
+    "analyst": "gpt-5.4",           # Main reasoning: investigation, follow-ups, synthesis
+    "verifier": "claude-sonnet-4-20250514",  # Cross-model verification of findings
+    "lightweight": "gpt-5-mini",     # Web search, fallback tasks
+}
+MODEL = MODELS["analyst"]
+VERIFY_MODEL = MODELS["verifier"]
+LIGHTWEIGHT_MODEL = MODELS["lightweight"]
 BROWSER = "Arc"
 MAX_INVESTIGATION_LOOPS = 10
 
@@ -471,7 +479,7 @@ def tool_web_search(query: str) -> str:
         client = openai.OpenAI(api_key=OPENAI_API_KEY)
         # Use web_search_preview tool for real web results with URLs
         resp = client.responses.create(
-            model="gpt-5-mini",
+            model=LIGHTWEIGHT_MODEL,
             tools=[{"type": "web_search_preview"}],
             input=f"""Search the web for the latest information about: {query}
 
@@ -493,7 +501,7 @@ Be specific with dates, numbers, and always cite your sources.""",
         try:
             client = openai.OpenAI(api_key=OPENAI_API_KEY)
             resp = client.chat.completions.create(
-                model="gpt-5-mini",
+                model=LIGHTWEIGHT_MODEL,
                 max_completion_tokens=1500,
                 messages=[
                     {"role": "system", "content": "You are a research assistant. Provide the most recent and relevant information about this query. Focus on UK travel insurance market, competitors, regulatory changes, and travel trends. Be specific with dates, numbers, and name your sources (e.g. 'according to the Financial Times', 'per Google Trends data')."},
