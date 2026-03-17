@@ -3064,13 +3064,15 @@ def _generate_archive_index(briefings_dir: str):
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="HX Insurance Trading — Agentic Morning Briefing")
+    parser = argparse.ArgumentParser(description="Trading Covered — Agentic Daily Briefing")
     parser.add_argument("--date", type=str, default=None,
                         help="Run for a specific date (YYYY-MM-DD). Defaults to yesterday.")
     parser.add_argument("--from", dest="from_date", type=str, default=None,
                         help="Start of date range (YYYY-MM-DD). Use with --to.")
     parser.add_argument("--to", dest="to_date", type=str, default=None,
                         help="End of date range (YYYY-MM-DD). Use with --from.")
+    parser.add_argument("--domain", type=str, default="insurance",
+                        help="Domain to run (default: insurance). Must have domains/{domain}/ folder.")
     args = parser.parse_args()
 
     # Determine run_date (the "yesterday" equivalent — the most recent trading day to analyse)
@@ -3081,6 +3083,9 @@ def main():
         run_date = date.fromisoformat(args.to_date)
     else:
         run_date = date.today() - timedelta(days=1)
+
+    # Log domain selection
+    print(f"🏷️  Domain: {args.domain}")
 
     # Build date params for SQL
     dp = get_date_params(run_date)
