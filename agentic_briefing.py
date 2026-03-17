@@ -2591,6 +2591,26 @@ def _fetch_sheet_tab(tab_name, cell_range="A1:Z500"):
 def run_baseline_queries(date_params):
     """Phase 1: Pull all baseline data using explicit date parameters."""
     print("\n📊 Phase 1: Pulling baseline data...")
+
+    # Data freshness gate — check that BigQuery has data for the expected date
+    expected_date = date_params["yesterday"]
+    freshness_sql = f"""
+    SELECT MAX(transaction_date) AS latest_date,
+           SUM(policy_count) AS row_count
+    FROM `{BQ_PROJECT}.commercial_finance.insurance_policies_new`
+    WHERE transaction_date = '{expected_date}'
+    """
+    try:
+        freshness = [dict(r) for r in BQ_CLIENT.query(freshness_sql).result()]
+        if freshness and freshness[0].get("row_count", 0) and freshness[0]["row_count"] > 0:
+            print(f"  ✓ Data freshness check: {freshness[0]['row_count']} policies for {expected_date}")
+        else:
+            print(f"  ⚠ WARNING: No data found for {expected_date} in BigQuery!")
+            print(f"    The upstream data load may not have completed yet.")
+            print(f"    Proceeding anyway — briefing may contain incomplete data.")
+    except Exception as e:
+        print(f"  ⚠ Freshness check failed (non-fatal): {e}")
+
     trading = [dict(r) for r in BQ_CLIENT.query(build_baseline_trading_sql(date_params)).result()]
     print("  ✓ Trading summary")
     trend = [dict(r) for r in BQ_CLIENT.query(build_baseline_trend_sql(date_params)).result()]
