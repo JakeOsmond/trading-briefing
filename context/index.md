@@ -12,10 +12,15 @@ These apply to any HX trading product. Do not modify per domain.
 
 | File | What it covers |
 |------|---------------|
+| [hx-group-structure.md](universal/hx-group-structure.md) | Group BU structure, how Insurance/Distribution/Europe/Adventures relate |
 | [trading-framework.md](universal/trading-framework.md) | Traffic x Conversion x GP equation, how to decompose any movement |
-| [yoy-methodology.md](universal/yoy-methodology.md) | 364-day offset, COVID structural breaks, date handling rules |
+| [financial-waterfall.md](universal/financial-waterfall.md) | Full Price → GP waterfall (discount, supplier cost, VAT, commission, PPC) |
+| [yoy-methodology.md](universal/yoy-methodology.md) | 364-day offset, COVID structural breaks, calendar effects |
 | [metrics-guide.md](universal/metrics-guide.md) | How to talk about GP, volume, average GP, conversion, mix, persistence |
-| [financial-year.md](universal/financial-year.md) | FYTD definition (1 April – 31 March) |
+| [financial-year.md](universal/financial-year.md) | FYTD definition, FY naming, forecasting cycle (BGT, F1, F2, F3) |
+| [reporting-conventions.md](universal/reporting-conventions.md) | Standard abbreviations: TY/LY/BGT/Fcast, GP/GM/MAV/CpB, BU codes |
+| [transaction-mechanics.md](universal/transaction-mechanics.md) | Book date vs stay date, revenue recognition, booked GP vs stay GP, cancellations |
+| [travel-events.md](universal/travel-events.md) | External event categories, YoY comparison rules, ancillary booking delay theory |
 
 ## Insurance (domain-specific)
 
