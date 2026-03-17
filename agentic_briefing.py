@@ -6196,7 +6196,10 @@ table.ai-table tr:hover td{{background:rgba(51,65,85,0.3);}}
   .driver-ask-panel{{padding:10px}}
   .ask-input{{font-size:12px;padding:8px 10px}}
 }}
-</style></head><body>
+</style>
+<script src="https://dbq5t2jl0vcpj.cloudfront.net/hx-tracker/tracker-v5-latest.min.js"></script>
+<script>tracker.initialise({{env:'production',service:'trading-covered',organisation:'Holiday Extras Limited',lb:false}});</script>
+</head><body>
 <div id="staging-banner" style="display:none;background:linear-gradient(90deg,#f59e0b,#f97316);color:#000;text-align:center;padding:6px 12px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;position:sticky;top:0;z-index:9999;">&#9888; Staging Environment &mdash; Changes here are not live</div>
 <script>if(location.hostname.includes('staging'))document.getElementById('staging-banner').style.display='block';</script>
 <div id="stale-banner" style="display:none;background:linear-gradient(90deg,#dc2626,#ef4444);color:#fff;text-align:center;padding:8px 12px;font-size:13px;font-weight:600;position:sticky;top:0;z-index:9998;">&#9888; This briefing may be stale &mdash; generated <span id="stale-age"></span> ago. <a href="https://github.com/JakeOsmond/trading-briefing/actions/workflows/daily-briefing.yml" target="_blank" style="color:#fde68a;text-decoration:underline;margin-left:8px;">Re-run pipeline</a></div>
