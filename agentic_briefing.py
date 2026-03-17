@@ -5692,7 +5692,8 @@ body::after{{
   border-bottom:1px solid var(--border);
 }}
 .nar h2:first-of-type{{margin-top:0}}
-.nar h3{{font-size:17px;font-weight:700;color:var(--text);margin:20px 0 4px;line-height:1.3}}
+.nar h3{{font-size:14px;font-weight:700;color:var(--text);margin:20px 0 8px}}
+.nar h3[data-driver-idx]{{font-size:17px;margin:20px 0 4px;line-height:1.3}}
 .driver-pills .verify-pill,.driver-pills .view-trend-btn,.driver-pills [class^="badge-confidence-"],.driver-pills .badge-recovery{{display:inline-block;vertical-align:middle}}
 .driver-pills{{display:block;margin:2px 0 8px}}
 .nar p{{font-size:13.5px;color:#cbd5e1;margin-bottom:12px;line-height:1.8}}
