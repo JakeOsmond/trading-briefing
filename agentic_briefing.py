@@ -1148,6 +1148,43 @@ SKIP = not useful for trading analysis. Be conservative: if unsure, TEMPORARY.""
         print(f"  📝 {len(new_temp)} new temporary facts written ({len(temporary) - len(new_temp)} already in temp file)")
         temporary = new_temp
 
+    # 5c. AI dedup pass — send the full temp file to a fast model to clean up
+    temp_path_cleanup = Path(__file__).parent / "context" / "operational" / "temporary-context.md"
+    if temp_path_cleanup.exists():
+        temp_lines = [l for l in temp_path_cleanup.read_text().split("\n") if l.startswith("- ")]
+        if len(temp_lines) > 20:
+            print(f"  🧹 AI dedup: cleaning {len(temp_lines)} temp facts...")
+            try:
+                cleanup_resp = client_oai.chat.completions.create(
+                    model=LIGHTWEIGHT_MODEL,
+                    max_completion_tokens=8000,
+                    response_format={"type": "json_object"},
+                    messages=[
+                        {"role": "system", "content": """You are deduplicating a list of trading context facts.
+
+Return JSON: {"facts": ["- fact 1 — Source: ...", "- fact 2 — Source: ...", ...]}
+
+Rules:
+- Remove exact and near-duplicates (same fact worded slightly differently — keep the better-worded one)
+- Remove facts that are too vague to be useful (e.g. "The document is dated January 2026")
+- Remove facts that are just describing what a document IS rather than stating a useful fact
+- Keep all facts that contain specific numbers, rates, thresholds, dates, or named entities
+- Preserve the full line including the "— Source: ..." attribution and "(expires: ...)" suffix
+- Do NOT rewrite or change the facts — just remove duplicates and noise"""},
+                        {"role": "user", "content": "\n".join(temp_lines)},
+                    ],
+                )
+                result = _parse_llm_json(cleanup_resp.choices[0].message.content)
+                cleaned = result.get("facts", []) if isinstance(result, dict) else []
+                if cleaned and len(cleaned) < len(temp_lines):
+                    header = "# Temporary Context — Auto-Expires After 7 Days\n\n_Facts below are used in briefings but expire automatically. Do not edit manually._\n\n"
+                    temp_path_cleanup.write_text(header + "\n".join(cleaned) + "\n")
+                    print(f"  🧹 AI dedup: {len(temp_lines)} → {len(cleaned)} facts ({len(temp_lines) - len(cleaned)} removed)")
+                else:
+                    print(f"  🧹 AI dedup: no reduction (returned {len(cleaned)} items)")
+            except Exception as e:
+                print(f"  ⚠ AI dedup failed (non-fatal): {e}")
+
     # 6. Dedup + auto-file permanent items into the correct context file
     if permanent:
         context_dir = Path(__file__).parent / "context"
