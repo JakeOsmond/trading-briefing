@@ -1,31 +1,81 @@
 ## BigQuery Tables — USE THESE EXACT TABLE NAMES (backtick-quoted)
 
 ### `hx-data-production.commercial_finance.insurance_policies_new`
-This is the ONLY policy table. Project: hx-data-production. Dataset: commercial_finance.
+The ONLY policy table. Every row = one transaction event on a policy.
 CRITICAL RULES:
 - ALWAYS use the full name: `hx-data-production.commercial_finance.insurance_policies_new`
-- Use SUM(policy_count) not COUNT(*) for policy counts
+- Use SUM(policy_count) not COUNT(*) for policy counts — multiple rows per policy
 - Use SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) for GP — NEVER AVG()
 - Avg GP = SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
+- All BIGNUMERIC columns must be CAST to FLOAT64 for aggregation
 - YoY = 364-day offset (matches day-of-week)
 - transaction_date is DATE type — use directly, no EXTRACT()
 
-Key columns: transaction_date, travel_end_date (policy expiry date), policy_type (Annual/Single), distribution_channel (Direct/Aggregator/Partner Referral/Renewals),
-channel, scheme_name, cover_level_name, booking_source, device_type, medical_split, max_medical_score_grouped,
-max_age_at_purchase, trip_duration_band, days_to_travel, policy_count,
-total_gross_exc_ipt_ntu_comm (THIS IS GP), total_gross_inc_ipt (customer price),
-total_discount_value, total_paid_commission_value, total_net_to_underwriter_inc_gadget,
-customer_type (New/Existing/Lapsed/Re-engaged — indicates customer relationship status).
+TRANSACTION MODEL (version column):
+- version 1 = New Issue (policy_count = 1)
+- version 2 = Contra/reversal (policy_count = -1)
+- version 3 = Cancellation (always paired with a Contra)
+- version 4 = MTA/Amendment (always paired with a Contra)
+SUM(policy_count) correctly nets these out. transaction_type has: New Issue, Contra, MTA Debit, Cancellation.
+
+DATE COLUMNS: transaction_date (DATE, primary), transaction_datetime, travel_start_date, travel_end_date (policy expiry — for renewal calcs), duration (days, 365=annual), issue_date, quote_date, cancellation_date.
+
+PRODUCT COLUMNS: policy_type (Annual/Single), scheme_name (e.g. "Bronze Main Single Med HX" — encodes cover+type+med+brand), scheme_id, scheme_version, product (e.g. "Direct Travel", "Direct Cruise"), cover_level_name (Bronze/Silver/Gold), cover_level_tier (1/2/3), brand.
+
+DISTRIBUTION COLUMNS:
+- distribution_channel: Direct, Aggregator, Partner Referral, Renewals (primary split)
+- channel: more specific e.g. "Direct - Standard", "Direct - Medical", "Partner Referral - Standard"
+- insurance_group: sub-channel e.g. "Cross Sell", "Direct Mailings", "Affiliates", "Independent", "Web Links"
+- agent_code, agent_name, agent_group: attribution (e.g. "AH760"/"AIRLINE CC REF"/"I9", "AW660"/"APS-BKSLON-16"/"MO")
+- campaign_name: e.g. "DIR-CRU-REN-Direct", "DIR-Direct", "REF-Referral"
+- booking_source: Web, Contact Centre, Auto Renewal
+- transaction_source: Web, Contact Centre, Auto Renewal
+
+CUSTOMER COLUMNS: customer_id (UUID), customer_type (New/Existing/Lapsed/Re-engaged), customer_type_insurance_only, max_age_at_purchase, residence, lead_postcode, customer_area, customer_region, lead_dob, highest_dob.
+
+TRAVELLER COLUMNS: pax (total passengers), adults, children, family_group (Couple/Individual/Family).
+
+DESTINATION COLUMNS: destination_full, destination (Europe Inc/Worldwide Exc), destination_group (Europe/Worldwide), highest_rated_country.
+
+MEDICAL COLUMNS: medical_split (Medical/Non-Medical), max_medical_score, max_medical_score_grouped (0/2/3/4), has_undiagnosed_condition (BOOL), screened_pax.
+
+KEY FINANCIAL COLUMNS:
+- total_gross_inc_ipt: customer price (inc IPT)
+- total_gross_exc_ipt_ntu_comm: THIS IS GP (price - IPT - underwriter - commission)
+- total_paid_commission_value: commission paid to partner
+- total_net_to_underwriter_inc_gadget: underwriter cost
+- total_discount_value: discount applied (FLOAT64, not BIGNUMERIC)
+- campaign_discount_perc: discount % (e.g. 15, 20, 24)
+- ipt_rate: IPT rate
+Financial decomposition: base_* (core policy), medical_* (screening), option_* (add-ons). Each has _gross_inc_ipt, _gross_exc_ipt, _ntu, _commission, _ntu_comm variants. *_exc_gadget_* = excluding gadget cover.
+
+POLICY STATUS: policy_count (signed: +1 new/amend, -1 contra/cancel — ALWAYS SUM this), policy_status (Live/Cancelled), policy_renewal_year (0=new, 2+=renewal), auto_renew_opt_in (BOOL), underwriter (e.g. "ERGO").
 
 ### `hx-data-production.commercial_finance.insurance_web_utm_4`
-Web analytics. Direct channel ONLY (no aggregator/renewal web data).
-Key cols: session_id, visitor_id, device_type, booking_flow_stage, session_start_date, page_type, event_name,
-customer_type (New/Existing/Lapsed/Re-engaged).
+Web analytics — event-level. Direct channel ONLY (no aggregator/renewal data).
 Sessions = COUNT(DISTINCT session_id). Users = COUNT(DISTINCT visitor_id).
+certificate_id is STRING here (INT64 in policies) — CAST for joins.
 
-### customer_type field (both tables)
-- "New" = never seen by Holiday Extras before
-- "Existing" = in our database, has booked in the last 3 years
-- "Lapsed" = in our database but hasn't booked in the last 3 years
-- "Re-engaged" = was lapsed but a recent purchase moved them out of lapsed
-This is a key drill-down dimension for understanding customer mix.
+SESSION COLUMNS: session_id, visitor_id, session_seconds, session_start_date (DATE — primary filter), session_landing_path, session_landing_agent, session_browser_name.
+
+PAGE/EVENT COLUMNS: device_type (mobile/computer/tablet), page_type (landing/gatekeeper/screening/extra_details/search_results/addon_results/checkout_*/just_booked), page_path, event_name (e.g. engine_search_button, select_product, chat_started, verisk-radio-answer-*), event_type (click/auto_capture/customer_state/focus/capture/ecommerce), event_value, booking_flow_stage (funnel stage).
+
+PRODUCT COLUMNS: scheme_search (Single/Annual — search intent), insurance_group (sub-channel: "Web Links", "Direct Mailings", "Affiliates" — SAME dimension as policies table), scheme_name, scheme_type, scheme_id.
+
+DESTINATION: region_name, travel_start_date, travel_end_date, duration, passenger_count.
+
+FINANCIAL (per certificate): certificate_gross, certificate_ipt, certificate_nett, certificate_margin, total_gross, total_gp, policy_screening_gross, policy_screening_margin.
+
+MARKETING: campaign, source, medium, channel (UTM channel), utm_id.
+
+FLAGS: Multiple_search (STRING: "Yes"/"No"), med_session (BOOL), used_syd (BOOL), customer_type (New/Existing/Lapsed/Re-engaged).
+
+### Joining the tables
+CAST(p.certificate_id AS STRING) = w.certificate_id
+Web table = Direct channel only. No web data for aggregator/renewal.
+
+### insurance_group (both tables)
+Sub-channel within distribution channels: "Cross Sell", "Direct Mailings", "Web Links", "Affiliates", "Independent". Use this for drilling into which sub-channel drives patterns within Direct/Partner Referral.
+
+### customer_type (both tables)
+New = first time with HX. Existing = booked in last 3 years. Lapsed = no booking in 3+ years. Re-engaged = returned after lapse.
