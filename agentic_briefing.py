@@ -955,15 +955,19 @@ Return ONLY valid JSON array. No explanation."""
             ],
         )
         gpt_raw = gpt_resp.choices[0].message.content
+        print(f"  📝 GPT response length: {len(gpt_raw)} chars")
         gpt_items = _parse_llm_json(gpt_raw)
         if not isinstance(gpt_items, list):
             gpt_items = gpt_items.get("items", []) if isinstance(gpt_items, dict) else []
+        print(f"  📝 GPT classified {len(gpt_items)} items")
     except Exception as e:
         print(f"  ⚠ GPT classification failed: {e}")
         gpt_items = []
 
     if not gpt_items:
-        print("  ℹ No classifiable items")
+        print(f"  ℹ No classifiable items (GPT returned empty or unparseable response)")
+        if 'gpt_raw' in dir():
+            print(f"  📝 Raw GPT response (first 300 chars): {gpt_raw[:300]}")
         return {"temporary": [], "permanent": [], "section_html": ""}
 
     # 4. Claude verifies the classifications
