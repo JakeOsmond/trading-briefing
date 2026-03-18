@@ -55,6 +55,18 @@ body{
 .cm-file-name{font-size:13px;font-weight:600;color:rgba(255,255,255,0.7);font-family:monospace}
 .cm-file-meta{font-size:11px;color:rgba(255,255,255,0.3);margin-left:auto}
 .cm-file-title{font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:6px}
+.cm-file-clickable{cursor:pointer;transition:background 0.2s;border-radius:6px;padding:4px 6px;margin:-4px -6px}
+.cm-file-clickable:hover{background:rgba(146,95,255,0.1)}
+.cm-file-clickable::after{content:'▸ preview';font-size:10px;color:rgba(146,95,255,0.4);margin-left:8px}
+.cm-file-preview{
+  margin-top:8px;border-top:1px solid rgba(146,95,255,0.1);padding-top:8px;
+}
+.cm-preview-content{
+  background:rgba(0,0,0,0.3);border:1px solid rgba(146,95,255,0.1);
+  border-radius:8px;padding:12px 16px;font-size:12px;line-height:1.6;
+  color:rgba(255,255,255,0.6);white-space:pre-wrap;word-wrap:break-word;
+  max-height:400px;overflow-y:auto;font-family:'Nunito',sans-serif;
+}
 .cm-ai-count{
   background:rgba(0,176,166,0.12);color:#5FFFF0;
   padding:1px 6px;border-radius:6px;font-size:10px;
@@ -132,73 +144,886 @@ body{
 <a href="latest.html" class="cm-back-link">← Back to briefing</a>
 </div>
 
-<div class="cm-category"><h2 class="cm-cat-header">Universal (all domains) <span class="cm-readonly">(read-only)</span></h2><p class="cm-cat-desc">Foundational context shared across all domains. Managed by engineering.</p><div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">financial-waterfall.md</span><span class="cm-file-meta">30 lines</span></div>
+<div class="cm-category"><h2 class="cm-cat-header">Universal (all domains) <span class="cm-readonly">(read-only)</span></h2><p class="cm-cat-desc">Foundational context shared across all domains. Managed by engineering.</p><div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-universal-financial-waterfall')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">financial-waterfall.md</span><span class="cm-file-meta">30 lines</span></div>
 <div class="cm-file-title">Financial Waterfall — From Price to GP</div>
+<div class="cm-file-preview" id="file-universal-financial-waterfall" style="display:none"><pre class="cm-preview-content"># Financial Waterfall — From Price to GP
+
+The full decomposition from gross price to GP. Applies to all HX products, though specific cost lines vary by domain.
+
+```
+Price (original list price, pre-discount)
+  minus Discount
+= Revenue             (amount paid by the customer)
+  minus Supplier Costs
+= Gross Margin        (Contract GM — margin earned under contracted supplier rate)
+  minus VAT
+= Margin after VAT    (MAV)
+  minus Commission    (affiliate/partner commission, ex VAT)
+= Margin after Commission
+  minus PPC Costs     (paid search / performance marketing)
+= Gross Profit        (GP — the most important trading metric)
+```
+
+**GP is after PPC** — GP in all standard reporting includes the deduction of PPC costs.
+
+## Key Metric Relationships
+
+- **Price ≠ Revenue** — Revenue = Price minus Discounts
+- **GP = what remains** after all directly associated costs (supplier, VAT, commission, PPC)
+- **Discount rate** can be expressed as % of all bookings revenue (blended) or % of discounted bookings only (depth)
+- **Cost per Booking (CpB)** = PPC spend per booking — the key paid search efficiency metric
+
+## Insurance-Specific Note
+
+In insurance, the waterfall differs: `GP = total_gross_exc_ipt_ntu_comm` which is after IPT (Insurance Premium Tax), commission, and NTU (net-to-underwriter). The column name is the authoritative definition.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">financial-year.md</span><span class="cm-file-meta">16 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-universal-financial-year')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">financial-year.md</span><span class="cm-file-meta">16 lines</span></div>
 <div class="cm-file-title">Financial Year</div>
+<div class="cm-file-preview" id="file-universal-financial-year" style="display:none"><pre class="cm-preview-content"># Financial Year
+
+Holiday Extras operates on a **Financial Year To Date (FYTD)** running from **1 April to 31 March**. When anyone asks for "year to date", "FYTD", "this financial year", or "YTD" performance, use 1 April of the current financial year as the start date.
+
+Named by the **year in which it ends**: 1 April 2026 – 31 March 2027 = **Financial Year 27 (FY27)**.
+
+## Forecasting Cycle
+
+| Forecast | Timing |
+|----------|--------|
+| **Budget (BGT)** | Set before FY starts. Fixed for the year. |
+| **Forecast 1 (F1)** | Summer (few months in) |
+| **Forecast 2 (F2)** | Autumn |
+| **Forecast 3 (F3)** | Winter (if produced) |
+
+Each forecast takes actuals for completed months + revised assumptions for remaining months. "Versus forecast" always means versus the **latest** forecast.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">hx-group-structure.md</span><span class="cm-file-meta">25 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-universal-hx-group-structure')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">hx-group-structure.md</span><span class="cm-file-meta">25 lines</span></div>
 <div class="cm-file-title">HX Group Business Unit Structure</div>
+<div class="cm-file-preview" id="file-universal-hx-group-structure" style="display:none"><pre class="cm-preview-content"># HX Group Business Unit Structure
+
+Understanding the group structure explains how each domain relates to Group performance and which numbers are/aren't included.
+
+```
+Holiday Extras Group
+├── UK Distribution (parking, hotels, lounges, fast track, transfers, car hire)
+├── Europe (DACH, Benelux, Emerging Markets)
+├── Insurance — HX Cover (regulated, FCA-authorised, separate P&amp;L)
+├── Adventures (Paultons Park, Warner Bros. Studio Tour partnerships)
+├── AirParks (leased parking operations — Frankfurt, Munich, Amsterdam, Brussels)
+└── HX Journeys (overlay — ground transport across UK + Europe, non-additive)
+```
+
+## Key Principles
+
+- **Insurance has its own P&amp;L** — it does not feed into UK Distribution numbers. Reported as a separate BU.
+- **HX Journeys is non-additive** — car hire and transfers are already in UK/Europe totals. Journeys reports against its own targets, but the numbers are included in the parent BU.
+- **AirParks is both a brand and an operator** — the AirParks brand sells via UK Distribution (distribution margin ~30%), while the operational entity runs leased venues (supplier margin ~70%).
+- **Group Earnings** = Distribution GP + AirParks operational contribution — used when decisions affect both entities (e.g. pricing AirParks products).
+- There is meaningful **customer overlap** between Insurance and UK Distribution — customers can hold products from both.
+
+## Group Reporting
+
+Weekly and monthly Group reporting aggregates all BUs. Primary Group metric: **Group GP vs forecast** and **Group GP vs last year**.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">metrics-guide.md</span><span class="cm-file-meta">23 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-universal-metrics-guide')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">metrics-guide.md</span><span class="cm-file-meta">23 lines</span></div>
 <div class="cm-file-title">How We Talk About Key Metrics</div>
+<div class="cm-file-preview" id="file-universal-metrics-guide" style="display:none"><pre class="cm-preview-content"># How We Talk About Key Metrics
+
+## GP (Gross Profit)
+The single most important number. Always quote it with direction, size of change, and context. Never say "GP was £168k" — say "GP was £168k — down £11k on last year, about 6% worse."
+
+## Volume (Policy/Booking Count)
+Total sales, split by product type and channel. Volume up is generally good, but check whether the mix is healthy (growing in profitable segments or loss-making ones?).
+
+## Average GP per Unit
+Total GP divided by count. Tells you whether the quality of each sale is improving or deteriorating. A volume increase with falling average GP means we are selling more but making less on each one.
+
+## Conversion Rates
+- **Session-to-search**: what proportion of visitors get far enough to see a price.
+- **Search-to-book**: what proportion of people who see a price actually buy.
+- Both matter, but search-to-book is closer to the commercial outcome.
+
+## Persistence (Recurring / Emerging / New)
+When assessing a mover, look at the last 10 trading days and count how many days the metric moved in the same direction:
+- **Recurring** (7+ of 10 days consistent) — persistent, entrenched pattern. State the count.
+- **Emerging** (5-6 of 10 days consistent) — building momentum but not yet entrenched.
+- **New** (fewer than 5 of 10 days) — recent shift or one-off.
+
+Recurring and emerging issues warrant more attention because they suggest something systemic rather than a blip.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">reporting-conventions.md</span><span class="cm-file-meta">44 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-universal-reporting-conventions')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">reporting-conventions.md</span><span class="cm-file-meta">44 lines</span></div>
 <div class="cm-file-title">Reporting Conventions and Abbreviations</div>
+<div class="cm-file-preview" id="file-universal-reporting-conventions" style="display:none"><pre class="cm-preview-content"># Reporting Conventions and Abbreviations
+
+Standard abbreviations used across all HX domains.
+
+## Time Periods
+
+| Abbreviation | Meaning |
+|---|---|
+| **TY** | This Year |
+| **LY** | Last Year (Prior Year) |
+| **WoW** | Week on Week |
+| **YTD / FYTD** | Year to Date (Financial Year — 1 April to 31 March) |
+| **MTD** | Month to Date |
+| **LW** | Last Week |
+| **BGT** | Budget (set once per FY, fixed) |
+| **Fcast** | Forecast (updated in-year: F1 summer, F2 autumn, F3 winter) |
+
+## Financial Metrics
+
+| Abbreviation | Meaning |
+|---|---|
+| **GP** | Gross Profit |
+| **GM** | Gross Margin (Revenue minus Supplier Costs) |
+| **MAV** | Margin after VAT |
+| **CpB** | Cost per Booking (PPC efficiency) |
+| **Canx** | Cancellation |
+| **Bkg / Bkgs** | Booking / Bookings |
+| **Var** | Variance |
+| **pp** | Percentage points |
+
+## Business Units
+
+| Abbreviation | Meaning |
+|---|---|
+| **HXC** | HX Cover (Insurance) |
+| **HXA** | HX Adventures |
+| **DACH** | Germany, Austria, Switzerland (European sub-region) |
+| **R&amp;I** | Retail &amp; Intermediaries |
+
+## Performance Comparisons
+
+- **vs LY**: always compare against equivalent day-of-week (364-day offset), not calendar date
+- **vs BGT**: Budget is set once before FY starts, remains fixed all year
+- **vs Fcast**: "versus forecast" always means the latest forecast issued
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">trading-framework.md</span><span class="cm-file-meta">19 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-universal-trading-framework')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">trading-framework.md</span><span class="cm-file-meta">19 lines</span></div>
 <div class="cm-file-title">Traffic & Conversion Framework</div>
+<div class="cm-file-preview" id="file-universal-trading-framework" style="display:none"><pre class="cm-preview-content"># Traffic &amp; Conversion Framework
+
+The fundamental equation for understanding any trading movement:
+
+**Traffic x Conversion x Average GP = Total GP**
+
+When explaining any mover, state which of these three levers moved and by how much. For example: "Direct single-trip GP fell £8k — mostly traffic (sessions down 12% YoY) with conversion flat and average GP slightly up."
+
+## Traffic
+- Measured as sessions or visits, year-on-year and week-on-week, by channel.
+- Traffic is often the dominant driver of volume changes — never attribute a change purely to pricing, mix, or margin without first checking whether traffic moved.
+- If sessions are up or down significantly, say so prominently.
+
+## Conversion
+- Key rates: session-to-search (how many visitors get a quote), search-to-book (how many quoted visitors buy), quote-to-buy.
+- If conversion shifted, quantify it and explain what drove the change (device mix, screening, cover level, funnel drop-off, etc.).
+
+## Mix
+The composition of sales across dimensions: annual vs single, direct vs aggregator, cover level, medical vs non-medical, etc. Mix shifts can explain GP changes even when volume and price are stable.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">transaction-mechanics.md</span><span class="cm-file-meta">29 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-universal-transaction-mechanics')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">transaction-mechanics.md</span><span class="cm-file-meta">29 lines</span></div>
 <div class="cm-file-title">Transaction Mechanics</div>
+<div class="cm-file-preview" id="file-universal-transaction-mechanics" style="display:none"><pre class="cm-preview-content"># Transaction Mechanics
+
+Applies to all HX products (insurance policies, parking bookings, hotel stays, etc.)
+
+## Core Date Concepts
+
+| Date | Definition |
+|------|-----------|
+| **Book Date** | When the customer made the booking/purchased the policy |
+| **Stay Date** (or travel date) | When the customer uses the product |
+
+The gap between these = **lead time** or **booking lag**.
+
+## Revenue Recognition
+
+Revenue is recognised on a **stay basis** (when the trip happens), not a booking basis. Until the stay occurs, the transaction can still cancel.
+
+## Booked GP vs Stay-Date GP
+
+| Basis | Definition | When Used |
+|-------|-----------|-----------|
+| **Booked GP** (default) | GP attributed to the book date | Default in all standard reports. If unqualified, GP = booked GP. |
+| **Stay-Date GP** | GP attributed to the stay date | Only when the report explicitly references "stays". |
+
+## Cancellations
+
+- Typical daily cancellation rate: ~10% of bookings (UK Distribution benchmark)
+- **Net bookings** = new bookings minus cancellations in a given period
+- Not all cancellations are genuine — some are amendments (cancel + rebook), estimated at ~4% of the 10%
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">travel-events.md</span><span class="cm-file-meta">39 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-universal-travel-events')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">travel-events.md</span><span class="cm-file-meta">39 lines</span></div>
 <div class="cm-file-title">Travel Events and Market Factors</div>
+<div class="cm-file-preview" id="file-universal-travel-events" style="display:none"><pre class="cm-preview-content"># Travel Events and Market Factors
+
+External events that affect travel demand and HX trading performance across all domains. Always check these before interpreting YoY variances.
+
+## Categories
+
+| Category | Examples |
+|----------|---------|
+| **Geopolitical / Conflict** | Wars, terrorism threats, travel advisories suppressing travel confidence |
+| **Industrial Action** | Airline/airport/ATC strikes — directly suppress travel volumes |
+| **School Holidays** | Timing varies year to year, especially Easter. Drives peak demand distribution |
+| **Sporting Events** | Olympics, World Cup, European Championships — can suppress or generate travel |
+| **Public Holidays / Calendar** | Bank holiday placement, leap years, day-of-week alignment shifts |
+| **Weather** | Extreme weather causing airport closures or demand suppression |
+| **Health / Pandemic** | Disease outbreaks, quarantine requirements |
+| **Economic** | Cost-of-living pressure, currency movements, recession signals |
+
+## YoY Comparison Rule
+
+Before concluding from a YoY variance, always check:
+1. Were there significant travel events **this year**?
+2. Were there significant travel events in the **prior year equivalent**?
+3. If events differ between years, adjust interpretation accordingly.
+
+## Ancillary Booking Delay Theory
+
+When customers face uncertainty (geopolitical, economic), they may:
+1. Still book their primary holiday (flights, package) in advance
+2. **Delay booking ancillaries** (parking, hotel, lounge, insurance) until closer to travel
+
+This produces: longer-lead bookings decline, short-lead bookings hold/grow, forward book looks flatter than normal but catches up as stay dates approach. **Monitor short-lead as a leading indicator of underlying demand health.**
+
+## Travel Events Log
+
+A structured log of past and upcoming travel events is maintained in a shared Google Sheet:
+
+**Travel Events Log:** `1lqLYxLTnfFyBSsIPRyPr8vpr25S7Fhz3p-nlWNToZpU`
+
+This feeds the Market Factors annotation in weekly trading reports. The pipeline can reference this sheet for event context when analysing YoY variances.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">yoy-methodology.md</span><span class="cm-file-meta">16 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-universal-yoy-methodology')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">yoy-methodology.md</span><span class="cm-file-meta">16 lines</span></div>
 <div class="cm-file-title">Year-on-Year Methodology</div>
+<div class="cm-file-preview" id="file-universal-yoy-methodology" style="display:none"><pre class="cm-preview-content"># Year-on-Year Methodology
+
+## 364-Day Offset
+YoY comparisons use a **364-day offset** (not 365) to match day-of-week. This ensures we compare like-for-like (e.g. Monday vs Monday). In most years there is a one-day shift in day-of-week alignment — the 364-day offset corrects for this.
+
+## COVID Structural Breaks
+COVID years 2020-2021 are **structural breaks** — comparisons against these years are unreliable.
+
+## Date Handling
+- `transaction_date` is already a DATE type. Use it directly in WHERE clauses — no need for EXTRACT(DATE FROM ...).
+- When building LY equivalents, always subtract 364 days (52 weeks exactly).
+
+## Calendar Effects
+- **Easter** moves substantially between years — week-containing-Easter comparisons need special handling
+- **School holidays** vary by region and year — see travel-events.md
+- **Bank holidays** shift day-of-week alignment. The pipeline uses gov.uk API + holiday awareness to flag these.
+</pre></div>
 </div>
 </div>
-<div class="cm-category"><h2 class="cm-cat-header">Insurance</h2><p class="cm-cat-desc">Insurance-specific context. AI-learned items can be removed.</p><div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">aggregator-position.md</span><span class="cm-file-meta">9 lines</span></div>
+<div class="cm-category"><h2 class="cm-cat-header">Insurance</h2><p class="cm-cat-desc">Insurance-specific context. AI-learned items can be removed.</p><div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-aggregator-position')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">aggregator-position.md</span><span class="cm-file-meta">9 lines</span></div>
 <div class="cm-file-title">Aggregator Position</div>
+<div class="cm-file-preview" id="file-insurance-aggregator-position" style="display:none"><pre class="cm-preview-content"># Aggregator Position
+
+Aggregators (price comparison sites) are a major acquisition channel.
+
+- We deliberately accept negative margins on annual aggregator policies to build the renewal book.
+- Commission paid to aggregators is a significant cost — changes in commission rates directly impact GP.
+- We cannot see the customer's web journey on comparison sites, only the resulting policy transaction.
+- `booking_source` (Web vs Phone) is available for aggregator policies and is a useful drill dimension.
+- Device type analysis is **not meaningful** for aggregator sales — the device data reflects our checkout page, not the customer's comparison shopping journey.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">channels.md</span><span class="cm-file-meta">30 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-channels')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">channels.md</span><span class="cm-file-meta">30 lines</span></div>
 <div class="cm-file-title">Insurance Distribution Channels</div>
+<div class="cm-file-preview" id="file-insurance-channels" style="display:none"><pre class="cm-preview-content"># Insurance Distribution Channels
+
+HX sells through four distribution channels, each with different economics and data characteristics:
+
+## Direct
+- Customers come via our own website (holidayextras.com or staysure.co.uk etc.).
+- Includes both "Direct - Standard" and "Direct - Medical" sub-channels.
+- **Has full web journey data** — device type, page views, funnel stages, clicks, conversion at every step.
+- Web data comes from the `insurance_web_utm_4` table and can be joined to policy data.
+- Device split is roughly 50% mobile, 46% desktop, 3% tablet.
+
+## Aggregator
+- Sales through price comparison websites (GoCompare, CompareTheMarket, MoneySupermarket).
+- Includes "Aggregator - Standard" and similar sub-channels.
+- **No conventional web journey in our data** — we only see the policy transaction.
+- Do NOT try to join web session data for aggregator policies — it does not exist.
+- We pay commission to aggregators, which is a significant cost line.
+- Annual policies via aggregators deliberately run at negative margin (see policy-economics.md).
+
+## Partner Referral
+- Sales via partners who refer customers to us (travel agents, airlines).
+- Includes "Partner Referral - Medical" and similar.
+- Similar to aggregators in that web journey data is limited.
+
+## Renewals
+- Existing annual policyholders renewing their cover.
+- This is the payoff of the annual acquisition strategy — renewals are high-margin (no acquisition cost).
+- **No web journey data** — renewals happen via auto-renew or direct contact.
+- Key metrics: retention rate, auto-renew opt-in rate, renewal year cohorts.
+- Do NOT try to join web session data for renewal policies.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">data-quirks.md</span><span class="cm-file-meta">21 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-data-quirks')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">data-quirks.md</span><span class="cm-file-meta">21 lines</span></div>
 <div class="cm-file-title">Insurance Data Quirks</div>
+<div class="cm-file-preview" id="file-insurance-data-quirks" style="display:none"><pre class="cm-preview-content"># Insurance Data Quirks
+
+## Policy Counting
+- The policy table has **multiple rows per booking** (New Issue, Contra, MTA Debit, Cancellation, Client Details Update, UnCancel).
+- Never use COUNT(*) or COUNT(DISTINCT policy_id) for policy counts — this gives inflated figures.
+- Always use **SUM(policy_count)** — the `policy_count` column is signed (positive for new, negative for cancellations), so SUM gives the correct net count.
+
+## Financial Aggregation
+- Financial columns are stored as BIGNUMERIC and must be cast to FLOAT64 for aggregation.
+- Never use AVG() on financial columns — because rows are not one-per-policy, AVG() is meaningless.
+- Correct average GP per policy: `SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0)`.
+
+## Web Data
+- The web table (`insurance_web_utm_4`) is **web-only** — it does not include call centre or offline data.
+- Use `booking_source` in the policies table to distinguish web vs phone sales.
+- For unique users: `COUNT(DISTINCT visitor_id)`. For unique sessions: `COUNT(DISTINCT session_id)`.
+
+## Session Flags
+- **used_syd** — customer used the "Screen Your Destinations" tool (about 0.3% of sessions)
+- **med_session** — session involved medical screening (about 12% of sessions)
+- **Multiple_search** — customer did multiple quote searches in one session (about 3.5%; values are 'Yes'/'No')
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">drill-dimensions.md</span><span class="cm-file-meta">15 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-drill-dimensions')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">drill-dimensions.md</span><span class="cm-file-meta">15 lines</span></div>
 <div class="cm-file-title">Drill-Down Dimensions</div>
+<div class="cm-file-preview" id="file-insurance-drill-dimensions" style="display:none"><pre class="cm-preview-content"># Drill-Down Dimensions
+
+When the team talks about "drilling down", they mean these columns:
+
+| Dimension | Column | Notes |
+|-----------|--------|-------|
+| Channel / Partner | `distribution_channel` | Direct, Aggregator, Partner Referral, Renewals |
+| Sub-channel | `insurance_group` | "Direct - Standard", "Direct - Medical", "Aggregator - Standard", etc. |
+| Cover level | `cover_level_name` | Bronze, Classic, Silver, Gold, Deluxe, Elite, Adventure |
+| Policy type | `policy_type` | Annual or Single |
+| Booking source | `booking_source` | Web vs Phone |
+| Device | `device_type` (web table) | Mobile, Desktop, Tablet. Only meaningful for Direct channel. |
+| Medical | `medical_split` or `max_medical_score_grouped` | Whether the customer declared medical conditions |
+
+When investigating a mover, always start with `distribution_channel` and `policy_type` to isolate WHERE the issue is, then drill into `cover_level_name`, `booking_source`, or `device_type` to find WHY.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">funnel-stages.md</span><span class="cm-file-meta">15 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-funnel-stages')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">funnel-stages.md</span><span class="cm-file-meta">15 lines</span></div>
 <div class="cm-file-title">Insurance Customer Funnel</div>
+<div class="cm-file-preview" id="file-insurance-funnel-stages" style="display:none"><pre class="cm-preview-content"># Insurance Customer Funnel
+
+9-stage customer journey (Direct channel only):
+
+1. **Landing** — entry page, product selection, search engine
+2. **Gatekeeper** — screening/eligibility questions
+3. **Screening** — medical screening (Verisk integration)
+4. **Extra details** — trip details, traveller information
+5. **Search results** — the quote page where the customer sees a price
+6. **Add-on results** — upsell/cross-sell (gadget cover, upgrades, etc.)
+7. **Checkout** — payment (new user / authenticated / recognised variants)
+8. **Payment authentication** — 3DS / payment authorisation
+9. **Just booked** — confirmation page
+
+`booking_flow_stage = 'Search'` is where the customer sees a price — this is the key conversion gate.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">platforms-and-partners.md</span><span class="cm-file-meta">40 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-platforms-and-partners')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">platforms-and-partners.md</span><span class="cm-file-meta">40 lines</span></div>
 <div class="cm-file-title">Insurance Platforms and Partners</div>
+<div class="cm-file-preview" id="file-insurance-platforms-and-partners" style="display:none"><pre class="cm-preview-content"># Insurance Platforms and Partners
+
+## Fire Melon (Booking Platform)
+
+Fire Melon is the booking platform that powers HX insurance. The product is called **Magenta**. Fire Melon handles the end-to-end insurance booking flow — quote generation, payment processing, policy issuance. HX is launching the "Essential Travel" budget brand entirely through Fire Melon's tech stack as a test of their full capabilities.
+
+## The Idol (Aggregator Platform)
+
+The idol is the platform that serves the three main insurance aggregators:
+- **Compare the Market** (CTM) — vast majority of aggregator volume. CTM does all its own tech.
+- **Confused.com** — handles payment through idol
+- **GoCompare** — everything handled by idol
+
+Because CTM handles its own tech independently, platform changes at CTM can cause data quality issues that don't affect the other two.
+
+## Wizard (Future Booking Flow)
+
+The Wizard is a new AI-driven booking interface being prototyped by Matthew. Instead of a traditional search form, it shows customers only the options they're most likely to want next based on their selections. For example, if someone clicks "Annual", the wizard might show "Europe Excluding" as the most likely next choice. Currently a prototype — not covering all customer scenarios yet.
+
+## White-Label Partner CTAs
+
+HX provides white-label insurance platforms on partner websites. When a customer moves from a partner site (e.g., Carnival/P&amp;O cruise booking) to the HX insurance flow, that's a "CTA" (call-to-action click-through). Key CTA integration points:
+- **Online check-in** — 60% of cruise insurance volume comes from this CTA
+- **Booking confirmation** — post-booking insurance offer
+- **My account** — insurance upsell in partner account areas
+
+Partners with white-label: Carnival (P&amp;O, Princess, Cunard), Fred Olsen, specialist cruise partners.
+
+## Underwriters
+
+- **ERGO** — primary underwriter for HX insurance products
+- **Collinson** — provides flight delay registration/data. Monthly file (working towards weekly). Customers register flight details on Collinson white-label, data sent back to HX with lag.
+
+## WorldPay (Payment Processing)
+
+Payment processor for insurance. Start purchase conversion in insurance is 90-92% (below the 98% target for the wider business). Issues with:
+- Recurring MIDs (for renewal token payments)
+- Expired payment tokens
+- SCA (Strong Customer Authentication) challenges — no exemptions currently in insurance
+- Moving to "Dragon Payment" being explored to enable SCA exemptions
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">policy-economics.md</span><span class="cm-file-meta">15 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-policy-economics')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">policy-economics.md</span><span class="cm-file-meta">15 lines</span></div>
 <div class="cm-file-title">Insurance Policy Economics</div>
+<div class="cm-file-preview" id="file-insurance-policy-economics" style="display:none"><pre class="cm-preview-content"># Insurance Policy Economics
+
+## Annual Policy Strategy
+HX deliberately runs **negative margins on annual policies**, particularly via aggregators. This is a lifetime value acquisition strategy — we lose money on the first annual sale to build a renewal book that pays back over multiple years.
+
+- Annual pricing is **always managed internally**. The briefing should never flag negative annual margins as a problem, concern, or action item.
+- Annual volume growth is **always good news**. Frame it as: "We're investing in future renewal income."
+- The focus should be on volume trends for annuals, not profitability per policy.
+
+## Single Trip Policies
+Single trip policies have **no renewal pathway**. Unlike annuals, there is no future income stream to offset an upfront loss.
+
+- Single trip losses **are** problems worth flagging and investigating.
+- When single trip GP falls, it matters — there is no second bite at the apple.
+- The briefing should call out single trip margin erosion clearly and recommend action.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">pricing-margin.md</span><span class="cm-file-meta">26 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-pricing-margin')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">pricing-margin.md</span><span class="cm-file-meta">26 lines</span></div>
 <div class="cm-file-title">Pricing & Margin</div>
+<div class="cm-file-preview" id="file-insurance-pricing-margin" style="display:none"><pre class="cm-preview-content"># Pricing &amp; Margin
+
+## GP (Gross Profit) Definition
+GP means gross profit after underwriter cost and commission: the column `total_gross_exc_ipt_ntu_comm`. This is the money HX keeps.
+
+## Price Decomposition
+The customer price breaks down into:
+- **IPT** (Insurance Premium Tax) — a tax, not revenue
+- **Underwriter cost** — what we pay the underwriter to carry the risk
+- **Commission** — what we pay the distribution partner (aggregator, partner)
+- **Discount** — any promotional or campaign discount applied
+- **GP** — what is left after all the above
+
+When investigating margin changes, check whether the squeeze is coming from underwriter costs rising, commission increasing, discounting deepening, or price not keeping up.
+
+## Discount Rate Calculation
+True discount rate = total discount value / (gross price including IPT + total discount value). This gives the discount as a percentage of the pre-discount price.
+
+## Cover Levels
+Products are tiered: Bronze, Classic, Silver, Gold, Deluxe, Elite, Adventure. Mix shifts between these tiers affect average GP because higher tiers carry higher premiums and (usually) higher margins.
+
+## Add-ons and Extras
+- **Gadget cover** — optional add-on for electronic devices
+- **Medical screening premium** — additional premium for pre-existing conditions
+- **Options** — other optional extras
+- When fewer people add extras, it shows up as "attach rate" dropping. In plain English: "fewer people are adding gadget cover or upgrades."
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">renewal-rates.md</span><span class="cm-file-meta">8 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-renewal-rates')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">renewal-rates.md</span><span class="cm-file-meta">8 lines</span></div>
 <div class="cm-file-title">Renewal Rate Calculation</div>
+<div class="cm-file-preview" id="file-insurance-renewal-rates" style="display:none"><pre class="cm-preview-content"># Renewal Rate Calculation
+
+True renewal rate = total policies purchased in the 'Renewal' distribution channel (on transaction date) / total annual policies expiring (by travel end date — the expiry date, i.e. the number of annual policies expiring).
+
+- You must use `travel_end_date` for expiring policies and `transaction_date` for new purchased policies.
+- This means it is a join on 2 separate SQL queries.
+- This tells us how many customers are going on and keeping an annual policy with us.
+- Renewal rate is **blended only** — never calculate per-channel renewal rates, as the denominator (expiring policies) doesn't split meaningfully by new-purchase channel.
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">schema-knowledge.md</span><span class="cm-file-meta">285 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-schema-knowledge')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">schema-knowledge.md</span><span class="cm-file-meta">285 lines</span></div>
 <div class="cm-file-title">BigQuery Schema Knowledge — Insurance</div>
+<div class="cm-file-preview" id="file-insurance-schema-knowledge" style="display:none"><pre class="cm-preview-content"># BigQuery Schema Knowledge — Insurance
+
+_Authoritative source for table schemas. Both `agentic_briefing.py` and `functions/api/ask.js` (via injection) should reflect this._
+
+## `hx-data-production.commercial_finance.insurance_policies_new`
+
+The ONLY policy table. Every row is a transaction event on a policy.
+
+### Critical Rules
+- ALWAYS use the full backtick-quoted name: `hx-data-production.commercial_finance.insurance_policies_new`
+- Use `SUM(policy_count)` not `COUNT(*)` for policy counts — multiple rows per policy
+- Use `SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))` for GP — NEVER `AVG()`
+- Avg GP = `SUM(CAST(... AS FLOAT64)) / NULLIF(SUM(policy_count), 0)`
+- All BIGNUMERIC financials must be CAST to FLOAT64 for aggregation
+- YoY = 364-day offset (matches day-of-week)
+- `transaction_date` is DATE type — use directly, no `EXTRACT()`
+
+### Transaction Model
+Each policy goes through a lifecycle of transaction events, tracked by `version`:
+- **version 1** = New Issue (original policy creation) — `policy_count = 1`
+- **version 2** = Contra (reversal of a prior version) — `policy_count = -1`
+- **version 3** = Cancellation — always preceded by a Contra (version 2)
+- **version 4** = MTA Debit (amendment) — always preceded by a Contra (version 2)
+
+So after the initial New Issue, every subsequent change creates TWO rows: a Contra (reversing the old state) and either a Cancellation or MTA Debit (the new state). This means `SUM(policy_count)` correctly nets out.
+
+The `transaction_type` field has values: `New Issue`, `Contra`, `MTA Debit`, `Cancellation`.
+
+### Identity &amp; Tracking Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `policy_key` | INT64 | Unique row identifier |
+| `policy_id` | STRING | Policy identifier (e.g., "AH760101680") |
+| `certificate_id` | INT64 | Certificate number — use CAST(certificate_id AS STRING) when joining to web table |
+| `old_certificate_id` | INT64 | Previous certificate ID (for amendments/renewals) |
+| `transaction_type` | STRING | New Issue / Contra / MTA Debit / Cancellation |
+| `revision_number` | INT64 | Revision within a quote |
+| `version` | INT64 | Transaction version: 1=new, 2=contra, 3=cancel, 4=amend |
+| `transid` | INT64 | Transaction ID |
+| `quote_number` | STRING | Quote reference |
+| `quote_request_guid` | STRING | Unique quote request ID |
+| `external_reference` | STRING | External reference for partner bookings |
+
+### Date Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `transaction_date` | DATE | **When the transaction happened** — primary date for trading analysis |
+| `transaction_datetime` | DATETIME | Exact timestamp of transaction |
+| `travel_start_date` | DATE | When the trip/cover starts |
+| `travel_end_date` | DATE | When the policy expires — used for renewal rate calculations |
+| `duration` | INT64 | Policy duration in days (365 for annual, 8-17 typical for single) |
+| `issue_date` | DATE | Original policy issue date |
+| `issue_datetime` | DATETIME | Original issue timestamp |
+| `quote_date` | DATE | When the quote was generated |
+| `quote_datetime` | DATETIME | Quote timestamp |
+| `cancellation_date` | DATE | Cancellation date (NULL if not cancelled) |
+| `cancellation_datetime` | DATETIME | Cancellation timestamp |
+| `cancellation_reason` | STRING | Reason for cancellation |
+
+### Product &amp; Scheme Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `brand` | STRING | Brand (e.g., "Holiday Extras") |
+| `policy_type` | STRING | **Annual** or **Single** — key product split |
+| `scheme_id` | INT64 | Scheme identifier |
+| `scheme_name` | STRING | Full scheme name (e.g., "Bronze Main Single Med HX", "Silver Cruise Renewal Annual Med HX") — encodes cover level, trip type, medical, brand |
+| `scheme_version` | STRING | Scheme version (e.g., "2026/7") |
+| `product` | STRING | Product category (e.g., "Direct Travel", "Direct Cruise") |
+| `cover_level_name` | STRING | Cover tier: Bronze, Silver, Gold, etc. |
+| `cover_level_tier` | INT64 | Numeric tier: 1=Bronze, 2=Silver, 3=Gold |
+
+### Distribution &amp; Channel Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `distribution_channel` | STRING | **Primary channel**: Direct, Aggregator, Partner Referral, Renewals |
+| `channel` | STRING | More specific: "Direct - Standard", "Direct - Medical", "Partner Referral - Standard", "Partner Referral - Medical" |
+| `insurance_group` | STRING | Sub-channel grouping: "Cross Sell", "Direct Mailings", "Affiliates", "Independent", etc. |
+| `agent_id` | INT64 | Agent identifier |
+| `agent_code` | STRING | Agent attribution code (e.g., "AH760", "AW660", "MAPS1") |
+| `agent_name` | STRING | Agent/partner name (e.g., "AIRLINE CC REF", "Solos Holiday Weblink", "Perkbox Insurance") |
+| `agent_group` | STRING | Agent group code (e.g., "I9", "MO", "S6", "YA", "B6") |
+| `campaign_id` | INT64 | Campaign identifier |
+| `campaign_name` | STRING | Campaign name (e.g., "DIR-CRU-REN-Direct", "DIR-Direct", "REF-Referral") |
+| `booking_source` | STRING | How the booking was made: "Web", "Contact Centre", "Auto Renewal" |
+| `transaction_source` | STRING | Transaction origin: "Web", "Contact Centre", "Auto Renewal" |
+| `return_agent` | STRING | Return agent code (e.g., "N") |
+| `converted_by` | STRING | Who converted the sale (e.g., "Connect", "auto.renewal") |
+| `last_updated_by` | STRING | Last user to update the record |
+| `rid` | STRING | Agent RID code (e.g., "D", "I") |
+
+### Customer Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `customer_id` | STRING | Customer UUID |
+| `customer_ext_id` | STRING | Hashed external customer ID |
+| `customer_type` | STRING | **New, Existing, Lapsed, Re-engaged** — key segmentation dimension |
+| `customer_type_insurance_only` | STRING | Customer type based on insurance history only |
+| `lead_title` | STRING | Customer title (Mr/Mrs/Ms) |
+| `lead_forename` | STRING | First name |
+| `lead_surname` | STRING | Surname |
+| `lead_postcode` | STRING | UK postcode |
+| `lead_email` | STRING | Email address |
+| `customer_area` | STRING | Geographic area (e.g., "Kilgetty", "Ferndale") |
+| `customer_region` | STRING | Geographic region (e.g., "Pembrokeshire", "Rhondda Cynon Taf") |
+| `lead_dob` | DATE | Customer date of birth |
+| `highest_dob` | DATE | Oldest traveller's DOB |
+| `max_age_at_purchase` | INT64 | Age of oldest traveller at purchase |
+| `residence` | STRING | Country of residence (e.g., "GBR") |
+
+### Traveller Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `pax` | INT64 | Total passengers on the policy |
+| `adults` | INT64 | Number of adults |
+| `children` | INT64 | Number of children |
+| `family_group` | STRING | Family grouping (e.g., "Couple", "Individual") |
+
+### Destination Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `destination_full` | STRING | Full destination (e.g., "Europe inc Spain, Cyprus, Malta, Greece &amp; Turkey") |
+| `destination` | STRING | Destination group (e.g., "Europe Inc", "Worldwide Exc") |
+| `destination_group` | STRING | Broad destination category (e.g., "Europe", "Worldwide") |
+| `highest_rated_country` | STRING | Highest-risk country in the destination |
+| `trip_value` | BIGNUMERIC | Declared trip value |
+
+### Medical Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `medical_split` | STRING | "Medical" or "Non-Medical" |
+| `max_medical_score` | NUMERIC | Maximum medical screening score across travellers |
+| `max_medical_score_grouped` | NUMERIC | Grouped medical score (0, 2, 3, 4, etc.) |
+| `has_undiagnosed_condition` | BOOL | Whether any traveller has undiagnosed conditions |
+| `screened_pax` | INT64 | Number of passengers who went through medical screening |
+
+### Financial Columns — Key Totals
+| Column | Type | Description |
+|--------|------|-------------|
+| `total_gross_inc_ipt` | BIGNUMERIC | **Customer price** (what they paid, including IPT) |
+| `total_gross_exc_ipt` | BIGNUMERIC | Customer price excluding IPT |
+| `total_gross_exc_ipt_ntu` | BIGNUMERIC | Price minus IPT minus underwriter cost |
+| `total_gross_exc_ipt_ntu_comm` | BIGNUMERIC | **THIS IS GP** — price minus IPT, underwriter, commission |
+| `total_ipt` | BIGNUMERIC | Insurance Premium Tax |
+| `total_net_to_underwriter_inc_gadget` | BIGNUMERIC | Net to underwriter (including gadget cover) |
+| `total_paid_commission_perc` | BIGNUMERIC | Commission percentage |
+| `total_paid_commission_value` | BIGNUMERIC | Commission paid to partner/agent |
+| `total_discount_value` | FLOAT64 | Total discount applied |
+| `base_discount_value` | FLOAT64 | Discount on base policy |
+| `addon_discount_value` | FLOAT64 | Discount on add-ons |
+| `campaign_discount_perc` | INT64 | Campaign discount percentage (e.g., 15, 20, 24) |
+| `ipt_rate` | BIGNUMERIC | IPT rate applied |
+
+### Financial Columns — Component Breakdown
+The financials decompose into **base** (core policy), **medical** (medical screening top-up), **option** (add-ons), and **gadget** (gadget cover). Each has inc_ipt, exc_ipt, ntu, commission variants. The naming pattern is:
+- `base_*` — core policy premium
+- `medical_*` — medical screening premium
+- `option_*` — optional add-ons
+- `total_*` — sum of all components
+- `*_exc_gadget_*` — excluding gadget cover component
+- `*_exc_options_*` — excluding optional add-ons
+
+### Policy Status Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `policy_count` | INT64 | **Signed count**: +1 for new/amend, -1 for contra/cancel. Always SUM() this. |
+| `policy_status` | STRING | "Live" or "Cancelled" |
+| `policy_renewal_year` | INT64 | Which renewal year (0=new, 2=second renewal, 3=third, etc.) |
+| `underwriter` | STRING | Underwriter name (e.g., "ERGO") |
+| `auto_renew_opt_in` | BOOL | Whether customer opted into auto-renewal |
+| `currency` | STRING | Currency code (e.g., "Pound") |
+| `user` | STRING | System user who created the record |
+
+---
+
+## `hx-data-production.commercial_finance.insurance_web_utm_4`
+
+Web analytics — event-level data for the Direct channel ONLY (no aggregator/renewal web data).
+
+### Critical Rules
+- Each row is a **single event** within a session (click, page view, auto_capture, etc.)
+- Sessions = `COUNT(DISTINCT session_id)`, Users = `COUNT(DISTINCT visitor_id)`
+- `certificate_id` is STRING here but INT64 in policies — always CAST for joins
+- `session_start_date` is the date field for filtering (DATE type)
+
+### Session &amp; Identity Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `session_id` | STRING | Unique session identifier |
+| `visitor_id` | STRING | Unique visitor identifier |
+| `certificate_id` | STRING | Policy certificate ID (links to policies table — CAST to match) |
+| `policy_id` | STRING | Policy ID |
+| `session_seconds` | INT64 | Total session duration in seconds |
+| `session_start_date` | DATE | **Session date** — primary date for web analysis |
+| `session_landing_path` | STRING | First page URL path (e.g., "/travel-insurance.html") |
+| `session_landing_agent` | STRING | Landing agent code (e.g., "MAPS1") |
+| `session_browser_name` | STRING | Browser (e.g., "Mobile Safari", "Chrome") |
+| `customer_type` | STRING | New, Existing, Lapsed, Re-engaged |
+
+### Page &amp; Event Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `device_type` | STRING | "mobile", "computer", "tablet" |
+| `page_type` | STRING | Page in the journey: landing, gatekeeper, description, screening, extra_details, search_results, addon_results, checkout_*, just_booked |
+| `page_path` | STRING | URL path of the page |
+| `page_agent` | STRING | Agent code on the page |
+| `page_datetime_start` | TIMESTAMP | Page view timestamp |
+| `event_name` | STRING | Specific event (e.g., "engine_search_button", "select_product", "chat_started", "verisk-radio-answer-*") |
+| `event_type` | STRING | Event category: click, auto_capture, customer_state, focus, capture, ecommerce |
+| `event_value` | STRING | Event payload/value |
+| `event_start_datetime` | TIMESTAMP | Event timestamp |
+| `booking_flow_stage` | STRING | **Funnel stage**: Landing, Gatekeeper, Screening, Search, Addon, Checkout, Just_Booked etc. |
+
+### Product &amp; Scheme Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `scheme_search` | STRING | Policy type being searched: "Single" or "Annual" (NOTE: different from `policy_type` — this is the search intent) |
+| `insurance_group` | STRING | **Sub-channel**: "Web Links", "Direct Mailings", "Affiliates", etc. — same dimension as policies table |
+| `scheme_id` | INT64 | Scheme identifier |
+| `scheme_name` | STRING | Full scheme name (e.g., "Bronze Main Single Med HX") |
+| `scheme_type` | STRING | Scheme type: "Single" or "Annual" |
+| `scheme_type_status` | STRING | Scheme type status |
+
+### Destination &amp; Travel Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `region_name` | STRING | Destination region (e.g., "Europe inc Spain, Cyprus, Malta, Greece &amp; Turkey") |
+| `travel_start_date` | DATE | Trip start date |
+| `travel_end_date` | DATE | Trip end date |
+| `duration` | INT64 | Trip duration in days |
+| `passenger_count` | INT64 | Number of travellers |
+
+### Financial Columns (per-certificate, on the web row)
+| Column | Type | Description |
+|--------|------|-------------|
+| `certificate_gross` | NUMERIC | Certificate gross premium |
+| `certificate_ipt` | NUMERIC | IPT on the certificate |
+| `certificate_nett` | NUMERIC | Net premium |
+| `certificate_uw1_ex_ipt` | NUMERIC | Underwriter 1 cost ex IPT |
+| `certificate_uw2_ex_ipt` | NUMERIC | Underwriter 2 cost ex IPT |
+| `certificate_margin` | NUMERIC | Certificate margin |
+| `total_gross` | NUMERIC | Total gross (for the session/certificate) |
+| `total_gp` | NUMERIC | Total GP (for the session/certificate) |
+| `policy_screening_gross` | NUMERIC | Medical screening premium |
+| `policy_screening_margin` | NUMERIC | Medical screening margin |
+
+### Marketing Attribution Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `campaign` | STRING | UTM campaign |
+| `source` | STRING | UTM source |
+| `medium` | STRING | UTM medium |
+| `channel` | STRING | UTM channel (e.g., "Direct") |
+| `utm_id` | STRING | UTM ID |
+
+### Session Flags
+| Column | Type | Description |
+|--------|------|-------------|
+| `Multiple_search` | STRING | "Yes" or "No" — whether the session had multiple searches |
+| `med_session` | BOOL | Whether the session involved medical screening |
+| `used_syd` | BOOL | Whether the "see your data" feature was used |
+
+---
+
+## Joining the Tables
+
+```sql
+-- Always CAST certificate_id for joins (INT64 in policies, STRING in web)
+CAST(p.certificate_id AS STRING) = w.certificate_id
+```
+
+The web table only has Direct channel data. Aggregator and Renewal bookings have no web journey data.
+
+## customer_type Field (both tables)
+- **New** = never seen by Holiday Extras before
+- **Existing** = in our database, has booked in the last 3 years
+- **Lapsed** = in our database but hasn't booked in the last 3 years
+- **Re-engaged** = was lapsed but a recent purchase moved them out of lapsed
+
+## insurance_group Field (both tables)
+Sub-channel grouping within distribution channels. Common values:
+- "Cross Sell" — cross-sold from other HX products
+- "Direct Mailings" — email/DRM campaigns
+- "Web Links" — web referral links
+- "Affiliates" — affiliate partners (Perkbox, Blue Light Card, etc.)
+- "Independent" — independent referral partners (Solos Holiday, etc.)
+</pre></div>
 </div>
 </div>
-<div class="cm-category"><h2 class="cm-cat-header">Operational</h2><p class="cm-cat-desc">Operational context including market events and intelligence sources.</p><div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">current-market-events.md</span><span class="cm-file-meta">46 lines</span></div>
+<div class="cm-category"><h2 class="cm-cat-header">Operational</h2><p class="cm-cat-desc">Operational context including market events and intelligence sources.</p><div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-operational-current-market-events')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">current-market-events.md</span><span class="cm-file-meta">46 lines</span></div>
 <div class="cm-file-title">Current Market Events — Active Context</div>
+<div class="cm-file-preview" id="file-operational-current-market-events" style="display:none"><pre class="cm-preview-content"># Current Market Events — Active Context
+
+_Updated: 18 March 2026. Review weekly and update as events evolve._
+
+## Iran Conflict (Active since 28 Feb 2026)
+
+US and Israel launched airstrikes on Iran on 28 February 2026. Iran responded with missile and drone attacks on Israel, US bases, UAE, and allied countries. Thousands of flights cancelled, Middle East airspace disrupted, Strait of Hormuz shipping rerouted.
+
+### Impact on HX Insurance Trading
+- **Annual volumes declining** — customers uncertain about how many trips they'll take this year, so buying single trip instead of committing to annual
+- **Single trip volumes growing** — the opposite effect; demand for single trips is strong, especially short-lag bookings
+- **Destination mix shift** — less Worldwide, more Europe. Customers avoiding conflict-adjacent destinations (Turkey, Cyprus at times taken off sale). Greece and Spain demand growing as alternatives
+- **Search clickthrough rate spiked** — customers seeing prices and purchasing at much higher rates post-conflict (3-4pp above pre-conflict levels). Expected to normalise as travel sentiment settles
+- **Pricing yielded up** — Europe Including and Worldwide Excluding GP per policy increased via pricing changes to capture higher willingness-to-pay
+- **Aggregator instability** — Compare the Market (via idol platform) has had operational issues with new tech deployments, causing data quality problems
+- **War risk exclusions** — standard travel insurance policies may not cover military action, government airspace closures. This is a market-wide issue, not HX-specific
+
+### Interpretation Guidance
+When the pipeline flags annual volume decline or GP pressure, this conflict is the primary driver. Do NOT recommend repricing annuals or flagging annual decline as a problem — it's a known market effect. Focus instead on:
+- Single trip conversion and GP quality
+- Destination mix implications for margin
+- Whether short-lead bookings are holding (ancillary booking delay theory applies)
+
+## Cruise Partner Dynamics (Carnival Group)
+
+Carnival (P&amp;O, Princess, Cunard) traffic down ~20% — market-level decline, not HX-specific. HX has white-label insurance CTAs on partner cruise booking sites. Online check-in CTA drives 60% of cruise insurance volume. Cunard CTA launch imminent. Princess following.
+
+## Key Pricing Changes (Active)
+
+- Specialist cruise product updates launched 17 March 2026 — flexible excess options, post-departure purchase, increased cover
+- Europe Including and Worldwide Excluding yielded up (GP per policy increased)
+- Europe Excluding margin capped — cannot yield further
+- Gadget attachment rate improved from 3-4% to 10.9% (market standard ~15%)
+- Winter sports add-on attachment collapsed to ~1% (was 7-10%) due to pricing loads — under review with underwriter
+
+## Non-Brand PPC (Launched ~Sep 2025)
+
+Non-brand PPC driving policy growth but at negative GP-to-PPC cost ratio. The investment thesis is lifetime value — new customers acquired via PPC may cross-sell to other HX products. ~6 months of data now available for LTV analysis. ~32% of existing customers clicking PPC ads are new to insurance specifically.
+
+## Partner Pipeline
+
+- **On the Beach** — final stage, ~£150k/year + £50-100k per upsell tier
+- **Morsand Group** — 15 travel agent brands, close to signing
+- **Euro Camp** — reconnecting, significant ancillary opportunity
+- **Maple Parking** — strategic partnership expansion
+- **Your Park Travel** — live on referral, ~£X/week GP
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">market-intelligence.md</span><span class="cm-file-meta">14 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-operational-market-intelligence')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">market-intelligence.md</span><span class="cm-file-meta">14 lines</span></div>
 <div class="cm-file-title">Market Intelligence Sources</div>
+<div class="cm-file-preview" id="file-operational-market-intelligence" style="display:none"><pre class="cm-preview-content"># Market Intelligence Sources
+
+The briefing system draws on several external and internal data sources:
+
+- **Google Trends** — search intent for travel insurance and holiday terms, tracked weekly.
+- **AI Insights** (Google Sheet tab) — pre-generated strategic insights, refreshed regularly.
+- **Dashboard Metrics** — headline market metrics (direction, value, description).
+- **Market Demand Summary** — quarterly demand indices (UK passengers, visits abroad, aviation).
+- **Spike Log** — known anomalies and structural breaks (COVID, Thomas Cook collapse, etc.).
+- **Insurance Intent / Holiday Intent** — normalised Google Trends data for specific search terms.
+- **Travel Events Log** (Google Sheet `1lqLYxLTnfFyBSsIPRyPr8vpr25S7Fhz3p-nlWNToZpU`) — structured log of external events (geopolitical, strikes, holidays, weather) that affect trading. Used to annotate YoY variances.
+- **Internal Google Drive docs** — recent pricing changes, campaign briefs, product releases.
+
+When the briefing cites external context, it should always attribute the source (e.g. "According to Google Trends data..." or a link to the article).
+</pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">template-extraction-plan.md</span><span class="cm-file-meta">26 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-operational-template-extraction-plan')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">template-extraction-plan.md</span><span class="cm-file-meta">26 lines</span></div>
 <div class="cm-file-title">HTML Template Extraction — Completed</div>
+<div class="cm-file-preview" id="file-operational-template-extraction-plan" style="display:none"><pre class="cm-preview-content"># HTML Template Extraction — Completed
+
+_Extracted 3,008 lines of CSS/JS from `generate_dashboard_html()` f-string into separate lintable files._
+
+## What Was Done
+- **CSS** (1,447 lines) → `templates/dashboard.css` — zero interpolations, clean extract
+- **JS main** (1,421 lines) → `templates/dashboard.js` — 3 JSON data placeholders (`__DRIVER_TRENDS_JSON__`, `__FIELD_DISCOVERY_JSON__`, `__CHART_DATA_JSON__`)
+- **JS verification** (143 lines) → `templates/dashboard-verify.js` — zero interpolations, clean extract
+- All `{{` → `{` and `}}` → `}` un-escaping applied
+- `generate_dashboard_html()` reads template files at function start and injects them
+- HTML body with Python expressions (45 interpolations including conditionals, `.get()` calls, format specs) stays as f-string — too complex for `string.Template`
+
+## Why Not Full Jinja2/string.Template
+Analysis showed all 45 complex Python expressions are in the HTML body section (stat tiles, dynamic classes), not in CSS or JS. Extracting CSS and JS addresses 99% of the pain (linting, IDE highlighting, brace escaping bugs) without the risk of migrating complex expressions to a template language.
+
+## Verification
+- Parity test confirmed extracted content matches original after un-escaping
+- All 23 existing tests pass
+- `agentic_briefing.py` reduced from 8,129 → 5,128 lines
+
+## Template Files
+| File | Lines | Interpolations |
+|------|-------|---------------|
+| `templates/dashboard.css` | 1,447 | None |
+| `templates/dashboard.js` | 1,421 | 3 (JSON data placeholders) |
+| `templates/dashboard-verify.js` | 143 | None |
+</pre></div>
 </div>
 </div>
 
@@ -244,17 +1069,30 @@ function cmRemove(filedTo,filedText,elId){
   }).catch(function(e){alert('Remove failed: '+e);});
 }
 
+function cmPreview(fileId){
+  var el=document.getElementById(fileId);
+  if(!el)return;
+  if(el.style.display==='none'){
+    el.style.display='block';
+    el.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }else{
+    el.style.display='none';
+  }
+}
+
+var __addCounter=0;
 function cmAddContext(){
   var text=document.getElementById('cmAddText').value.trim();
   var pwd=document.getElementById('cmAddPassword').value;
   if(!text){alert('Please enter some context');return;}
   if(!pwd){alert('Password required');return;}
+  var addId='manual-'+Date.now();
   document.querySelector('.cm-add-btn').textContent='Adding...';
   fetch(__apiBase+'/api/verify',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
-      finding_id:'manual:'+Date.now(),
+      finding_id:addId,
       action:'add_context',
       date:new Date().toISOString().split('T')[0],
       password:pwd,
@@ -263,13 +1101,45 @@ function cmAddContext(){
   }).then(function(r){return r.json()}).then(function(d){
     document.querySelector('.cm-add-btn').textContent='Add Context';
     if(d.error){alert('Error: '+d.error);return;}
+    /* Show the added item immediately with a remove button */
+    __addCounter++;
+    var itemId='cm-manual-'+__addCounter;
+    var safeText=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var escapedText=text.replace(/\/g,'\\').replace(/'/g,"\'");
+    var itemHtml='<div class="cm-ai-item" id="'+itemId+'">'
+      +'<span class="cm-ai-text">'+safeText
+      +' <em style="opacity:0.5">(pending AI reformat — next pipeline run)</em></span>'
+      +'<button class="cm-remove-btn" onclick="cmRemoveManual(''+addId+'',''+itemId+'')">✕ Remove</button>'
+      +'</div>';
+    var addSection=document.querySelector('.cm-add-section');
+    addSection.insertAdjacentHTML('beforebegin',
+      '<div class="cm-file" style="border-color:rgba(0,176,166,0.3)"><div class="cm-file-header">'
+      +'<span class="cm-file-icon">✨</span> <span class="cm-file-name">Just added</span>'
+      +'<span class="cm-file-meta">pending</span></div>'+itemHtml+'</div>');
     document.getElementById('cmAddText').value='';
     document.getElementById('cmAddPassword').value='';
-    alert('Context added! It will be reformatted by AI and appear in the next briefing run.');
   }).catch(function(e){
     document.querySelector('.cm-add-btn').textContent='Add Context';
     alert('Failed: '+e);
   });
+}
+
+function cmRemoveManual(addId,elId){
+  /* Remove a just-added item — deletes from KV before pipeline processes it */
+  fetch(__apiBase+'/api/verify',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      finding_id:addId,
+      action:'remove_context',
+      date:new Date().toISOString().split('T')[0],
+      password:'skip',
+      note:JSON.stringify({filed_to:'_pending_add',filed_text:addId})
+    })
+  }).then(function(r){return r.json()}).then(function(d){
+    var el=document.getElementById(elId);
+    if(el)el.parentElement.remove();
+  }).catch(function(e){alert('Remove failed: '+e);});
 }
 </script>
 </body></html>
