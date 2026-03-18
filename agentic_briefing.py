@@ -1035,7 +1035,43 @@ Be conservative: if unsure, choose TEMPORARY.
                     if new_cls != old_cls:
                         si["classification"] = new_cls
                         overrides += 1
-                print(f"  ✓ Claude spot-checked {len(sample)} items, overrode {overrides}")
+                override_rate = overrides / len(sample) if sample else 0
+                print(f"  ✓ Claude spot-checked {len(sample)} items, overrode {overrides} ({override_rate:.0%})")
+
+                # If Claude overrode >50% of the sample, the whole batch is suspect — check everything
+                if override_rate > 0.5:
+                    print(f"  ⚠ High override rate ({override_rate:.0%}) — Claude reviewing ALL {len(gpt_items)} items in batches...")
+                    unchecked = [i for i in gpt_items if i not in sample]
+                    batch_size = 20
+                    total_full_overrides = overrides
+                    for batch_start in range(0, len(unchecked), batch_size):
+                        batch = unchecked[batch_start:batch_start + batch_size]
+                        batch_compact = [{"summary": i.get("summary", "")[:100], "classification": i.get("classification", "")} for i in batch]
+                        try:
+                            batch_resp = client_ant.messages.create(
+                                model=VERIFY_MODEL,
+                                max_tokens=3000,
+                                messages=[{
+                                    "role": "user",
+                                    "content": f"""Review these {len(batch_compact)} context classifications. For each, confirm or override.
+Return ONLY a JSON array: [{{"summary":"...","classification":"PERMANENT|TEMPORARY|SKIP"}}]
+Be conservative: if unsure, choose TEMPORARY.
+
+{json.dumps(batch_compact, indent=2)}"""
+                                }],
+                            )
+                            batch_items = _parse_llm_json(batch_resp.content[0].text)
+                            if isinstance(batch_items, list) and len(batch_items) == len(batch):
+                                for bi, gi in zip(batch_items, batch):
+                                    old_cls = gi.get("classification")
+                                    new_cls = bi.get("classification", old_cls)
+                                    if new_cls != old_cls:
+                                        gi["classification"] = new_cls
+                                        total_full_overrides += 1
+                            print(f"    ✓ Batch {batch_start // batch_size + 1}: {len(batch)} items reviewed")
+                        except Exception as batch_e:
+                            print(f"    ⚠ Batch failed: {batch_e}")
+                    print(f"  ✓ Full review complete: {total_full_overrides} total overrides across all items")
             else:
                 print(f"  ⚠ Claude returned {len(claude_items) if isinstance(claude_items, list) else 'non-list'} — keeping GPT classifications")
         except Exception as e:
