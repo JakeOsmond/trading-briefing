@@ -781,71 +781,146 @@ CONTEXT_REFRESH_KEYWORDS = "insurance,pricing,product,partner,underwriter,scheme
 TRAVEL_EVENTS_SHEET_ID = "1lqLYxLTnfFyBSsIPRyPr8vpr25S7Fhz3p-nlWNToZpU"
 
 
+KV_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+KV_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
+KV_NAMESPACE_ID = "45353e04656c415fa471dfc8e70260f7"
+
+
+def _fetch_pending_from_kv():
+    """Fetch pending context adds and removals directly from Cloudflare KV API."""
+    import urllib.request
+    if not KV_ACCOUNT_ID or not KV_API_TOKEN:
+        print("  ⚠ Cloudflare KV credentials not available — skipping KV fetch")
+        return [], []
+
+    base_url = f"https://api.cloudflare.com/client/v4/accounts/{KV_ACCOUNT_ID}/storage/kv/namespaces/{KV_NAMESPACE_ID}"
+    headers = {"Authorization": f"Bearer {KV_API_TOKEN}", "Content-Type": "application/json"}
+
+    def _kv_list(prefix):
+        """List KV keys with given prefix."""
+        try:
+            url = f"{base_url}/keys?prefix={prefix}"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+            return [k["name"] for k in data.get("result", [])]
+        except Exception as e:
+            print(f"  ⚠ KV list failed for {prefix}: {e}")
+            return []
+
+    def _kv_get(key):
+        """Get a single KV value."""
+        try:
+            url = f"{base_url}/values/{urllib.parse.quote(key, safe='')}"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode())
+        except Exception as e:
+            return None
+
+    def _kv_delete(key):
+        """Delete a KV key after processing."""
+        try:
+            url = f"{base_url}/values/{urllib.parse.quote(key, safe='')}"
+            req = urllib.request.Request(url, headers=headers, method="DELETE")
+            urllib.request.urlopen(req, timeout=10)
+        except Exception:
+            pass
+
+    adds = []
+    for key in _kv_list("context_add:"):
+        val = _kv_get(key)
+        if val:
+            adds.append(val)
+            _kv_delete(key)  # consume the entry
+
+    removals = []
+    for key in _kv_list("context_removal:"):
+        val = _kv_get(key)
+        if val:
+            removals.append(val)
+            _kv_delete(key)
+
+    print(f"  📡 Fetched from KV: {len(adds)} pending adds, {len(removals)} pending removals")
+    return adds, removals
+
+
 def _process_context_removals():
-    """Check KV for context removal requests and process them."""
-    try:
-        # This runs in CI where we don't have KV access directly.
-        # Instead, check for a local removals file that could be populated
-        # from a pre-step or manual action.
-        removals_path = Path(__file__).parent / "context" / "operational" / "context-removals.json"
-        if not removals_path.exists():
-            return 0
-        removals = json.loads(removals_path.read_text())
-        if not removals:
-            return 0
-        context_dir = Path(__file__).parent / "context"
-        removed = 0
-        for removal in removals:
-            filed_to = removal.get("filed_to", "")
-            filed_text = removal.get("filed_text", "")
-            if not filed_to or not filed_text:
-                continue
-            target = context_dir / filed_to
-            if target.exists():
-                content = target.read_text()
-                if filed_text.strip() in content:
-                    content = content.replace(filed_text.strip(), "").replace("\n\n\n", "\n\n")
-                    target.write_text(content)
-                    removed += 1
-                    print(f"  🗑 Removed context from {filed_to}: {filed_text[:50]}")
-        # Clear the removals file
-        removals_path.write_text("[]")
-        return removed
-    except Exception as e:
-        print(f"  ⚠ Context removal processing failed: {e}")
-        return 0
+    """Process context removal requests — from KV and local file."""
+    context_dir = Path(__file__).parent / "context"
+    removed = 0
+
+    # Fetch removals from KV via API
+    _, kv_removals = _fetch_pending_from_kv()
+    removals = []
+    for r in kv_removals:
+        filed_info = r.get("filed_info", {})
+        if filed_info.get("filed_to") and filed_info.get("filed_text"):
+            removals.append(filed_info)
+
+    # Also check local file (fallback)
+    removals_path = context_dir / "operational" / "context-removals.json"
+    if removals_path.exists():
+        try:
+            local = json.loads(removals_path.read_text())
+            removals.extend(local or [])
+            removals_path.write_text("[]")
+        except Exception:
+            pass
+
+    for removal in removals:
+        filed_to = removal.get("filed_to", "")
+        filed_text = removal.get("filed_text", "")
+        if not filed_to or not filed_text:
+            continue
+        target = context_dir / filed_to
+        if target.exists():
+            content = target.read_text()
+            if filed_text.strip() in content:
+                content = content.replace(filed_text.strip(), "").replace("\n\n\n", "\n\n")
+                target.write_text(content)
+                removed += 1
+                print(f"  🗑 Removed context from {filed_to}: {filed_text[:50]}")
+    return removed
 
 
 def _process_context_additions():
-    """Check for pending manual context additions and process them via AI."""
+    """Fetch pending manual context additions from KV and local file."""
+    processed = []
+
+    # Fetch from KV via API
+    kv_adds, _ = _fetch_pending_from_kv()
+    for addition in kv_adds:
+        raw_text = addition.get("raw_text", "")
+        if not raw_text:
+            continue
+        processed.append({
+            "source": f"Manual entry by {addition.get('added_by', 'user')}",
+            "modified_by": addition.get("added_by", "user"),
+            "modified": addition.get("timestamp", ""),
+            "content_preview": raw_text,
+        })
+        print(f"  ➕ Manual context from KV: {raw_text[:60]}")
+
+    # Also check local file (fallback)
     try:
         additions_path = Path(__file__).parent / "context" / "operational" / "context-additions.json"
-        if not additions_path.exists():
-            return []
-        additions = json.loads(additions_path.read_text())
-        if not additions:
-            return []
+        if additions_path.exists():
+            local = json.loads(additions_path.read_text())
+            for addition in (local or []):
+                raw_text = addition.get("raw_text", "")
+                if raw_text:
+                    processed.append({
+                        "source": f"Manual entry by {addition.get('added_by', 'user')}",
+                        "modified_by": addition.get("added_by", "user"),
+                        "modified": addition.get("timestamp", ""),
+                        "content_preview": raw_text,
+                    })
+            additions_path.write_text("[]")
+    except Exception:
+        pass
 
-        processed = []
-        for addition in additions:
-            raw_text = addition.get("raw_text", "")
-            if not raw_text:
-                continue
-            # Format as a context item for the standard classify pipeline
-            processed.append({
-                "source": f"Manual entry by {addition.get('added_by', 'user')}",
-                "modified_by": addition.get("added_by", "user"),
-                "modified": addition.get("timestamp", ""),
-                "content_preview": raw_text,
-            })
-            print(f"  ➕ Manual context to process: {raw_text[:60]}")
-
-        # Clear the additions file
-        additions_path.write_text("[]")
-        return processed
-    except Exception as e:
-        print(f"  ⚠ Context additions processing failed: {e}")
-        return []
+    return processed
 
 
 def run_context_refresh(run_date):
