@@ -6,6 +6,8 @@ on:
     paths:
       - 'functions/**'
       - 'briefings/**'
+      - 'templates/**'
+      - 'agentic_briefing.py'
       - '.github/workflows/deploy-production.yml'
   workflow_dispatch:
 
@@ -26,6 +28,17 @@ jobs:
         run: |
           node --check templates/dashboard.js
           node --check templates/dashboard-verify.js
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyyaml markdown
+
+      - name: Regenerate context manager page
+        run: python3 -c "import sys; sys.path.insert(0,'.'); from agentic_briefing import generate_context_manager_html; open('briefings/context-manager.html','w').write(generate_context_manager_html()); print('Context manager regenerated')"
 
       - name: Inject schema/business context into ask.js
         run: bash scripts/inject-ask-context.sh insurance
