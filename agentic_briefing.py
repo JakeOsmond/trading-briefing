@@ -3782,6 +3782,7 @@ def generate_context_manager_html():
 <div class="cm-add-form">
 <textarea id="cmAddText" class="cm-add-input" rows="3" placeholder="e.g. We just signed On the Beach as a partner, worth about 150k a year in insurance referrals"></textarea>
 <div class="cm-add-row">
+<input type="text" id="cmAddName" class="cm-add-password" placeholder="Your name" style="max-width:160px">
 <input type="password" id="cmAddPassword" class="cm-add-password" placeholder="Verification password">
 <button class="cm-add-btn" onclick="cmAddContext()">Add Context</button>
 </div>
@@ -3811,23 +3812,28 @@ function _ensureAuth(){{
 }}
 
 function cmRemove(filedTo,filedText,elId){{
-  var pwd=prompt('Enter verification password to remove this context:');
-  if(!pwd)return;
-  fetch(__apiBase+'/api/verify',{{
-    method:'POST',
-    headers:{{'Content-Type':'application/json'}},
-    body:JSON.stringify({{
+  _ensureAuth().then(function(auth){{
+    if(!auth)return;
+    var payload=Object.assign({{
       finding_id:'context:'+elId,
       action:'remove_context',
       date:new Date().toISOString().split('T')[0],
-      password:pwd,
       note:JSON.stringify({{filed_to:filedTo,filed_text:filedText}})
-    }})
-  }}).then(function(r){{return r.json()}}).then(function(d){{
-    if(d.error){{alert('Error: '+d.error);return;}}
-    var el=document.getElementById(elId);
-    if(el){{el.style.opacity='0.3';el.style.textDecoration='line-through';}}
-  }}).catch(function(e){{alert('Remove failed: '+e);}});
+    }},auth);
+    fetch(__apiBase+'/api/verify',{{
+      method:'POST',
+      headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify(payload)
+    }}).then(function(r){{return r.json()}}).then(function(d){{
+      if(d.error){{alert('Error: '+d.error);return;}}
+      var el=document.getElementById(elId);
+      if(el)el.style.display='none';
+      /* Store in localStorage so it stays hidden across refreshes */
+      var removed=JSON.parse(localStorage.getItem('cm_removed')||'[]');
+      removed.push(filedText.substring(0,50));
+      localStorage.setItem('cm_removed',JSON.stringify(removed));
+    }}).catch(function(e){{alert('Remove failed: '+e);}});
+  }});
 }}
 
 function cmPreview(fileId){{
@@ -3844,8 +3850,10 @@ function cmPreview(fileId){{
 var __addCounter=0;
 function cmAddContext(){{
   var text=document.getElementById('cmAddText').value.trim();
+  var name=document.getElementById('cmAddName').value.trim();
   var pwd=document.getElementById('cmAddPassword').value;
   if(!text){{alert('Please enter some context');return;}}
+  if(!name){{alert('Please enter your name');return;}}
   if(!pwd){{alert('Password required');return;}}
   var addId='manual-'+Date.now();
   document.querySelector('.cm-add-btn').textContent='Adding...';
@@ -3857,26 +3865,18 @@ function cmAddContext(){{
       action:'add_context',
       date:new Date().toISOString().split('T')[0],
       password:pwd,
+      verified_by:name,
       note:text
     }})
   }}).then(function(r){{return r.json()}}).then(function(d){{
     document.querySelector('.cm-add-btn').textContent='Add Context';
     if(d.error){{alert('Error: '+d.error);return;}}
-    /* Show the added item immediately with a remove button */
-    __addCounter++;
-    var itemId='cm-manual-'+__addCounter;
-    var safeText=text.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
-    var escapedText=text.split("'").join("_");
-    var itemHtml='<div class="cm-ai-item" id="'+itemId+'">'
-      +'<span class="cm-ai-text">'+safeText
-      +' <em style="opacity:0.5">(pending AI reformat — next pipeline run)</em></span>'
-      +'<button class="cm-remove-btn" onclick="cmRemoveManual(&quot;'+addId+'&quot;,&quot;'+itemId+'&quot;)">✕ Remove</button>'
-      +'</div>';
-    var addSection=document.querySelector('.cm-add-section');
-    addSection.insertAdjacentHTML('beforebegin',
-      '<div class="cm-file" style="border-color:rgba(0,176,166,0.3)"><div class="cm-file-header">'
-      +'<span class="cm-file-icon">✨</span> <span class="cm-file-name">Just added</span>'
-      +'<span class="cm-file-meta">pending</span></div>'+itemHtml+'</div>');
+    /* Store in localStorage so it persists across refresh */
+    var pending=JSON.parse(localStorage.getItem('cm_pending_adds')||'[]');
+    pending.push({{id:addId,text:text,name:name,time:new Date().toISOString()}});
+    localStorage.setItem('cm_pending_adds',JSON.stringify(pending));
+    /* Show immediately */
+    _showPendingAdd(addId,text,name);
     document.getElementById('cmAddText').value='';
     document.getElementById('cmAddPassword').value='';
   }}).catch(function(e){{
@@ -3885,8 +3885,25 @@ function cmAddContext(){{
   }});
 }}
 
+function _showPendingAdd(addId,text,name){{
+  __addCounter++;
+  var itemId='cm-manual-'+__addCounter;
+  var safeText=text.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
+  var safeName=name.split('&').join('&amp;').split('<').join('&lt;');
+  var itemHtml='<div class="cm-ai-item" id="'+itemId+'">'
+    +'<span class="cm-ai-text">'+safeText
+    +' <em style="opacity:0.5">(pending — added by '+safeName+')</em></span>'
+    +'<button class="cm-remove-btn" onclick="cmRemoveManual(&quot;'+addId+'&quot;,&quot;'+itemId+'&quot;)">✕ Remove</button>'
+    +'</div>';
+  var addSection=document.querySelector('.cm-add-section');
+  addSection.insertAdjacentHTML('beforebegin',
+    '<div class="cm-file cm-pending-card" data-add-id="'+addId+'" style="border-color:rgba(0,176,166,0.3)"><div class="cm-file-header">'
+    +'<span class="cm-file-icon">✨</span> <span class="cm-file-name">Added by '+safeName+'</span>'
+    +'<span class="cm-file-meta">pending next run</span></div>'+itemHtml+'</div>');
+}}
+
 function cmRemoveManual(addId,elId){{
-  /* Remove a pending add — needs auth, then deletes the context_add: KV entry */
+  /* Remove a pending add — deletes KV entry + cleans localStorage */
   _ensureAuth().then(function(auth){{
     if(!auth)return;
     var payload=Object.assign({{
@@ -3899,39 +3916,83 @@ function cmRemoveManual(addId,elId){{
       headers:{{'Content-Type':'application/json'}},
       body:JSON.stringify(payload)
     }}).then(function(r){{return r.json()}}).then(function(d){{
+      /* Remove from DOM */
+      var card=document.querySelector('[data-add-id="'+addId+'"]');
+      if(card)card.remove();
       var el=document.getElementById(elId);
-      if(el)el.parentElement.remove();
+      if(el&&el.parentElement)el.parentElement.remove();
+      /* Remove from localStorage */
+      try{{
+        var pending=JSON.parse(localStorage.getItem('cm_pending_adds')||'[]');
+        pending=pending.filter(function(p){{return p.id!==addId;}});
+        localStorage.setItem('cm_pending_adds',JSON.stringify(pending));
+      }}catch(e){{}}
     }}).catch(function(e){{alert('Remove failed: '+e);}});
   }});
 }}
 
-/* Load pending context from KV on page load — visible to everyone */
-(function loadPendingContext(){{
+/* On page load: fetch pending state from KV, apply removals, show pending adds */
+(function initContextState(){{
   fetch(__apiBase+'/api/verify?type=pending_context')
     .then(function(r){{return r.json()}})
     .then(function(d){{
-      var adds=d.pending_adds||[];
-      if(!adds.length)return;
-      var addSection=document.querySelector('.cm-add-section');
-      if(!addSection)return;
-      adds.forEach(function(item,i){{
-        var safeText=(item.raw_text||'').split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
-        var addId=item.id||('pending-'+i);
-        var itemId='cm-pending-'+i;
-        var by=item.added_by||'user';
-        var when=item.timestamp?new Date(item.timestamp).toLocaleDateString():'';
-        var html='<div class="cm-file" style="border-color:rgba(253,220,6,0.3)">'
-          +'<div class="cm-file-header"><span class="cm-file-icon">⏳</span> '
-          +'<span class="cm-file-name">Pending — added by '+by+'</span>'
-          +'<span class="cm-file-meta">'+when+' · awaiting next pipeline run</span></div>'
-          +'<div class="cm-ai-item" id="'+itemId+'">'
-          +'<span class="cm-ai-text">'+safeText+'</span>'
-          +'<button class="cm-remove-btn" onclick="cmRemoveManual(&quot;'+addId+'&quot;,&quot;'+itemId+'&quot;)">✕ Remove</button>'
-          +'</div></div>';
-        addSection.insertAdjacentHTML('beforebegin',html);
+      /* 1. Hide items that have pending removals */
+      var removals=d.pending_removals||[];
+      removals.forEach(function(r){{
+        var info=r.filed_info||{{}};
+        var text=(info.filed_text||'').trim();
+        if(!text)return;
+        /* Find any .cm-ai-item whose text content matches the removal */
+        document.querySelectorAll('.cm-ai-item').forEach(function(el){{
+          if(el.textContent.indexOf(text.substring(0,50))!==-1){{
+            el.style.display='none';
+            el.setAttribute('data-removed','true');
+          }}
+        }});
+        /* Also hide context-items on the homepage */
+        document.querySelectorAll('.context-item').forEach(function(el){{
+          if(el.textContent.indexOf(text.substring(0,50))!==-1){{
+            el.style.display='none';
+          }}
+        }});
       }});
+
+      /* 2. Show pending adds from KV */
+      var adds=d.pending_adds||[];
+      var addSection=document.querySelector('.cm-add-section');
+      if(addSection&&adds.length){{
+        adds.forEach(function(item,i){{
+          var safeText=(item.raw_text||'').split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
+          var addId=item.id||('pending-'+i);
+          var by=item.added_by||'user';
+          _showPendingAdd(addId,item.raw_text||'',by);
+        }});
+      }}
     }})
     .catch(function(){{}});
+
+  /* 3. Also restore pending adds from localStorage */
+  try{{
+    var local=JSON.parse(localStorage.getItem('cm_pending_adds')||'[]');
+    local.forEach(function(item){{
+      if(!document.querySelector('[data-add-id="'+item.id+'"]')){{
+        _showPendingAdd(item.id,item.text,item.name);
+      }}
+    }});
+  }}catch(e){{}}
+
+  /* 4. Hide items removed via localStorage (persists across refresh until pipeline runs) */
+  try{{
+    var removed=JSON.parse(localStorage.getItem('cm_removed')||'[]');
+    if(removed.length){{
+      document.querySelectorAll('.cm-ai-item').forEach(function(el){{
+        var txt=el.textContent;
+        removed.forEach(function(r){{
+          if(txt.indexOf(r)!==-1)el.style.display='none';
+        }});
+      }});
+    }}
+  }}catch(e){{}}
 }})();
 </script>
 </body></html>"""
