@@ -19,3 +19,5 @@
 - **used_syd** — customer used the "Screen Your Destinations" tool (about 0.3% of sessions)
 - **med_session** — session involved medical screening (about 12% of sessions)
 - **Multiple_search** — customer did multiple quote searches in one session (about 3.5%; values are 'Yes'/'No')
+
+- Underwriting rules report with test exceptions and age limits — Source: Drive: 'Insurance UW Rules for testing', 2026-03-18

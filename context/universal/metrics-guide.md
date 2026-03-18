@@ -21,3 +21,5 @@ When assessing a mover, look at the last 10 trading days and count how many days
 - **New** (fewer than 5 of 10 days) — recent shift or one-off.
 
 Recurring and emerging issues warrant more attention because they suggest something systemic rather than a blip.
+
+- Experimentation Studio glossary and metric definitions updated — Source: Drive: 'WeDiscover - Experimentation Studio | Holiday Extras', 2026-03-18

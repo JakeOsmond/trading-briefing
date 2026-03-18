@@ -1,45 +1,61 @@
 ---
 # HX Trading Briefing — 17 Mar 2026
 
-## Over the last 7 days vs the same week last year, GP is down £24k because direct single-trip and Europe are losing far more value per sale, even with solid traffic.
+## Direct single and direct annual drove most of the damage over the last 7 days vs the same period last year, as quote-entry weakened and single-trip value per sale fell.
 
 ---
 
 ## At a Glance
 
-- 🔴 **Europe drag** — Over the last 7 days vs the same week last year, Europe GP was £89k, down £20k, while policies were only 2% lower, so most of the damage is weaker GP per sale.
-- 🔴 **Direct single** — Over the last 7 days vs the same week last year, direct single-trip GP was £30k, down £12k, as desktop traffic rose 34% but fewer visitors got through to price and average GP per policy fell 21%.
-- 🔴 **Direct annual acquisition** — Over the last 7 days vs the same week last year, direct annual GP was £37k, down £11k, because we sold 18% fewer annuals; that is weaker acquisition into future renewal income.
-- 🔴 **Partner weakness** — Over the last 7 days vs the same week last year, partner referral GP was down about £11k across single and annual, with fewer partner sales and lower value per sale.
-- 🟢 **Renewals offset** — Over the last 7 days vs the same week last year, renewal GP was £53k, up £8k, which partly offsets weaker new business.
+- 🔴 **Total GP down** — Yesterday GP was £19k, down £3k vs the same day last year, about 12% worse; over the last 7 days GP was £139k, down £24k vs the same period last year, about 15% worse.
+- 🔴 **Direct single hurt most** — Over the last 7 days vs the same period last year, direct single GP fell £11.7k to £30.3k, mainly because fewer visitors got through to quote and average GP per policy fell to £17 from £22.
+- 🔴 **Direct annual weaker** — Over the last 7 days vs the same period last year, direct annual GP fell £10.6k to £37.3k because we sold 159 fewer annuals, which means weaker acquisition into future renewal income.
+- 🟢 **Renewals helped** — Over the last 7 days vs the same period last year, annual renewals GP was up £8k to £53k, which offset some of the direct weakness.
+- 🔴 **Europe lost value** — Over the last 7 days vs the same period last year, Europe GP fell £20k to £89k, with volumes down only about 90 policies, so most of the hit came from weaker GP per policy.
 
 ---
 
 ## What's Driving This
 
-### Direct Single GP deterioration `RECURRING`
+### Direct Single GP decline `RECURRING`
 
-Over the last 7 days vs the same week last year, direct single-trip GP fell £12k to £30k. Desktop sessions were up 34% YoY and mobile sessions were broadly flat, so traffic was not the main problem; fewer visitors reached price, desktop quote-to-book got worse, and average GP per policy fell 21% to about £17.  
-This is clearly the biggest controllable issue. It has been negative on 8 of the last 10 trading days, with most of the damage in Bronze and Silver single-trip journeys.
+Over the last 7 days vs the same period last year, direct single GP fell £11.7k to £30.3k. Traffic was mixed, with mobile sessions down 2% but desktop up 34%, and the real problem was weaker quote-entry: mobile session-to-search fell to 16% from 20% and desktop fell to 12% from 15%, while average GP per policy dropped to £17 from £22; this has been negative on 8 of the last 10 trading days.
 
 ```sql-dig
 SELECT
-  distribution_channel,
-  policy_type,
-  SUM(policy_count) AS policies,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
-  AND distribution_channel = 'Direct'
-  AND policy_type = 'Single'
+  p.distribution_channel,
+  p.policy_type,
+  SUM(p.policy_count) AS policies,
+  SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
+  SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new` p
+WHERE p.transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
+  AND p.distribution_channel = 'Direct'
+  AND p.policy_type = 'Single'
 GROUP BY 1,2;
 ```
 
-### Europe destination mix weakening `RECURRING`
+### Direct Annual GP decline `RECURRING`
 
-Over the last 7 days vs the same week last year, Europe GP fell £20k to £89k while policies were only down 2%. That tells us traffic and volume held up reasonably well, but the mix got cheaper and average GP per Europe policy dropped 17% to about £20.  
-This is a recurring issue because Europe is where most of the single-trip weakness is landing. We are getting the demand, but more of it is lower-yield Europe business.
+Over the last 7 days vs the same period last year, direct annual GP fell £10.6k to £37.3k, with volumes down 18% to 729 policies from 888. Traffic was mixed, but fewer people got through to quote on both devices and annual booked sessions fell on mobile and desktop, so we are investing less into future renewal income; this has been negative on 7 of the last 10 trading days.
+
+```sql-dig
+SELECT
+  p.distribution_channel,
+  p.policy_type,
+  SUM(p.policy_count) AS policies,
+  SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
+  SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new` p
+WHERE p.transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
+  AND p.distribution_channel = 'Direct'
+  AND p.policy_type = 'Annual'
+GROUP BY 1,2;
+```
+
+### Europe destination GP decline `EMERGING`
+
+Over the last 7 days vs the same period last year, Europe GP fell £20k to £89k, while volumes were down only about 90 policies. The data points to weaker value per policy rather than a traffic collapse, which may mean more customers are buying cheaper Europe cover or lower tiers.
 
 ```sql-dig
 SELECT
@@ -53,29 +69,25 @@ WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
 GROUP BY 1;
 ```
 
-### Direct Annual volume decline `EMERGING`
+### Gold cover level GP decline `EMERGING`
 
-Over the last 7 days vs the same week last year, direct annual GP was £37k, down £11k, because policies fell 18% to 729. Traffic with annual intent was softer and fewer visitors got through to price, so this is mainly weaker acquisition rather than a pricing problem.  
-This matters because annual sales are future renewals. We are still investing in future renewal income, but the current market is pushing more people toward single trip instead of committing to annual cover.
+Over the last 7 days vs the same period last year, Gold GP fell £7k to £46k because we sold about 130 fewer policies, while GP per policy held broadly flat. That suggests shoppers may be trading down rather than us losing value on each sale.
 
 ```sql-dig
 SELECT
-  distribution_channel,
-  policy_type,
+  cover_level_name,
   SUM(policy_count) AS policies,
   SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
   SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
 FROM `hx-data-production.commercial_finance.insurance_policies_new`
 WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
-  AND distribution_channel = 'Direct'
-  AND policy_type = 'Annual'
-GROUP BY 1,2;
+  AND cover_level_name = 'Gold'
+GROUP BY 1;
 ```
 
-### Partner Referral Single decline `EMERGING`
+### Partner Referral Single GP decline `EMERGING`
 
-Over the last 7 days vs the same week last year, partner single GP was £13k, down £6k, with policies down 27%. For partners we cannot see web sessions in the same way as direct, but the size of the policy drop says traffic from partners is the main issue, with a small extra hit from lower GP per sale.  
-This is building rather than one-day noise. Cruise partner softness looks part of it.
+Over the last 7 days vs the same period last year, partner single GP fell £6k to £13k, with volumes down about 240 policies. This looks mainly traffic-led from weaker partner demand, and cruise softness may be part of it.
 
 ```sql-dig
 SELECT
@@ -91,18 +103,18 @@ WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
 GROUP BY 1,2;
 ```
 
-### Partner Referral Annual decline `EMERGING`
+### Partner Referral Annual GP decline `NEW`
 
-Over the last 7 days vs the same week last year, partner annual GP was £8k, down £5k, with policies down 19% and average GP per policy also lower. Annual volume is still worth having because it feeds future renewals, but this partner stream is bringing in less volume and less value.  
-This may be part traffic and part economics. Check partner commission and underwriter cost changes before assuming demand is the whole story.
+Over the last 7 days vs the same period last year, partner annual GP fell £5k to £8k, with volumes down about 30 and GP per policy down about £21. This may be more than traffic alone, because commission per policy also rose, but confidence is still low.
 
 ```sql-dig
 SELECT
   distribution_channel,
   policy_type,
   SUM(policy_count) AS policies,
+  SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_commission,
   SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-  SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(SUM(CAST(total_gross_inc_ipt AS FLOAT64)), 0) AS commission_rate
+  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
 FROM `hx-data-production.commercial_finance.insurance_policies_new`
 WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
   AND distribution_channel = 'Partner Referral'
@@ -110,10 +122,29 @@ WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
 GROUP BY 1,2;
 ```
 
-### Renewals growth from better renewal mechanics `EMERGING`
+### Aggregator Single GP decline `NEW`
 
-Over the last 7 days vs the same week last year, renewal GP was £53k, up £8k. We had fewer policies coming up for renewal, so the gain appears to be coming from better renewal take-up rather than a bigger eligible base.  
-This is good news and one of the few clean offsets in the week. Treat it as encouraging, but prove it with a proper renewal-rate check using expiry dates.
+Over the last 7 days vs the same period last year, aggregator single GP was only down about £500, but volumes were up about 50% and average GP per policy fell to about £2. The traffic is clearly there through comparison sites, but we are converting a lot more low-value single-trip business.
+
+```sql-dig
+SELECT
+  distribution_channel,
+  policy_type,
+  SUM(policy_count) AS policies,
+  SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_price,
+  SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_commission,
+  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
+  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM `hx-data-production.commercial_finance.insurance_policies_new`
+WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
+  AND distribution_channel = 'Aggregator'
+  AND policy_type = 'Single'
+GROUP BY 1,2;
+```
+
+### Renewals Annual GP growth `NEW`
+
+Over the last 7 days vs the same period last year, renewal GP was up £8k to £53k. That is good news and likely means better retention, although the exact renewal-rate read is still lower confidence.
 
 ```sql-dig
 SELECT
@@ -129,73 +160,25 @@ WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
 GROUP BY 1,2;
 ```
 
-### Worldwide destination decline `NEW`
-
-Over the last 7 days vs the same week last year, Worldwide GP was £50k, down £4k, mostly because policies were down 7% while GP per sale held roughly flat at about £27. That points to less traffic or fewer bookings into Worldwide rather than weaker pricing.  
-This may be customers switching destination plans from Worldwide into Europe rather than a deeper pricing issue.
-
-```sql-dig
-SELECT
-  destination_group,
-  SUM(policy_count) AS policies,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
-  AND destination_group = 'Worldwide'
-GROUP BY 1;
-```
-
-### Aggregator Single deterioration `NEW`
-
-Over the last 7 days vs the same week last year, aggregator single GP was about £2k, down about £500, even though policies were up about 50%. We are clearly getting more comparison-site volume, but average GP per sale roughly halved, so we are buying that volume too cheaply.  
-That is worth watching because single trip has no renewal payback. The growth is real, but the quality is poor.
-
-```sql-dig
-SELECT
-  distribution_channel,
-  policy_type,
-  SUM(policy_count) AS policies,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-  SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_price,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE transaction_date BETWEEN '2026-03-10' AND '2026-03-17'
-  AND distribution_channel = 'Aggregator'
-  AND policy_type = 'Single'
-GROUP BY 1,2;
-```
-
----
-
 ## Customer Search Intent
 
-According to Google Sheets Dashboard Metrics, travel insurance search demand is up 74% YoY, ahead of holiday searches at 51% YoY, so demand is there. According to AI Insights and the Insurance Intent tab, broader insurance search demand is up roughly 57% to 63% YoY, with 4-week momentum up about 40% YoY. According to the Insurance Intent data, price-led searches are surging: “travel insurance deals” is up 986% YoY, “cheapest” is up 141% YoY, “travel insurance price” is up 321% YoY, and comparison intent is up 400% YoY over the latest tracked period vs last year. According to AI Insights, destination interest is tilting toward Spain, Greece and Italy, while ski holiday intent is up 188% YoY, which fits stronger Europe demand and more late-booking single-trip behaviour. According to AI Insights, competitor brand searches are also rising, with Staysure up 52% YoY and AllClear up 33% YoY, especially among older and medical customers.  
-**Source:** Google Sheets — Insurance Intent tab  
-**Source:** Google Sheets — Dashboard Metrics tab  
-**Source:** AI Insights — what_matters, deep_dive, trend, channels
-
----
+According to Google Sheets data, travel insurance search intent is up about 63% YoY, and insurance-specific searches are up about 74% YoY, so demand is there even though our GP is softer. According to AI Insights, comparison-led searches are rising much faster: “travel insurance comparison” is up 400% YoY, “travel insurance deals” is up 986% YoY, and “cheapest” terms are up 141% YoY over the latest tracked period, which fits the weaker value we are seeing in single-trip sales. According to the Insurance Intent and Dashboard Metrics tabs, Spain, Greece and Italy are leading destination demand, while ski-related searches are up 188% YoY, pointing to late winter and Easter cover demand. According to Dashboard Metrics, insurance demand is now 3 points ahead of holiday demand vs 1 point last year, which suggests customers are actively checking cover earlier in the journey. **Source:** Google Sheets — Insurance Intent tab; **Source:** Google Sheets — Dashboard Metrics tab; **Source:** AI Insights — trend, deep_dive, channels.
 
 ## News & Market Context
 
-According to AI Insights, airlines are pushing cheap flights and holiday deals, which is bringing more insurance shoppers into market but making them more price-sensitive. According to AI Insights, Jet2, easyJet, Ryanair and TUI are adding capacity into Spain, Greece and Italy, which supports stronger Europe demand but also a cheaper mix. British Airways said it still cannot operate to some Middle East destinations and is offering flexible changes, which helps explain weaker Worldwide demand and switching into Europe. According to The Week, citing ABI guidance, standard travel insurance usually excludes war-related losses, so customers are likely shopping more carefully and asking more questions before they buy. Internal market context says Carnival traffic is down about 20%, which fits weaker partner referral volumes, especially in cruise-linked traffic. AI Insights also says Compare the Market search interest is up 16% YoY, which fits the rise in low-value aggregator single volume.  
-**Source:** AI Insights — trend, deep_dive, news, channels  
-**Source:** [British Airways issues update today on flights resuming from the Middle East](https://uk.news.yahoo.com/british-airways-issues-today-flights-130432343.html?utm_source=openai)  
-**Source:** [How travel insurance works if your holiday is disrupted by war](https://theweek.com/personal-finance/how-travel-insurance-works-if-your-holiday-is-disrupted-by-war?utm_source=openai)  
-**Source:** Current Market Events — Iran Conflict, Cruise Partner Dynamics
-
----
+According to AI Insights, airline and holiday demand is still supportive, with cheap-flight and holiday-deal interest both up, especially for Spain, Greece and Italy. According to [Yahoo News](https://uk.news.yahoo.com/british-airways-issues-today-flights-130432343.html?utm_source=openai), British Airways is still suspending several Middle East routes, which keeps disruption and insurance questions front of mind. According to [The Week](https://theweek.com/personal-finance/how-travel-insurance-works-if-your-holiday-is-disrupted-by-war?utm_source=openai), standard policies often exclude war-related losses, which makes customers more price- and wording-sensitive when they compare cover. According to [Saga](https://www.saga.co.uk/travel-insurance/middle-east-travel-disruption?utm_source=openai), rivals are leaning into disruption support, including automatic extensions for stranded travellers. According to AI Insights, Staysure search interest is up 52% YoY and AllClear is up 33% YoY, especially with older and medical customers. That lines up with what we are seeing over the last 7 days: demand is there, but more of it is comparison-led and harder to monetise. **Source:** AI Insights — what_matters, deep_dive, news.
 
 ## Actions
 
 | Priority | What to do | Why (from the data) | Worth |
 |----------|-----------|---------------------|-------|
-| 1 | Fix direct single search reach first in Bronze and Silver on mobile and desktop, starting with the search gate and desktop quote-to-book journey | Over the last 7 days vs last year, direct single lost £12k, with weaker session-to-search and a sharp desktop quote-to-book drop | ~£12k/week |
-| 2 | Protect Europe value by tightening product mix and pushing upgrades and extras on Europe single-trip sales, not by chasing more cheap volume | Over the last 7 days vs last year, Europe lost £20k mostly because average GP per policy fell 17% while volume was almost flat | ~£20k/week |
-| 3 | Review partner referral economics and traffic source quality, starting with cruise-linked partners and annual deals | Over the last 7 days vs last year, partner single and annual were down about £11k combined from lower volume and weaker value per sale | ~£11k/week |
-| 4 | Keep backing annual acquisition in direct, but shift marketing toward annual-intent demand pockets where customers still reach price | Over the last 7 days vs last year, direct annual volume was down 18%, which means weaker investment into future renewal income | ~£11k/week |
-| 5 | Validate and then scale the renewal journeys that improved take-up, especially auto-renew prompts and renewal contact timing | Over the last 7 days vs last year, renewals added £8k and were the clearest offset to weaker new business | ~£8k/week |
+| 1 | Check the direct quote-entry funnel by device today and fix the biggest mobile and desktop drop between landing and search on single-trip journeys | Direct single lost £11.7k over the last 7 days vs last year, and both mobile and desktop session-to-search got worse | ~£12k/week |
+| 2 | Review annual direct landing pages and quote-start steps this week to recover annual conversions | Direct annual lost £10.6k over the last 7 days vs last year because fewer people reached quote and booked, which means less future renewal income | ~£11k/week |
+| 3 | Rework quote-page messaging to defend Gold and higher tiers, focusing on cover value not just price | Gold GP lost £7k over the last 7 days vs last year because customers bought fewer higher-tier policies | ~£7k/week |
+| 4 | Speak to the biggest partner accounts this week, especially cruise-led partners, to find where referral traffic has dropped | Partner single lost £6k over the last 7 days vs last year, and this looks mainly traffic-led | ~£6k/week |
+| 5 | Review partner annual placements with rising commission per policy and pull back any that are clearly uneconomic | Partner annual lost £5k over the last 7 days vs last year, and commission per policy appears to have risen | ~£5k/week |
 
 ---
-*Generated 14:19 18 Mar 2026 | Tracks: 23 + Follow-ups: 34 | Model: gpt-5.4*
+
+---
+*Generated 15:14 18 Mar 2026 | Tracks: 23 + Follow-ups: 37 | Model: gpt-5.4*
