@@ -1165,12 +1165,13 @@ SKIP = not useful for trading analysis. Be conservative: if unsure, TEMPORARY.""
 Return JSON: {"facts": ["- fact 1 — Source: ...", "- fact 2 — Source: ...", ...]}
 
 Rules:
-- Remove exact and near-duplicates (same fact worded slightly differently — keep the better-worded one)
+- Remove exact and near-duplicates (same fact worded slightly differently)
+- When duplicates exist, KEEP the one with the EARLIEST date (oldest source date) — it has the earliest expiry
 - Remove facts that are too vague to be useful (e.g. "The document is dated January 2026")
 - Remove facts that are just describing what a document IS rather than stating a useful fact
 - Keep all facts that contain specific numbers, rates, thresholds, dates, or named entities
-- Preserve the full line including the "— Source: ..." attribution and "(expires: ...)" suffix
-- Do NOT rewrite or change the facts — just remove duplicates and noise"""},
+- Preserve the FULL line exactly as-is including "— Source: ..." and "(expires: YYYY-MM-DD)"
+- Do NOT rewrite, rephrase, or merge facts — only remove lines"""},
                         {"role": "user", "content": "\n".join(temp_lines)},
                     ],
                 )
