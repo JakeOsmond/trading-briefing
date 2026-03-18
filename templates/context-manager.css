@@ -49,6 +49,18 @@ body{
 .cm-file-name{font-size:13px;font-weight:600;color:rgba(255,255,255,0.7);font-family:monospace}
 .cm-file-meta{font-size:11px;color:rgba(255,255,255,0.3);margin-left:auto}
 .cm-file-title{font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:6px}
+.cm-file-clickable{cursor:pointer;transition:background 0.2s;border-radius:6px;padding:4px 6px;margin:-4px -6px}
+.cm-file-clickable:hover{background:rgba(146,95,255,0.1)}
+.cm-file-clickable::after{content:'▸ preview';font-size:10px;color:rgba(146,95,255,0.4);margin-left:8px}
+.cm-file-preview{
+  margin-top:8px;border-top:1px solid rgba(146,95,255,0.1);padding-top:8px;
+}
+.cm-preview-content{
+  background:rgba(0,0,0,0.3);border:1px solid rgba(146,95,255,0.1);
+  border-radius:8px;padding:12px 16px;font-size:12px;line-height:1.6;
+  color:rgba(255,255,255,0.6);white-space:pre-wrap;word-wrap:break-word;
+  max-height:400px;overflow-y:auto;font-family:'Nunito',sans-serif;
+}
 .cm-ai-count{
   background:rgba(0,176,166,0.12);color:#5FFFF0;
   padding:1px 6px;border-radius:6px;font-size:10px;

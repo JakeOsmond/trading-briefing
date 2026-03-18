@@ -3505,6 +3505,10 @@ def generate_context_manager_html():
             lines = text.strip().split("\n")
             title = lines[0].replace("#", "").strip() if lines else md_file.stem
             total_lines = len(lines)
+            file_id = f"file-{cat_key}-{md_file.stem}"
+
+            # Escape full content for preview popup
+            preview_content = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
             # Find AI-added items (lines with "— Source:" attribution)
             ai_items = [l.strip() for l in lines if "— Source:" in l and l.strip().startswith("-")]
@@ -3515,10 +3519,11 @@ def generate_context_manager_html():
                     clean = ai_line.lstrip("- ").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     file_rel = f"{cat_key}/{md_file.name}"
                     escaped_text = ai_line.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "")
+                    item_id = f"cm-{cat_key}-{md_file.stem}-{ai_idx}"
                     items_html += (
-                        f'<div class="cm-ai-item" id="cm-{cat_key}-{md_file.stem}-{ai_idx}">'
+                        f'<div class="cm-ai-item" id="{item_id}">'
                         f'<span class="cm-ai-text">{clean}</span>'
-                        f'<button class="cm-remove-btn" onclick="cmRemove(\'{file_rel}\',\'{escaped_text}\',\'cm-{cat_key}-{md_file.stem}-{ai_idx}\')">'
+                        f'<button class="cm-remove-btn" onclick="cmRemove(\'{file_rel}\',\'{escaped_text}\',\'{item_id}\')">'
                         f'✕ Remove</button>'
                         f'</div>\n'
                     )
@@ -3531,13 +3536,16 @@ def generate_context_manager_html():
 
             files_html += (
                 f'<div class="cm-file">'
-                f'<div class="cm-file-header">'
+                f'<div class="cm-file-header cm-file-clickable" onclick="cmPreview(\'{file_id}\')">'
                 f'<span class="cm-file-icon">📄</span> '
                 f'<span class="cm-file-name">{md_file.name}</span>'
                 f'<span class="cm-file-meta">{total_lines} lines{ai_count}</span>'
                 f'</div>\n'
                 f'<div class="cm-file-title">{title}</div>\n'
                 f'{items_html}'
+                f'<div class="cm-file-preview" id="{file_id}" style="display:none">'
+                f'<pre class="cm-preview-content">{preview_content}</pre>'
+                f'</div>\n'
                 f'</div>\n'
             )
 
@@ -3613,17 +3621,30 @@ function cmRemove(filedTo,filedText,elId){{
   }}).catch(function(e){{alert('Remove failed: '+e);}});
 }}
 
+function cmPreview(fileId){{
+  var el=document.getElementById(fileId);
+  if(!el)return;
+  if(el.style.display==='none'){{
+    el.style.display='block';
+    el.scrollIntoView({{behavior:'smooth',block:'nearest'}});
+  }}else{{
+    el.style.display='none';
+  }}
+}}
+
+var __addCounter=0;
 function cmAddContext(){{
   var text=document.getElementById('cmAddText').value.trim();
   var pwd=document.getElementById('cmAddPassword').value;
   if(!text){{alert('Please enter some context');return;}}
   if(!pwd){{alert('Password required');return;}}
+  var addId='manual-'+Date.now();
   document.querySelector('.cm-add-btn').textContent='Adding...';
   fetch(__apiBase+'/api/verify',{{
     method:'POST',
     headers:{{'Content-Type':'application/json'}},
     body:JSON.stringify({{
-      finding_id:'manual:'+Date.now(),
+      finding_id:addId,
       action:'add_context',
       date:new Date().toISOString().split('T')[0],
       password:pwd,
@@ -3632,13 +3653,45 @@ function cmAddContext(){{
   }}).then(function(r){{return r.json()}}).then(function(d){{
     document.querySelector('.cm-add-btn').textContent='Add Context';
     if(d.error){{alert('Error: '+d.error);return;}}
+    /* Show the added item immediately with a remove button */
+    __addCounter++;
+    var itemId='cm-manual-'+__addCounter;
+    var safeText=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var escapedText=text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var itemHtml='<div class="cm-ai-item" id="'+itemId+'">'
+      +'<span class="cm-ai-text">'+safeText
+      +' <em style="opacity:0.5">(pending AI reformat — next pipeline run)</em></span>'
+      +'<button class="cm-remove-btn" onclick="cmRemoveManual(\''+addId+'\',\''+itemId+'\')">✕ Remove</button>'
+      +'</div>';
+    var addSection=document.querySelector('.cm-add-section');
+    addSection.insertAdjacentHTML('beforebegin',
+      '<div class="cm-file" style="border-color:rgba(0,176,166,0.3)"><div class="cm-file-header">'
+      +'<span class="cm-file-icon">✨</span> <span class="cm-file-name">Just added</span>'
+      +'<span class="cm-file-meta">pending</span></div>'+itemHtml+'</div>');
     document.getElementById('cmAddText').value='';
     document.getElementById('cmAddPassword').value='';
-    alert('Context added! It will be reformatted by AI and appear in the next briefing run.');
   }}).catch(function(e){{
     document.querySelector('.cm-add-btn').textContent='Add Context';
     alert('Failed: '+e);
   }});
+}}
+
+function cmRemoveManual(addId,elId){{
+  /* Remove a just-added item — deletes from KV before pipeline processes it */
+  fetch(__apiBase+'/api/verify',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{
+      finding_id:addId,
+      action:'remove_context',
+      date:new Date().toISOString().split('T')[0],
+      password:'skip',
+      note:JSON.stringify({{filed_to:'_pending_add',filed_text:addId}})
+    }})
+  }}).then(function(r){{return r.json()}}).then(function(d){{
+    var el=document.getElementById(elId);
+    if(el)el.parentElement.remove();
+  }}).catch(function(e){{alert('Remove failed: '+e);}});
 }}
 </script>
 </body></html>"""
