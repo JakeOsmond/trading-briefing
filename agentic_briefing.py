@@ -922,52 +922,54 @@ def run_context_refresh(run_date):
         print("  ℹ No new context found")
         return {"temporary": [], "permanent": [], "section_html": ""}
 
-    # 3. GPT classifies each item
-    print(f"  🧠 Classifying {len(items)} items (GPT)...")
-    classify_prompt = """You are classifying context items for a daily trading briefing.
+    # 3. GPT classifies each item individually (one call per doc — more reliable)
+    print(f"  🧠 Classifying {len(items)} items individually (GPT)...")
+    classify_prompt = """You are classifying a single document for a daily trading briefing.
 
-For each item, return a JSON array of objects with:
-- "summary": one-line summary of what changed (max 100 chars)
+Return a JSON object with:
+- "summary": one-line summary of what this document contains or what changed (max 100 chars)
 - "classification": "PERMANENT" | "TEMPORARY" | "SKIP"
-- "source": the source attribution (pass through from input)
 - "reasoning": why you classified it this way (max 50 chars)
 
 Classification rules:
 - PERMANENT: new product, new partner, schema change, business rule, structural change that will affect future analysis
-- TEMPORARY: price change, promotion, one-off event, weekly metric, short-term market fluctuation
-- SKIP: sensitive data (personal info, salary, contract terms, customer data), irrelevant content, or content you can't meaningfully summarise
+- TEMPORARY: price change, promotion, one-off event, weekly metric, short-term market fluctuation, data export
+- SKIP: sensitive data (personal info, salary, contract terms, customer data), raw data dumps with no actionable insight, or content you can't meaningfully summarise
 
-Return ONLY valid JSON array. No explanation."""
+Return ONLY valid JSON object. No explanation."""
 
-    items_text = "\n\n---\n\n".join([
-        f"Source: {i['source']}\nModified by: {i['modified_by']}\nDate: {i['modified']}\nContent:\n{i['content_preview']}"
-        for i in items
-    ])
+    client_oai = openai.OpenAI(api_key=OPENAI_API_KEY)
+    gpt_items = []
+    for item in items:
+        try:
+            item_text = f"Source: {item['source']}\nModified by: {item['modified_by']}\nDate: {item['modified']}\nContent:\n{item['content_preview']}"
+            resp = client_oai.chat.completions.create(
+                model=LIGHTWEIGHT_MODEL,
+                max_completion_tokens=300,
+                messages=[
+                    {"role": "system", "content": classify_prompt},
+                    {"role": "user", "content": item_text},
+                ],
+            )
+            raw = resp.choices[0].message.content
+            parsed = _parse_llm_json(raw)
+            if isinstance(parsed, dict) and "classification" in parsed:
+                parsed["source"] = item["source"]
+                cls = parsed["classification"]
+                print(f"    {cls}: {parsed.get('summary', '')[:60]}")
+                gpt_items.append(parsed)
+            elif isinstance(parsed, list) and parsed:
+                parsed[0]["source"] = item["source"]
+                gpt_items.append(parsed[0])
+            else:
+                print(f"    ⚠ Unparseable response for {item['source']}: {raw[:80]}")
+        except Exception as e:
+            print(f"    ⚠ Classification failed for {item['source']}: {e}")
 
-    try:
-        client_oai = openai.OpenAI(api_key=OPENAI_API_KEY)
-        gpt_resp = client_oai.chat.completions.create(
-            model=MODEL,
-            max_completion_tokens=2000,
-            messages=[
-                {"role": "system", "content": classify_prompt},
-                {"role": "user", "content": items_text},
-            ],
-        )
-        gpt_raw = gpt_resp.choices[0].message.content
-        print(f"  📝 GPT response length: {len(gpt_raw)} chars")
-        gpt_items = _parse_llm_json(gpt_raw)
-        if not isinstance(gpt_items, list):
-            gpt_items = gpt_items.get("items", []) if isinstance(gpt_items, dict) else []
-        print(f"  📝 GPT classified {len(gpt_items)} items")
-    except Exception as e:
-        print(f"  ⚠ GPT classification failed: {e}")
-        gpt_items = []
+    print(f"  📝 GPT classified {len(gpt_items)}/{len(items)} items")
 
     if not gpt_items:
-        print(f"  ℹ No classifiable items (GPT returned empty or unparseable response)")
-        if 'gpt_raw' in dir():
-            print(f"  📝 Raw GPT response (first 300 chars): {gpt_raw[:300]}")
+        print("  ℹ No classifiable items")
         return {"temporary": [], "permanent": [], "section_html": ""}
 
     # 4. Claude verifies the classifications
