@@ -23,6 +23,7 @@ import time
 import traceback
 
 import openai
+import anthropic
 import markdown
 import google.auth
 import google.auth.transport.requests
@@ -924,28 +925,23 @@ def run_context_refresh(run_date):
 
     # 3. GPT classifies each item individually (one call per doc — more reliable)
     print(f"  🧠 Classifying {len(items)} items individually (GPT)...")
-    classify_prompt = """You are classifying a single document for a daily trading briefing.
+    classify_prompt = """Classify this document for a daily trading briefing. Return JSON only.
 
-Return a JSON object with:
-- "summary": one-line summary of what this document contains or what changed (max 100 chars)
-- "classification": "PERMANENT" | "TEMPORARY" | "SKIP"
-- "reasoning": why you classified it this way (max 50 chars)
+{"summary": "<what changed, max 100 chars>", "classification": "<PERMANENT|TEMPORARY|SKIP>", "reasoning": "<why, max 50 chars>"}
 
-Classification rules:
-- PERMANENT: new product, new partner, schema change, business rule, structural change that will affect future analysis
-- TEMPORARY: price change, promotion, one-off event, weekly metric, short-term market fluctuation, data export
-- SKIP: sensitive data (personal info, salary, contract terms, customer data), raw data dumps with no actionable insight, or content you can't meaningfully summarise
-
-Return ONLY valid JSON object. No explanation."""
+PERMANENT = new product, new partner, business rule, structural change
+TEMPORARY = price change, promotion, weekly metric, data export
+SKIP = sensitive data, raw dumps, uninterpretable content"""
 
     client_oai = openai.OpenAI(api_key=OPENAI_API_KEY)
     gpt_items = []
     for item in items:
         try:
-            item_text = f"Source: {item['source']}\nModified by: {item['modified_by']}\nDate: {item['modified']}\nContent:\n{item['content_preview']}"
+            item_text = f"Source: {item['source']}\nModified by: {item['modified_by']}\nDate: {item['modified']}\nContent:\n{item['content_preview'][:1500]}"
             resp = client_oai.chat.completions.create(
-                model=LIGHTWEIGHT_MODEL,
-                max_completion_tokens=300,
+                model=MODEL,
+                max_completion_tokens=200,
+                response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": classify_prompt},
                     {"role": "user", "content": item_text},
@@ -962,7 +958,19 @@ Return ONLY valid JSON object. No explanation."""
                 parsed[0]["source"] = item["source"]
                 gpt_items.append(parsed[0])
             else:
-                print(f"    ⚠ Unparseable response for {item['source']}: {raw[:80]}")
+                # Fallback: try to extract classification from raw text
+                raw_upper = raw.upper()
+                cls = "SKIP"
+                if "PERMANENT" in raw_upper:
+                    cls = "PERMANENT"
+                elif "TEMPORARY" in raw_upper:
+                    cls = "TEMPORARY"
+                summary = raw.split("\n")[0][:100].strip('" {}')
+                if cls != "SKIP":
+                    gpt_items.append({"summary": summary, "classification": cls, "source": item["source"], "reasoning": "parsed from text"})
+                    print(f"    {cls} (text fallback): {summary[:60]}")
+                else:
+                    print(f"    SKIP (unparseable): {item['source']}")
         except Exception as e:
             print(f"    ⚠ Classification failed for {item['source']}: {e}")
 
