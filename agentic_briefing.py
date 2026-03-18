@@ -531,16 +531,19 @@ Be specific with dates, numbers, and always cite your sources.""",
 
 
 def tool_scan_drive(keywords: str, days_back: int = 14) -> str:
-    """Scan Google Drive for recently modified docs matching keywords."""
+    """Scan Google Drive for recently modified docs matching keywords (owned OR shared)."""
     try:
         print(f"    📂 Scanning Drive for: {keywords}")
         cutoff = (datetime.datetime.now() - datetime.timedelta(days=days_back)).isoformat() + "Z"
+        # Include files owned by me AND shared with me
         query = f"modifiedTime > '{cutoff}' and trashed = false"
         resp = DRIVE_SVC.files().list(
             q=query,
             fields="files(id, name, mimeType, modifiedTime, lastModifyingUser)",
             orderBy="modifiedTime desc",
             pageSize=100,
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
         ).execute()
 
         kw_list = [k.strip().lower() for k in keywords.split(",")]
@@ -554,13 +557,45 @@ def tool_scan_drive(keywords: str, days_back: int = 14) -> str:
                 continue
             if any(kw in name_lower for kw in kw_list):
                 relevant.append({
+                    "id": f["id"],
                     "name": f["name"],
+                    "mimeType": f.get("mimeType", ""),
                     "modified": f["modifiedTime"],
                     "modified_by": f.get("lastModifyingUser", {}).get("displayName", "Unknown"),
                 })
         return json.dumps(relevant[:30], indent=2)
     except Exception as e:
         return f"Drive error: {e}"
+
+
+def tool_read_drive_doc(file_id: str, max_chars: int = 2000) -> str:
+    """Read the text content of a Google Drive document (Doc, Sheet, or text file)."""
+    try:
+        # Get file metadata to determine type
+        meta = DRIVE_SVC.files().get(fileId=file_id, fields="mimeType,name").execute()
+        mime = meta.get("mimeType", "")
+
+        if "document" in mime:
+            # Google Doc — export as plain text
+            content = DRIVE_SVC.files().export(fileId=file_id, mimeType="text/plain").execute()
+            text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+        elif "spreadsheet" in mime:
+            # Google Sheet — read first sheet as CSV-like summary
+            from googleapiclient.discovery import build
+            sheets = build("sheets", "v4", credentials=DRIVE_SVC._http.credentials if hasattr(DRIVE_SVC, '_http') else None)
+            result = SHEETS_SVC.spreadsheets().values().get(
+                spreadsheetId=file_id, range="A1:Z20"
+            ).execute()
+            rows = result.get("values", [])
+            text = "\n".join(["\t".join(row) for row in rows[:20]])
+        else:
+            # Try plain text export
+            content = DRIVE_SVC.files().get_media(fileId=file_id).execute()
+            text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+
+        return text[:max_chars]
+    except Exception as e:
+        return f"Could not read doc: {e}"
 
 
 # Map of tool names to functions
@@ -699,6 +734,190 @@ ANALYSIS_SYSTEM = _PROMPTS["analysis"]
 FOLLOW_UP_SYSTEM = _PROMPTS["follow_up"]
 SYNTHESIS_SYSTEM = _PROMPTS["synthesis"]
 
+
+
+# ---------------------------------------------------------------------------
+# PHASE 0: CONTEXT INTELLIGENCE — scan Drive, classify, surface in briefing
+# ---------------------------------------------------------------------------
+
+CONTEXT_REFRESH_KEYWORDS = "insurance,pricing,product,partner,underwriter,scheme,cover,renewal,aggregator,cruise,carnival,ergo"
+TRAVEL_EVENTS_SHEET_ID = "1lqLYxLTnfFyBSsIPRyPr8vpr25S7Fhz3p-nlWNToZpU"
+
+
+def run_context_refresh(run_date):
+    """Phase 0: Scan Drive + Travel Events for new context. Cross-model classify."""
+    print("\n📋 Phase 0: Context intelligence refresh...")
+    items = []
+
+    # 1. Scan Drive for recently modified docs (owned + shared)
+    try:
+        drive_results_json = tool_scan_drive(CONTEXT_REFRESH_KEYWORDS, days_back=7)
+        drive_results = json.loads(drive_results_json) if not drive_results_json.startswith("Drive error") else []
+        print(f"  📂 Found {len(drive_results)} relevant Drive docs modified in last 7 days")
+
+        # Read content of top 10 docs
+        for doc in drive_results[:10]:
+            content = tool_read_drive_doc(doc["id"])
+            if content and not content.startswith("Could not read"):
+                items.append({
+                    "source": f"Drive: '{doc['name']}'",
+                    "modified_by": doc.get("modified_by", "Unknown"),
+                    "modified": doc.get("modified", ""),
+                    "content_preview": content[:1500],
+                })
+    except Exception as e:
+        print(f"  ⚠ Drive scan failed (non-fatal): {e}")
+
+    # 2. Check Travel Events Log sheet for new entries
+    try:
+        print(f"  📊 Checking Travel Events Log...")
+        resp = SHEETS_SVC.spreadsheets().values().get(
+            spreadsheetId=TRAVEL_EVENTS_SHEET_ID, range="A1:Z20"
+        ).execute()
+        rows = resp.get("values", [])
+        if rows:
+            # Look for rows with recent dates
+            cutoff = (run_date - timedelta(days=7)).isoformat()
+            for row in rows[1:]:  # skip header
+                if row and row[0] >= cutoff:
+                    items.append({
+                        "source": "Travel Events Log",
+                        "modified_by": "Shared Sheet",
+                        "modified": row[0],
+                        "content_preview": " | ".join(row[:5]),
+                    })
+            print(f"  📊 Found {sum(1 for i in items if i['source'] == 'Travel Events Log')} recent travel events")
+    except Exception as e:
+        print(f"  ⚠ Travel Events check failed (non-fatal): {e}")
+
+    if not items:
+        print("  ℹ No new context found")
+        return {"temporary": [], "permanent": [], "section_html": ""}
+
+    # 3. GPT classifies each item
+    print(f"  🧠 Classifying {len(items)} items (GPT)...")
+    classify_prompt = """You are classifying context items for a daily trading briefing.
+
+For each item, return a JSON array of objects with:
+- "summary": one-line summary of what changed (max 100 chars)
+- "classification": "PERMANENT" | "TEMPORARY" | "SKIP"
+- "source": the source attribution (pass through from input)
+- "reasoning": why you classified it this way (max 50 chars)
+
+Classification rules:
+- PERMANENT: new product, new partner, schema change, business rule, structural change that will affect future analysis
+- TEMPORARY: price change, promotion, one-off event, weekly metric, short-term market fluctuation
+- SKIP: sensitive data (personal info, salary, contract terms, customer data), irrelevant content, or content you can't meaningfully summarise
+
+Return ONLY valid JSON array. No explanation."""
+
+    items_text = "\n\n---\n\n".join([
+        f"Source: {i['source']}\nModified by: {i['modified_by']}\nDate: {i['modified']}\nContent:\n{i['content_preview']}"
+        for i in items
+    ])
+
+    try:
+        client_oai = openai.OpenAI(api_key=OPENAI_API_KEY)
+        gpt_resp = client_oai.chat.completions.create(
+            model=MODEL,
+            max_completion_tokens=2000,
+            messages=[
+                {"role": "system", "content": classify_prompt},
+                {"role": "user", "content": items_text},
+            ],
+        )
+        gpt_raw = gpt_resp.choices[0].message.content
+        gpt_items = _parse_llm_json(gpt_raw)
+        if not isinstance(gpt_items, list):
+            gpt_items = gpt_items.get("items", []) if isinstance(gpt_items, dict) else []
+    except Exception as e:
+        print(f"  ⚠ GPT classification failed: {e}")
+        gpt_items = []
+
+    if not gpt_items:
+        print("  ℹ No classifiable items")
+        return {"temporary": [], "permanent": [], "section_html": ""}
+
+    # 4. Claude verifies the classifications
+    print(f"  🔍 Cross-verifying {len(gpt_items)} classifications (Claude)...")
+    try:
+        client_ant = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        verify_resp = client_ant.messages.create(
+            model=VERIFY_MODEL,
+            max_tokens=2000,
+            messages=[{
+                "role": "user",
+                "content": f"""Review these context classifications for a trading briefing.
+GPT classified these items from Google Drive and the Travel Events Log.
+
+GPT's classifications:
+{json.dumps(gpt_items, indent=2)}
+
+Original content summaries:
+{items_text[:3000]}
+
+For each item, confirm the classification or override it.
+Return ONLY a JSON array with the same structure. If you agree, keep it as-is.
+If you disagree, change the classification and update reasoning to explain why.
+Be conservative: if unsure between PERMANENT and TEMPORARY, choose TEMPORARY.
+If unsure whether to SKIP, err on the side of including it as TEMPORARY."""
+            }],
+        )
+        claude_raw = verify_resp.content[0].text
+        verified_items = _parse_llm_json(claude_raw)
+        if not isinstance(verified_items, list):
+            verified_items = verified_items.get("items", []) if isinstance(verified_items, dict) else gpt_items
+        print(f"  ✓ Claude verified {len(verified_items)} items")
+    except Exception as e:
+        print(f"  ⚠ Claude verification failed, using GPT classifications: {e}")
+        verified_items = gpt_items
+
+    # 5. Split into permanent, temporary, and skip
+    temporary = [i for i in verified_items if i.get("classification") == "TEMPORARY"]
+    permanent = [i for i in verified_items if i.get("classification") == "PERMANENT"]
+    skipped = [i for i in verified_items if i.get("classification") == "SKIP"]
+    print(f"  📋 Result: {len(temporary)} temporary, {len(permanent)} permanent, {len(skipped)} skipped")
+
+    # 6. Write permanent items to pending-context.md for human review
+    if permanent:
+        pending_path = Path(__file__).parent / "context" / "operational" / "pending-context.md"
+        today = run_date.isoformat()
+        with open(pending_path, "a") as f:
+            f.write(f"\n## Context detected {today}\n\n")
+            for item in permanent:
+                f.write(f"- **{item.get('summary', 'Unknown')}** — Source: {item.get('source', 'Unknown')}\n")
+            f.write("\n_Review above and move confirmed items to the appropriate context file._\n")
+        print(f"  📝 {len(permanent)} permanent items written to pending-context.md for review")
+
+    # 7. Build HTML section
+    display_items = temporary + permanent  # show both, with different badges
+    if not display_items:
+        return {"temporary": temporary, "permanent": permanent, "section_html": ""}
+
+    html_items = []
+    for item in display_items[:5]:
+        cls = item.get("classification", "TEMPORARY")
+        badge_cls = "context-badge-temp" if cls == "TEMPORARY" else "context-badge-perm"
+        badge_text = "This week" if cls == "TEMPORARY" else "New context"
+        summary = item.get("summary", "Unknown update")
+        source = item.get("source", "")
+        html_items.append(
+            f'<div class="context-item">'
+            f'<span class="{badge_cls}">{badge_text}</span> '
+            f'{summary}'
+            f'<span class="context-source">{source}</span>'
+            f'</div>'
+        )
+
+    section_html = (
+        '<div class="section-gap" data-animate="reveal">\n'
+        '<div class="section-title">Context Update</div>\n'
+        '<div class="context-update glass-card">\n'
+        + "\n".join(html_items)
+        + '\n</div>\n</div>\n'
+    )
+
+    return {"temporary": temporary, "permanent": permanent, "section_html": section_html}
 
 
 # ---------------------------------------------------------------------------
@@ -1871,7 +2090,7 @@ Output ONLY raw JSON (no markdown fences):
 # HTML DASHBOARD [DOMAIN-AGNOSTIC — layout, CSS, JS, charts, verification UI. Only the banner image is insurance-branded]
 # ---------------------------------------------------------------------------
 
-def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, investigation_log=None, run_date=None, trend_data_ly=None, driver_trends=None, verification=None):
+def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, investigation_log=None, run_date=None, trend_data_ly=None, driver_trends=None, verification=None, context_updates=None):
     """Generate styled dark-mode dashboard with interactive charts and SQL dig buttons."""
     import re
 
@@ -2984,6 +3203,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 <div class="nar glass-card">{html_body}</div>
 </div>
 
+<!-- Context Update (Phase 0) -->
+{context_updates.get("section_html", "") if context_updates else ""}
+
 <!-- Investigation Trail -->
 {inv_trail_section}
 
@@ -3133,6 +3355,15 @@ def main():
     print("\n🔐 Authenticating...")
     init_services()
 
+    # Phase 0: Context intelligence refresh
+    _phase_start = time.time()
+    try:
+        context_updates = run_context_refresh(run_date)
+    except Exception as e:
+        print(f"  ⚠ Context refresh failed (non-fatal): {e}")
+        context_updates = {"temporary": [], "permanent": [], "section_html": ""}
+    _phase_start = _log_phase("Phase 0: Context refresh", _phase_start)
+
     # Phase 1: Baseline
     _phase_start = time.time()
     baseline = run_baseline_queries(dp)
@@ -3205,7 +3436,7 @@ def main():
     Path(f"{briefings_dir}/latest.md").write_text(Path(md_path).read_text())
 
     # HTML Dashboard
-    html = generate_dashboard_html(briefing, baseline["trading"], baseline["trend"], today_str, investigation_log=inv_log, run_date=run_date, trend_data_ly=baseline.get("trend_ly", []), driver_trends=driver_trends, verification=verification)
+    html = generate_dashboard_html(briefing, baseline["trading"], baseline["trend"], today_str, investigation_log=inv_log, run_date=run_date, trend_data_ly=baseline.get("trend_ly", []), driver_trends=driver_trends, verification=verification, context_updates=context_updates)
     Path(f"{briefings_dir}/{today_str}.html").write_text(html)
     Path(f"{briefings_dir}/latest.html").write_text(html)
 

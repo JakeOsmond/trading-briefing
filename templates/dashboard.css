@@ -1335,6 +1335,24 @@ table.ai-table tr:hover td{background:rgba(51,65,85,0.3);}
 }
 .chat-welcome strong{color:#5FFFF0;}
 
+/* ── Context Update section ── */
+.context-update{padding:16px 20px;font-size:13px;line-height:1.6}
+.context-item{padding:6px 0;border-bottom:1px solid rgba(146,95,255,0.1)}
+.context-item:last-child{border-bottom:none}
+.context-badge-temp{
+  display:inline-block;font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  padding:2px 8px;border-radius:10px;margin-right:8px;
+  background:rgba(253,220,6,0.12);color:#FDDC06;border:1px solid rgba(253,220,6,0.3);
+}
+.context-badge-perm{
+  display:inline-block;font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  padding:2px 8px;border-radius:10px;margin-right:8px;
+  background:rgba(0,176,166,0.12);color:#5FFFF0;border:1px solid rgba(0,176,166,0.3);
+}
+.context-source{
+  display:block;font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;
+}
+
 /* ── Investigation trail ── */
 .trail-section{margin-bottom:24px}
 .trail-toggle{
