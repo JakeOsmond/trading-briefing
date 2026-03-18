@@ -836,11 +836,21 @@ def run_context_refresh(run_date):
         for doc in drive_results[:10]:
             content = tool_read_drive_doc(doc["id"])
             if content and not content.startswith("Could not read"):
+                print(f"    ✓ Read: {doc['name']} ({len(content)} chars)")
                 items.append({
                     "source": f"Drive: '{doc['name']}'",
                     "modified_by": doc.get("modified_by", "Unknown"),
                     "modified": doc.get("modified", ""),
                     "content_preview": content[:1500],
+                })
+            else:
+                # Fallback: use file name + metadata as context (name can be informative)
+                print(f"    ⚠ Could not read content of: {doc['name']} — using metadata only")
+                items.append({
+                    "source": f"Drive: '{doc['name']}'",
+                    "modified_by": doc.get("modified_by", "Unknown"),
+                    "modified": doc.get("modified", ""),
+                    "content_preview": f"Document: {doc['name']}. Modified by {doc.get('modified_by', 'Unknown')} on {doc.get('modified', 'Unknown')}. (Content not accessible — classify based on document title only.)",
                 })
     except Exception as e:
         print(f"  ⚠ Drive scan failed (non-fatal): {e}")
@@ -865,8 +875,13 @@ def run_context_refresh(run_date):
                     })
             print(f"  📊 Found {sum(1 for i in items if i['source'] == 'Travel Events Log')} recent travel events")
     except Exception as e:
-        print(f"  ⚠ Travel Events check failed (non-fatal): {e}")
+        err_str = str(e)
+        if "permission" in err_str.lower():
+            print(f"  ⚠ Travel Events sheet not accessible — share sheet {TRAVEL_EVENTS_SHEET_ID} with the GCP service account email")
+        else:
+            print(f"  ⚠ Travel Events check failed (non-fatal): {e}")
 
+    print(f"  📋 Total items to classify: {len(items)}")
     if not items:
         print("  ℹ No new context found")
         return {"temporary": [], "permanent": [], "section_html": ""}
