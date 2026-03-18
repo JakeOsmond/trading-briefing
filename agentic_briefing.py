@@ -1109,15 +1109,35 @@ SKIP = not useful for trading analysis. Be conservative: if unsure, TEMPORARY.""
             temp_path.write_text("# Temporary Context — Auto-Expires After 7 Days\n\n_Facts below are used in briefings but expire automatically. Do not edit manually._\n\n")
 
         # Dedup temporary facts against existing temp file
-        existing_temp = temp_path.read_text().lower() if temp_path.exists() else ""
+        # Extract existing fact cores (text before " — Source:") for comparison
+        existing_facts = set()
+        if temp_path.exists():
+            for line in temp_path.read_text().split("\n"):
+                if line.startswith("- "):
+                    core = line.split(" — Source:")[0].strip("- ").lower().strip()
+                    # Store a set of the significant words (>4 chars) as a frozenset
+                    words = frozenset(w for w in core.split() if len(w) > 4)
+                    if len(words) >= 3:
+                        existing_facts.add(words)
+
         new_temp = []
         for item in temporary:
             fact = item.get("summary", "").replace("\n", " ")
-            key_words = [w for w in fact.lower().split() if len(w) > 4]
-            matches = sum(1 for w in key_words if w in existing_temp)
-            if matches / max(len(key_words), 1) > 0.7:
-                continue  # already exists
-            new_temp.append(item)
+            fact_words = frozenset(w for w in fact.lower().split() if len(w) > 4)
+            # Check if any existing fact shares >60% of its significant words with this one
+            is_dup = False
+            for existing in existing_facts:
+                if not existing or not fact_words:
+                    continue
+                overlap = len(fact_words & existing) / min(len(fact_words), len(existing))
+                if overlap > 0.6:
+                    is_dup = True
+                    break
+            if not is_dup:
+                new_temp.append(item)
+                # Add to existing set so we don't duplicate within this batch either
+                if len(fact_words) >= 3:
+                    existing_facts.add(fact_words)
 
         if new_temp:
             with open(temp_path, "a") as f:
@@ -1132,29 +1152,40 @@ SKIP = not useful for trading analysis. Be conservative: if unsure, TEMPORARY.""
     if permanent:
         context_dir = Path(__file__).parent / "context"
 
-        # Load all existing context for dedup
-        existing_context = ""
-        context_file_index = {}  # filename → description (for routing)
+        # Load all existing context for dedup — extract fact-level word sets
+        existing_perm_facts = set()
+        context_file_index = {}
         for md_file in context_dir.rglob("*.md"):
             try:
                 text = md_file.read_text()
-                existing_context += text.lower() + "\n"
                 rel = str(md_file.relative_to(context_dir))
                 first_line = text.strip().split("\n")[0].replace("#", "").strip()
                 context_file_index[rel] = first_line
+                # Extract per-line word sets for precise dedup
+                for line in text.split("\n"):
+                    line_stripped = line.strip().lstrip("- ").split(" — Source:")[0].lower().strip()
+                    words = frozenset(w for w in line_stripped.split() if len(w) > 4)
+                    if len(words) >= 3:
+                        existing_perm_facts.add(words)
             except Exception:
                 pass
 
-        # Dedup: skip items already known
+        # Dedup: compare word sets, not individual words against full text
         new_permanent = []
         for item in permanent:
             summary_lower = item.get("summary", "").lower().strip()
             if not summary_lower:
                 continue
-            key_words = [w for w in summary_lower.split() if len(w) > 4]
-            matches = sum(1 for w in key_words if w in existing_context)
-            match_ratio = matches / max(len(key_words), 1)
-            if match_ratio > 0.7:
+            fact_words = frozenset(w for w in summary_lower.split() if len(w) > 4)
+            is_dup = False
+            for existing in existing_perm_facts:
+                if not existing or not fact_words:
+                    continue
+                overlap = len(fact_words & existing) / min(len(fact_words), len(existing))
+                if overlap > 0.6:
+                    is_dup = True
+                    break
+            if is_dup:
                 print(f"  ⏭ Skipping (already known): {item.get('summary', '')[:60]}")
             else:
                 new_permanent.append(item)
