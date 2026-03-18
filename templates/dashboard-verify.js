@@ -1,6 +1,31 @@
 /* ── Verification system with session auth ── */
 var __verifySession=null; /* session token — authenticate once, use for all actions */
 
+/* ── Context removal ── */
+function removeContext(ctxId, filedTo, filedText){
+  if(!confirm('Remove this context from future briefings?'))return;
+  _ensureAuth().then(function(auth){
+    if(!auth)return;
+    var dt=document.documentElement.getAttribute('data-generated-utc');
+    var dateStr=dt?dt.split('T')[0]:'unknown';
+    var payload=Object.assign({
+      finding_id:'context:'+ctxId,
+      action:'remove_context',
+      date:dateStr,
+      note:JSON.stringify({filed_to:filedTo,filed_text:filedText})
+    },auth);
+    fetch(window.__apiBase+'/api/verify',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.error){alert('Error: '+d.error);return;}
+      var el=document.getElementById(ctxId);
+      if(el){el.style.opacity='0.3';el.style.textDecoration='line-through';}
+    }).catch(function(e){alert('Remove failed: '+e);});
+  });
+}
+
 function toggleSqlEvidence(btn){
   var wrap=btn.nextElementSibling;
   wrap.style.display=wrap.style.display==='none'?'block':'none';

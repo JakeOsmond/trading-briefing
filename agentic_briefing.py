@@ -744,9 +744,50 @@ CONTEXT_REFRESH_KEYWORDS = "insurance,pricing,product,partner,underwriter,scheme
 TRAVEL_EVENTS_SHEET_ID = "1lqLYxLTnfFyBSsIPRyPr8vpr25S7Fhz3p-nlWNToZpU"
 
 
+def _process_context_removals():
+    """Check KV for context removal requests and process them."""
+    try:
+        # This runs in CI where we don't have KV access directly.
+        # Instead, check for a local removals file that could be populated
+        # from a pre-step or manual action.
+        removals_path = Path(__file__).parent / "context" / "operational" / "context-removals.json"
+        if not removals_path.exists():
+            return 0
+        removals = json.loads(removals_path.read_text())
+        if not removals:
+            return 0
+        context_dir = Path(__file__).parent / "context"
+        removed = 0
+        for removal in removals:
+            filed_to = removal.get("filed_to", "")
+            filed_text = removal.get("filed_text", "")
+            if not filed_to or not filed_text:
+                continue
+            target = context_dir / filed_to
+            if target.exists():
+                content = target.read_text()
+                if filed_text.strip() in content:
+                    content = content.replace(filed_text.strip(), "").replace("\n\n\n", "\n\n")
+                    target.write_text(content)
+                    removed += 1
+                    print(f"  🗑 Removed context from {filed_to}: {filed_text[:50]}")
+        # Clear the removals file
+        removals_path.write_text("[]")
+        return removed
+    except Exception as e:
+        print(f"  ⚠ Context removal processing failed: {e}")
+        return 0
+
+
 def run_context_refresh(run_date):
     """Phase 0: Scan Drive + Travel Events for new context. Cross-model classify."""
     print("\n📋 Phase 0: Context intelligence refresh...")
+
+    # 0. Process any pending context removals
+    removed = _process_context_removals()
+    if removed:
+        print(f"  🗑 Processed {removed} context removal(s)")
+
     items = []
 
     # 1. Scan Drive for recently modified docs (owned + shared)
@@ -878,26 +919,29 @@ If unsure whether to SKIP, err on the side of including it as TEMPORARY."""
     skipped = [i for i in verified_items if i.get("classification") == "SKIP"]
     print(f"  📋 Result: {len(temporary)} temporary, {len(permanent)} permanent, {len(skipped)} skipped")
 
-    # 6. Dedup permanent items against existing context + pending-context.md
+    # 6. Dedup + auto-file permanent items into the correct context file
     if permanent:
         context_dir = Path(__file__).parent / "context"
-        pending_path = context_dir / "operational" / "pending-context.md"
 
-        # Load all existing context text for dedup checking
+        # Load all existing context for dedup
         existing_context = ""
+        context_file_index = {}  # filename → description (for routing)
         for md_file in context_dir.rglob("*.md"):
             try:
-                existing_context += md_file.read_text().lower() + "\n"
+                text = md_file.read_text()
+                existing_context += text.lower() + "\n"
+                rel = str(md_file.relative_to(context_dir))
+                first_line = text.strip().split("\n")[0].replace("#", "").strip()
+                context_file_index[rel] = first_line
             except Exception:
                 pass
 
-        # Filter out items whose summary already appears in existing context
+        # Dedup: skip items already known
         new_permanent = []
         for item in permanent:
             summary_lower = item.get("summary", "").lower().strip()
             if not summary_lower:
                 continue
-            # Check if key phrases from the summary already exist in context files
             key_words = [w for w in summary_lower.split() if len(w) > 4]
             matches = sum(1 for w in key_words if w in existing_context)
             match_ratio = matches / max(len(key_words), 1)
@@ -906,35 +950,100 @@ If unsure whether to SKIP, err on the side of including it as TEMPORARY."""
             else:
                 new_permanent.append(item)
 
+        # Route each new item to the correct file using GPT
         if new_permanent:
-            today = run_date.isoformat()
-            with open(pending_path, "a") as f:
-                f.write(f"\n## Context detected {today}\n\n")
-                for item in new_permanent:
-                    f.write(f"- **{item.get('summary', 'Unknown')}** — Source: {item.get('source', 'Unknown')}\n")
-                f.write("\n_Review above and move confirmed items to the appropriate context file._\n")
-            print(f"  📝 {len(new_permanent)} new permanent items written to pending-context.md ({len(permanent) - len(new_permanent)} already known, skipped)")
+            file_index_str = "\n".join([f"- {k}: {v}" for k, v in context_file_index.items()])
+            route_prompt = f"""You are filing new context items into the correct markdown file.
+
+Available context files:
+{file_index_str}
+
+For each item, return a JSON array with:
+- "summary": the item summary (pass through)
+- "target_file": which file path to append to (from the list above)
+- "text_to_add": one bullet point to append (format: "- <fact> — Source: <source>, <date>")
+
+If no file is appropriate, use "operational/current-market-events.md" as default.
+Return ONLY valid JSON array."""
+
+            items_for_routing = json.dumps([{"summary": i.get("summary"), "source": i.get("source")} for i in new_permanent])
+            try:
+                client_oai = openai.OpenAI(api_key=OPENAI_API_KEY)
+                route_resp = client_oai.chat.completions.create(
+                    model=LIGHTWEIGHT_MODEL,
+                    max_completion_tokens=1500,
+                    messages=[
+                        {"role": "system", "content": route_prompt},
+                        {"role": "user", "content": items_for_routing},
+                    ],
+                )
+                routed = _parse_llm_json(route_resp.choices[0].message.content)
+                if not isinstance(routed, list):
+                    routed = []
+            except Exception as e:
+                print(f"  ⚠ Routing failed, using default file: {e}")
+                routed = [{"summary": i.get("summary"), "target_file": "operational/current-market-events.md",
+                           "text_to_add": f"- {i.get('summary', 'Unknown')} — Source: {i.get('source', 'Unknown')}, {run_date.isoformat()}"}
+                          for i in new_permanent]
+
+            # Write each item to its target file and record the reference for removal
+            for ri, route in enumerate(routed):
+                target = route.get("target_file", "operational/current-market-events.md")
+                text = route.get("text_to_add", "")
+                if not text:
+                    continue
+                target_path = context_dir / target
+                if not target_path.exists():
+                    target_path = context_dir / "operational" / "current-market-events.md"
+                try:
+                    with open(target_path, "a") as f:
+                        f.write(f"\n{text}\n")
+                    # Store reference on the item for the remove button
+                    if ri < len(new_permanent):
+                        new_permanent[ri]["_filed_to"] = str(target_path.relative_to(context_dir))
+                        new_permanent[ri]["_filed_text"] = text
+                    print(f"  📝 Filed to {target}: {route.get('summary', '')[:50]}")
+                except Exception as e:
+                    print(f"  ⚠ Failed to write to {target}: {e}")
+
+            print(f"  ✅ {len(routed)} permanent items auto-filed ({len(permanent) - len(new_permanent)} already known)")
         else:
-            print(f"  ℹ All {len(permanent)} permanent items already exist in context — nothing new to add")
+            print(f"  ℹ All {len(permanent)} permanent items already exist in context")
 
         permanent = new_permanent
 
-    # 7. Build HTML section
-    display_items = temporary + permanent  # show both, with different badges
+    # 7. Build HTML section with remove buttons on permanent items
+    display_items = temporary + permanent
     if not display_items:
         return {"temporary": temporary, "permanent": permanent, "section_html": ""}
 
     html_items = []
-    for item in display_items[:5]:
+    for idx, item in enumerate(display_items[:5]):
         cls = item.get("classification", "TEMPORARY")
         badge_cls = "context-badge-temp" if cls == "TEMPORARY" else "context-badge-perm"
         badge_text = "This week" if cls == "TEMPORARY" else "New context"
-        summary = item.get("summary", "Unknown update")
-        source = item.get("source", "")
+        summary = (item.get("summary", "Unknown update")
+                   .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                   .replace('"', "&quot;").replace("'", "&#39;"))
+        source = (item.get("source", "")
+                  .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+        remove_btn = ""
+        if cls == "PERMANENT":
+            filed_to = item.get("_filed_to", "").replace("'", "\\'")
+            filed_text = (item.get("_filed_text", "")
+                          .replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n"))
+            ctx_id = f"ctx-{idx}"
+            remove_btn = (
+                f' <button class="context-remove-btn" '
+                f'onclick="removeContext(\'{ctx_id}\',\'{filed_to}\',\'{filed_text}\')"'
+                f'>✕ Remove</button>'
+            )
+
         html_items.append(
-            f'<div class="context-item">'
+            f'<div class="context-item" id="ctx-{idx}">'
             f'<span class="{badge_cls}">{badge_text}</span> '
-            f'{summary}'
+            f'{summary}{remove_btn}'
             f'<span class="context-source">{source}</span>'
             f'</div>'
         )

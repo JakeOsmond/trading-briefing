@@ -82,8 +82,8 @@ export async function onRequest(context) {
     }
 
     // Validate action
-    if (!["verify", "remove", "revert"].includes(action)) {
-      return Response.json({ error: "Action must be 'verify', 'remove', or 'revert'" }, { status: 400, headers: corsHeaders });
+    if (!["verify", "remove", "revert", "remove_context"].includes(action)) {
+      return Response.json({ error: "Action must be 'verify', 'remove', 'revert', or 'remove_context'" }, { status: 400, headers: corsHeaders });
     }
 
     // Authenticate via password OR session token
@@ -110,6 +110,19 @@ export async function onRequest(context) {
     if (action === "revert") {
       await env.VERIFICATION_KV.delete(key);
       return Response.json({ success: true, action: "reverted", key }, { headers: corsHeaders });
+    }
+
+    // Remove context — store removal request for pipeline to process
+    if (action === "remove_context") {
+      const ctxKey = `context_removal:${finding_id}`;
+      const ctxValue = {
+        action: "remove_context",
+        filed_info: note ? JSON.parse(note) : {},
+        requested_by: verified_by || "dashboard_user",
+        timestamp: new Date().toISOString(),
+      };
+      await env.VERIFICATION_KV.put(ctxKey, JSON.stringify(ctxValue), { expirationTtl: 30 * 24 * 60 * 60 });
+      return Response.json({ success: true, action: "context_removal_queued", key: ctxKey }, { headers: corsHeaders });
     }
 
     // Verify or remove — write to KV

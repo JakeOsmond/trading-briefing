@@ -1352,6 +1352,12 @@ table.ai-table tr:hover td{background:rgba(51,65,85,0.3);}
 .context-source{
   display:block;font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;
 }
+.context-remove-btn{
+  background:none;border:1px solid rgba(255,95,104,0.3);color:#FF8A91;
+  font-size:10px;padding:2px 8px;border-radius:8px;cursor:pointer;
+  margin-left:8px;font-family:inherit;transition:all 0.2s;
+}
+.context-remove-btn:hover{background:rgba(255,95,104,0.15);border-color:rgba(255,95,104,0.5)}
 
 /* ── Investigation trail ── */
 .trail-section{margin-bottom:24px}
