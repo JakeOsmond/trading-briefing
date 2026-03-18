@@ -878,16 +878,46 @@ If unsure whether to SKIP, err on the side of including it as TEMPORARY."""
     skipped = [i for i in verified_items if i.get("classification") == "SKIP"]
     print(f"  📋 Result: {len(temporary)} temporary, {len(permanent)} permanent, {len(skipped)} skipped")
 
-    # 6. Write permanent items to pending-context.md for human review
+    # 6. Dedup permanent items against existing context + pending-context.md
     if permanent:
-        pending_path = Path(__file__).parent / "context" / "operational" / "pending-context.md"
-        today = run_date.isoformat()
-        with open(pending_path, "a") as f:
-            f.write(f"\n## Context detected {today}\n\n")
-            for item in permanent:
-                f.write(f"- **{item.get('summary', 'Unknown')}** — Source: {item.get('source', 'Unknown')}\n")
-            f.write("\n_Review above and move confirmed items to the appropriate context file._\n")
-        print(f"  📝 {len(permanent)} permanent items written to pending-context.md for review")
+        context_dir = Path(__file__).parent / "context"
+        pending_path = context_dir / "operational" / "pending-context.md"
+
+        # Load all existing context text for dedup checking
+        existing_context = ""
+        for md_file in context_dir.rglob("*.md"):
+            try:
+                existing_context += md_file.read_text().lower() + "\n"
+            except Exception:
+                pass
+
+        # Filter out items whose summary already appears in existing context
+        new_permanent = []
+        for item in permanent:
+            summary_lower = item.get("summary", "").lower().strip()
+            if not summary_lower:
+                continue
+            # Check if key phrases from the summary already exist in context files
+            key_words = [w for w in summary_lower.split() if len(w) > 4]
+            matches = sum(1 for w in key_words if w in existing_context)
+            match_ratio = matches / max(len(key_words), 1)
+            if match_ratio > 0.7:
+                print(f"  ⏭ Skipping (already known): {item.get('summary', '')[:60]}")
+            else:
+                new_permanent.append(item)
+
+        if new_permanent:
+            today = run_date.isoformat()
+            with open(pending_path, "a") as f:
+                f.write(f"\n## Context detected {today}\n\n")
+                for item in new_permanent:
+                    f.write(f"- **{item.get('summary', 'Unknown')}** — Source: {item.get('source', 'Unknown')}\n")
+                f.write("\n_Review above and move confirmed items to the appropriate context file._\n")
+            print(f"  📝 {len(new_permanent)} new permanent items written to pending-context.md ({len(permanent) - len(new_permanent)} already known, skipped)")
+        else:
+            print(f"  ℹ All {len(permanent)} permanent items already exist in context — nothing new to add")
+
+        permanent = new_permanent
 
     # 7. Build HTML section
     display_items = temporary + permanent  # show both, with different badges
