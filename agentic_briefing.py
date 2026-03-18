@@ -3904,31 +3904,43 @@ function _showPendingAdd(addId,text,name){{
 
 function cmRemoveManual(addId,elId){{
   /* Remove a pending add — deletes KV entry + cleans localStorage */
-  _ensureAuth().then(function(auth){{
-    if(!auth)return;
-    var payload=Object.assign({{
+  var pwd=prompt('Enter verification password to remove:');
+  if(!pwd)return;
+  fetch(__apiBase+'/api/verify',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{
       finding_id:addId,
       action:'delete_pending_add',
-      date:new Date().toISOString().split('T')[0]
-    }},auth);
-    fetch(__apiBase+'/api/verify',{{
-      method:'POST',
-      headers:{{'Content-Type':'application/json'}},
-      body:JSON.stringify(payload)
-    }}).then(function(r){{return r.json()}}).then(function(d){{
-      /* Remove from DOM */
-      var card=document.querySelector('[data-add-id="'+addId+'"]');
-      if(card)card.remove();
+      date:new Date().toISOString().split('T')[0],
+      password:pwd
+    }})
+  }}).then(function(r){{return r.json()}}).then(function(d){{
+    if(d.error){{alert('Error: '+d.error);return;}}
+    /* Remove from DOM — find the parent card */
+    var card=document.querySelector('[data-add-id="'+addId+'"]');
+    if(card)card.remove();
+    else{{
       var el=document.getElementById(elId);
-      if(el&&el.parentElement)el.parentElement.remove();
-      /* Remove from localStorage */
-      try{{
-        var pending=JSON.parse(localStorage.getItem('cm_pending_adds')||'[]');
-        pending=pending.filter(function(p){{return p.id!==addId;}});
-        localStorage.setItem('cm_pending_adds',JSON.stringify(pending));
-      }}catch(e){{}}
-    }}).catch(function(e){{alert('Remove failed: '+e);}});
-  }});
+      if(el){{
+        var parent=el.closest('.cm-file');
+        if(parent)parent.remove();
+        else el.remove();
+      }}
+    }}
+    /* Remove from localStorage */
+    try{{
+      var pending=JSON.parse(localStorage.getItem('cm_pending_adds')||'[]');
+      pending=pending.filter(function(p){{return p.id!==addId;}});
+      localStorage.setItem('cm_pending_adds',JSON.stringify(pending));
+    }}catch(e){{}}
+    /* Also store removal in localStorage so it stays hidden on refresh */
+    try{{
+      var removed=JSON.parse(localStorage.getItem('cm_removed_pending')||'[]');
+      removed.push(addId);
+      localStorage.setItem('cm_removed_pending',JSON.stringify(removed));
+    }}catch(e){{}}
+  }}).catch(function(e){{alert('Remove failed: '+e);}});
 }}
 
 /* On page load: fetch pending state from KV, apply removals, show pending adds */
@@ -3957,13 +3969,15 @@ function cmRemoveManual(addId,elId){{
         }});
       }});
 
-      /* 2. Show pending adds from KV */
+      /* 2. Show pending adds from KV (skip ones already removed locally) */
       var adds=d.pending_adds||[];
+      var removedPending=[];
+      try{{removedPending=JSON.parse(localStorage.getItem('cm_removed_pending')||'[]');}}catch(e){{}}
       var addSection=document.querySelector('.cm-add-section');
       if(addSection&&adds.length){{
         adds.forEach(function(item,i){{
-          var safeText=(item.raw_text||'').split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
           var addId=item.id||('pending-'+i);
+          if(removedPending.indexOf(addId)!==-1)return; /* already removed locally */
           var by=item.added_by||'user';
           _showPendingAdd(addId,item.raw_text||'',by);
         }});
