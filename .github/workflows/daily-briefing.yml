@@ -60,31 +60,80 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           KV_NS="45353e04656c415fa471dfc8e70260f7"
-          echo "Fetching pending context adds and removals from KV..."
-          # Fetch all context_add: keys
-          ADDS="[]"
-          for key in $(npx wrangler kv key list --namespace-id "$KV_NS" --prefix "context_add:" 2>/dev/null | python3 -c "import sys,json; [print(k['name']) for k in json.load(sys.stdin)]" 2>/dev/null); do
-            VAL=$(npx wrangler kv get --namespace-id "$KV_NS" "$key" 2>/dev/null || echo "")
-            if [ -n "$VAL" ]; then
-              ADDS=$(echo "$ADDS" | python3 -c "import sys,json; a=json.load(sys.stdin); a.append(json.loads('$VAL')); print(json.dumps(a))")
-              npx wrangler kv delete --namespace-id "$KV_NS" "$key" --force 2>/dev/null || true
-              echo "  Consumed add: $key"
-            fi
-          done
-          echo "$ADDS" > context/operational/context-additions.json
-          # Fetch all context_removal: keys
-          REMOVALS="[]"
-          for key in $(npx wrangler kv key list --namespace-id "$KV_NS" --prefix "context_removal:" 2>/dev/null | python3 -c "import sys,json; [print(k['name']) for k in json.load(sys.stdin)]" 2>/dev/null); do
-            VAL=$(npx wrangler kv get --namespace-id "$KV_NS" "$key" 2>/dev/null || echo "")
-            if [ -n "$VAL" ]; then
-              REMOVALS=$(echo "$REMOVALS" | python3 -c "import sys,json; a=json.load(sys.stdin); a.append(json.loads('$VAL')); print(json.dumps(a))")
-              npx wrangler kv delete --namespace-id "$KV_NS" "$key" --force 2>/dev/null || true
-              echo "  Consumed removal: $key"
-            fi
-          done
-          echo "$REMOVALS" > context/operational/context-removals.json
-          echo "Adds: $(echo "$ADDS" | python3 -c 'import sys,json; print(len(json.load(sys.stdin)))')"
-          echo "Removals: $(echo "$REMOVALS" | python3 -c 'import sys,json; print(len(json.load(sys.stdin)))')"
+          echo "Fetching pending context from KV namespace $KV_NS..."
+
+          # Use Python + Cloudflare REST API (more reliable than wrangler for KV reads)
+          python3 << 'KVFETCH'
+          import urllib.request, json, os
+
+          account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+          api_token = os.environ.get("CLOUDFLARE_API_TOKEN", "")
+          ns_id = "45353e04656c415fa471dfc8e70260f7"
+
+          if not account_id or not api_token:
+              print("ERROR: Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN")
+              json.dump([], open("context/operational/context-additions.json", "w"))
+              json.dump([], open("context/operational/context-removals.json", "w"))
+              exit(0)
+
+          base = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/storage/kv/namespaces/{ns_id}"
+          headers = {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
+
+          def kv_list(prefix):
+              try:
+                  url = f"{base}/keys?prefix={prefix}"
+                  req = urllib.request.Request(url, headers=headers)
+                  with urllib.request.urlopen(req, timeout=15) as resp:
+                      data = json.loads(resp.read().decode())
+                  if not data.get("success"):
+                      print(f"  KV list error for {prefix}: {data.get('errors', 'unknown')}")
+                      return []
+                  return [k["name"] for k in data.get("result", [])]
+              except Exception as e:
+                  print(f"  KV list failed for {prefix}: {e}")
+                  return []
+
+          def kv_get(key):
+              try:
+                  url = f"{base}/values/{urllib.parse.quote(key, safe='')}"
+                  req = urllib.request.Request(url, headers=headers)
+                  with urllib.request.urlopen(req, timeout=10) as resp:
+                      return json.loads(resp.read().decode())
+              except Exception as e:
+                  print(f"  KV get failed for {key}: {e}")
+                  return None
+
+          def kv_delete(key):
+              try:
+                  url = f"{base}/values/{urllib.parse.quote(key, safe='')}"
+                  req = urllib.request.Request(url, headers=headers, method="DELETE")
+                  urllib.request.urlopen(req, timeout=10)
+              except Exception as e:
+                  print(f"  KV delete failed for {key}: {e}")
+
+          # Fetch adds
+          adds = []
+          for key in kv_list("context_add:"):
+              val = kv_get(key)
+              if val:
+                  adds.append(val)
+                  kv_delete(key)
+                  print(f"  Consumed add: {key}")
+
+          # Fetch removals
+          removals = []
+          for key in kv_list("context_removal:"):
+              val = kv_get(key)
+              if val:
+                  removals.append(val)
+                  kv_delete(key)
+                  print(f"  Consumed removal: {key}")
+
+          os.makedirs("context/operational", exist_ok=True)
+          json.dump(adds, open("context/operational/context-additions.json", "w"))
+          json.dump(removals, open("context/operational/context-removals.json", "w"))
+          print(f"Adds: {len(adds)}, Removals: {len(removals)}")
+          KVFETCH
 
       - name: Run briefing script
         env:

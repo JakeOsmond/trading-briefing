@@ -1003,82 +1003,77 @@ SKIP = not useful for trading analysis"""
         print("  ℹ No useful facts extracted")
         return {"temporary": [], "permanent": [], "section_html": ""}
 
-    # 4. Claude spot-checks a sample of classifications (not all — too many for one call)
-    verified_items = gpt_items  # default: trust GPT
-    sample_size = min(15, len(gpt_items))
-    if sample_size > 0 and ANTHROPIC_API_KEY:
-        print(f"  🔍 Claude spot-checking {sample_size} of {len(gpt_items)} classifications...")
-        try:
-            # Pick a representative sample: mix of PERMANENT and TEMPORARY
-            perm_sample = [i for i in gpt_items if i.get("classification") == "PERMANENT"][:8]
-            temp_sample = [i for i in gpt_items if i.get("classification") == "TEMPORARY"][:7]
-            sample = perm_sample + temp_sample
-            compact = [{"summary": i.get("summary", "")[:100], "classification": i.get("classification", "")} for i in sample]
+    # 4. Cross-verify: gpt-5-mini vs gpt-4o-mini — two fast models compete, consensus wins
+    # Each fact gets classified by both. If they agree, that's the answer.
+    # If they disagree, the more conservative one wins (TEMPORARY > PERMANENT, SKIP > TEMPORARY).
+    verified_items = gpt_items
+    VERIFY_MODELS = ["gpt-5-mini", "gpt-4o-mini"]
+    CONSERVATISM = {"SKIP": 0, "TEMPORARY": 1, "PERMANENT": 2}  # lower = more conservative
 
-            client_ant = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            verify_resp = client_ant.messages.create(
-                model=VERIFY_MODEL,
-                max_tokens=2000,
-                messages=[{
-                    "role": "user",
-                    "content": f"""Spot-check these {len(compact)} context classifications. For each, confirm or override.
-Return ONLY a JSON array: [{{"summary":"...","classification":"PERMANENT|TEMPORARY|SKIP"}}]
-Be conservative: if unsure, choose TEMPORARY.
+    if gpt_items:
+        print(f"  🔍 Cross-verifying {len(gpt_items)} facts ({VERIFY_MODELS[0]} vs {VERIFY_MODELS[1]})...")
+        verify_prompt = """Classify each fact for a trading briefing. Return JSON: {"items": [{"classification": "PERMANENT|TEMPORARY|SKIP"}, ...]}
+PERMANENT = structural rule, threshold, new product/partner — won't change week-to-week
+TEMPORARY = this week's metric, current price, recent market condition
+SKIP = not useful for trading analysis. Be conservative: if unsure, TEMPORARY."""
 
-{json.dumps(compact, indent=2)}"""
-                }],
-            )
-            claude_raw = verify_resp.content[0].text
-            claude_items = _parse_llm_json(claude_raw)
-            if isinstance(claude_items, list) and len(claude_items) == len(sample):
-                overrides = 0
-                for ci, si in zip(claude_items, sample):
-                    old_cls = si.get("classification")
-                    new_cls = ci.get("classification", old_cls)
-                    if new_cls != old_cls:
-                        si["classification"] = new_cls
-                        overrides += 1
-                override_rate = overrides / len(sample) if sample else 0
-                print(f"  ✓ Claude spot-checked {len(sample)} items, overrode {overrides} ({override_rate:.0%})")
+        # Build character-length batches (~4000 chars each)
+        batches = []
+        current_batch = []
+        current_chars = 0
+        for item in gpt_items:
+            s = len(item.get("summary", "")[:100])
+            if current_chars + s > 3500 and current_batch:
+                batches.append(current_batch)
+                current_batch = []
+                current_chars = 0
+            current_batch.append(item)
+            current_chars += s
+        if current_batch:
+            batches.append(current_batch)
 
-                # If Claude overrode >50% of the sample, the whole batch is suspect — check everything
-                if override_rate > 0.5:
-                    print(f"  ⚠ High override rate ({override_rate:.0%}) — Claude reviewing ALL {len(gpt_items)} items in batches...")
-                    unchecked = [i for i in gpt_items if i not in sample]
-                    batch_size = 20
-                    total_full_overrides = overrides
-                    for batch_start in range(0, len(unchecked), batch_size):
-                        batch = unchecked[batch_start:batch_start + batch_size]
-                        batch_compact = [{"summary": i.get("summary", "")[:100], "classification": i.get("classification", "")} for i in batch]
-                        try:
-                            batch_resp = client_ant.messages.create(
-                                model=VERIFY_MODEL,
-                                max_tokens=3000,
-                                messages=[{
-                                    "role": "user",
-                                    "content": f"""Review these {len(batch_compact)} context classifications. For each, confirm or override.
-Return ONLY a JSON array: [{{"summary":"...","classification":"PERMANENT|TEMPORARY|SKIP"}}]
-Be conservative: if unsure, choose TEMPORARY.
+        agreements = 0
+        disagreements = 0
+        for batch_idx, batch in enumerate(batches):
+            summaries = [i.get("summary", "")[:100] for i in batch]
+            results_by_model = {}
 
-{json.dumps(batch_compact, indent=2)}"""
-                                }],
-                            )
-                            batch_items = _parse_llm_json(batch_resp.content[0].text)
-                            if isinstance(batch_items, list) and len(batch_items) == len(batch):
-                                for bi, gi in zip(batch_items, batch):
-                                    old_cls = gi.get("classification")
-                                    new_cls = bi.get("classification", old_cls)
-                                    if new_cls != old_cls:
-                                        gi["classification"] = new_cls
-                                        total_full_overrides += 1
-                            print(f"    ✓ Batch {batch_start // batch_size + 1}: {len(batch)} items reviewed")
-                        except Exception as batch_e:
-                            print(f"    ⚠ Batch failed: {batch_e}")
-                    print(f"  ✓ Full review complete: {total_full_overrides} total overrides across all items")
-            else:
-                print(f"  ⚠ Claude returned {len(claude_items) if isinstance(claude_items, list) else 'non-list'} — keeping GPT classifications")
-        except Exception as e:
-            print(f"  ⚠ Claude spot-check failed (using GPT): {e}")
+            for model_name in VERIFY_MODELS:
+                try:
+                    resp = client_oai.chat.completions.create(
+                        model=model_name,
+                        max_completion_tokens=1500,
+                        response_format={"type": "json_object"},
+                        messages=[
+                            {"role": "system", "content": verify_prompt},
+                            {"role": "user", "content": json.dumps(summaries)},
+                        ],
+                    )
+                    result = _parse_llm_json(resp.choices[0].message.content)
+                    items_list = result.get("items", result) if isinstance(result, dict) else result
+                    if isinstance(items_list, list) and len(items_list) == len(batch):
+                        results_by_model[model_name] = [i.get("classification", "TEMPORARY") if isinstance(i, dict) else "TEMPORARY" for i in items_list]
+                    else:
+                        results_by_model[model_name] = [i.get("classification", "TEMPORARY") for i in batch]
+                except Exception:
+                    results_by_model[model_name] = [i.get("classification", "TEMPORARY") for i in batch]
+
+            # Consensus: if both agree, use that. If they disagree, use the more conservative one.
+            if len(results_by_model) == 2:
+                m1, m2 = VERIFY_MODELS
+                for i, item in enumerate(batch):
+                    cls1 = results_by_model.get(m1, ["TEMPORARY"] * len(batch))[i]
+                    cls2 = results_by_model.get(m2, ["TEMPORARY"] * len(batch))[i]
+                    if cls1 == cls2:
+                        item["classification"] = cls1
+                        agreements += 1
+                    else:
+                        # More conservative wins (lower CONSERVATISM score)
+                        item["classification"] = cls1 if CONSERVATISM.get(cls1, 1) <= CONSERVATISM.get(cls2, 1) else cls2
+                        disagreements += 1
+
+        total = agreements + disagreements
+        print(f"  ✓ Cross-verified {total} facts: {agreements} agreed, {disagreements} disagreed (conservative wins)")
 
     # 5. Split into permanent, temporary, and skip
     temporary = [i for i in verified_items if i.get("classification") == "TEMPORARY"]
