@@ -1104,12 +1104,12 @@ function cmAddContext(){
     /* Show the added item immediately with a remove button */
     __addCounter++;
     var itemId='cm-manual-'+__addCounter;
-    var safeText=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    var escapedText=text.replace(/\/g,'\\').replace(/'/g,"\'");
+    var safeText=text.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
+    var escapedText=text.split("'").join("_");
     var itemHtml='<div class="cm-ai-item" id="'+itemId+'">'
       +'<span class="cm-ai-text">'+safeText
       +' <em style="opacity:0.5">(pending AI reformat — next pipeline run)</em></span>'
-      +'<button class="cm-remove-btn" onclick="cmRemoveManual(''+addId+'',''+itemId+'')">✕ Remove</button>'
+      +'<button class="cm-remove-btn" onclick="cmRemoveManual(&quot;'+addId+'&quot;,&quot;'+itemId+'&quot;)">✕ Remove</button>'
       +'</div>';
     var addSection=document.querySelector('.cm-add-section');
     addSection.insertAdjacentHTML('beforebegin',
