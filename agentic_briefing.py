@@ -568,7 +568,7 @@ def tool_scan_drive(keywords: str, days_back: int = 14) -> str:
         return f"Drive error: {e}"
 
 
-def tool_read_drive_doc(file_id: str, max_chars: int = 20000) -> str:
+def tool_read_drive_doc(file_id: str, max_chars: int = 100000) -> str:
     """Read the text content of a Google Drive document (Doc, Sheet, or text file)."""
     import io
     from googleapiclient.http import MediaIoBaseDownload
@@ -869,7 +869,7 @@ def run_context_refresh(run_date):
         print(f"  📂 Found {len(drive_results)} relevant Drive docs modified in last 7 days")
 
         # Read content of top 10 docs
-        for doc in drive_results[:10]:
+        for doc in drive_results:
             content = tool_read_drive_doc(doc["id"])
             if content and not content.startswith("Could not read"):
                 print(f"    ✓ Read: {doc['name']} ({len(content)} chars)")
@@ -1467,6 +1467,27 @@ def _parse_llm_json(text: str) -> dict:
 
     # Strip markdown code fences
     cleaned = text.replace("```json", "").replace("```", "")
+
+    # Try parsing as a JSON array first (GPT often returns [...] for lists)
+    arr_start = cleaned.find("[")
+    arr_end = cleaned.rfind("]") + 1
+    if arr_start >= 0 and arr_end > arr_start:
+        # Only try if [ comes before { (it's an array, not an object with arrays inside)
+        obj_start = cleaned.find("{")
+        if obj_start < 0 or arr_start < obj_start:
+            arr_str = _fix_common_issues(cleaned[arr_start:arr_end])
+            try:
+                result = json.loads(arr_str)
+                if isinstance(result, list):
+                    return result
+            except json.JSONDecodeError:
+                # Try repair
+                try:
+                    result = json.loads(_try_repair(arr_str))
+                    if isinstance(result, list):
+                        return result
+                except json.JSONDecodeError:
+                    pass
 
     # Find the outermost JSON object
     start = cleaned.find("{")
