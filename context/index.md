@@ -37,6 +37,7 @@ These are specific to the insurance trading domain. Replace entirely for other p
 | [funnel-stages.md](insurance/funnel-stages.md) | 9-stage customer journey from Landing to Just Booked |
 | [aggregator-position.md](insurance/aggregator-position.md) | Aggregator economics, commission, data limitations |
 | [schema-knowledge.md](insurance/schema-knowledge.md) | BigQuery table schemas, column definitions, SQL rules (authoritative source for ask.js) |
+| [platforms-and-partners.md](insurance/platforms-and-partners.md) | Fire Melon/Magenta, idol/aggregators, Wizard, white-label CTAs, ERGO, Collinson, WorldPay |
 
 ## Operational (partially transferable)
 
@@ -45,3 +46,4 @@ Update per deployment. Some items are universal, some are domain-specific.
 | File | What it covers |
 |------|---------------|
 | [market-intelligence.md](operational/market-intelligence.md) | Google Trends, AI Insights sheet, Spike Log, Drive docs |
+| [current-market-events.md](operational/current-market-events.md) | **Review weekly** — Iran conflict impact, cruise partner dynamics, pricing changes, PPC status, partner pipeline |
