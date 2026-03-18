@@ -2506,8 +2506,31 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         _used_k.add(k_idx)
         _h_to_k[h_idx] = _trend_keys[k_idx]
 
-    # Build verification lookup from verification results
-    _verification = verification or {}
+    # Build verification lookup — keyed by driver name for fuzzy matching
+    _verification_raw = verification or {}
+    _verification_by_name = {}
+    for fid, vdata in _verification_raw.items():
+        driver = vdata.get("driver", "")
+        if driver:
+            _verification_by_name[driver.lower().strip()] = {**vdata, "_original_id": fid}
+
+    def _find_verification(heading_text):
+        """Match a heading to its verification result by driver name similarity."""
+        h_lower = heading_text.lower().strip()
+        h_words = set(w for w in re.sub(r'[^a-z0-9\s]', '', h_lower).split() if len(w) > 2)
+        best_match = None
+        best_score = 0
+        for driver_name, vdata in _verification_by_name.items():
+            d_words = set(w for w in re.sub(r'[^a-z0-9\s]', '', driver_name).split() if len(w) > 2)
+            shared = h_words & d_words
+            score = len(shared)
+            if score > best_score:
+                best_score = score
+                best_match = vdata
+        # Require at least 2 matching words to accept the match
+        return best_match if best_score >= 2 else {}
+
+    _used_verification = set()  # track which verifications have been assigned
 
     def _add_driver_id(match):
         heading_text = re.sub(r'<[^>]+>', '', match.group(1))
@@ -2515,7 +2538,17 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         idx = _driver_idx[0]
         _driver_idx[0] += 1
         tid = f'trend-{idx}'
-        finding_id = f'finding-{idx}'
+
+        # Match verification by driver name, not sequential index
+        vr = _find_verification(heading_text)
+        finding_id = vr.get("_original_id", f"finding-{idx}")
+        # Prevent the same verification from being used twice
+        if finding_id in _used_verification:
+            vr = {}
+            finding_id = f'finding-{idx}'
+        elif vr:
+            _used_verification.add(finding_id)
+
         # Embed matched trend key directly as data attribute
         trend_key = _h_to_k.get(idx, '')
         trend_attr = f' data-trend-key="{trend_key}"' if trend_key else ''
@@ -2530,9 +2563,6 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
             f'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
             f'Trend</button>'
         )
-
-        # Add verification pill (inline, matching confidence pill style)
-        vr = _verification.get(finding_id, {})
         verdict = vr.get("verdict", "")
         reasoning = (vr.get("reasoning") or "").replace('"', '&quot;').replace("'", "&#39;")
         concern = (vr.get("concern") or "").replace('"', '&quot;').replace("'", "&#39;")
