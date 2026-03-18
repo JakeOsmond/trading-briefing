@@ -1009,41 +1009,46 @@ SKIP = not useful for trading analysis"""
         print("  ℹ No useful facts extracted")
         return {"temporary": [], "permanent": [], "section_html": ""}
 
-    # 4. Claude verifies the classifications (batch — summaries only)
-    print(f"  🔍 Cross-verifying {len(gpt_items)} classifications (Claude)...")
-    try:
-        # Build compact summary for Claude (just summary + classification, not full content)
-        compact_items = [{"summary": i.get("summary", ""), "classification": i.get("classification", ""), "source": i.get("source", "")} for i in gpt_items]
-        client_ant = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        verify_resp = client_ant.messages.create(
-            model=VERIFY_MODEL,
-            max_tokens=4000,
-            messages=[{
-                "role": "user",
-                "content": f"""Review these context classifications for a daily trading briefing.
+    # 4. Claude spot-checks a sample of classifications (not all — too many for one call)
+    verified_items = gpt_items  # default: trust GPT
+    sample_size = min(15, len(gpt_items))
+    if sample_size > 0 and ANTHROPIC_API_KEY:
+        print(f"  🔍 Claude spot-checking {sample_size} of {len(gpt_items)} classifications...")
+        try:
+            # Pick a representative sample: mix of PERMANENT and TEMPORARY
+            perm_sample = [i for i in gpt_items if i.get("classification") == "PERMANENT"][:8]
+            temp_sample = [i for i in gpt_items if i.get("classification") == "TEMPORARY"][:7]
+            sample = perm_sample + temp_sample
+            compact = [{"summary": i.get("summary", "")[:100], "classification": i.get("classification", "")} for i in sample]
 
-GPT classified {len(compact_items)} items:
-{json.dumps(compact_items, indent=2)}
+            client_ant = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+            verify_resp = client_ant.messages.create(
+                model=VERIFY_MODEL,
+                max_tokens=2000,
+                messages=[{
+                    "role": "user",
+                    "content": f"""Spot-check these {len(compact)} context classifications. For each, confirm or override.
+Return ONLY a JSON array: [{{"summary":"...","classification":"PERMANENT|TEMPORARY|SKIP"}}]
+Be conservative: if unsure, choose TEMPORARY.
 
-For each item, confirm or override the classification.
-Return ONLY a JSON array with the same structure (summary, classification, source).
-Rules: PERMANENT = structural changes. TEMPORARY = short-term. SKIP = sensitive/irrelevant.
-Be conservative: if unsure, choose TEMPORARY over PERMANENT."""
-            }],
-        )
-        claude_raw = verify_resp.content[0].text
-        verified_items = _parse_llm_json(claude_raw)
-        if not isinstance(verified_items, list):
-            verified_items = verified_items.get("items", []) if isinstance(verified_items, dict) else gpt_items
-        # Merge Claude's classifications back onto the GPT items (which have full data)
-        if len(verified_items) == len(gpt_items):
-            for vi, gi in zip(verified_items, gpt_items):
-                gi["classification"] = vi.get("classification", gi.get("classification"))
-            verified_items = gpt_items
-        print(f"  ✓ Claude verified {len(verified_items)} items")
-    except Exception as e:
-        print(f"  ⚠ Claude verification failed, using GPT classifications: {e}")
-        verified_items = gpt_items
+{json.dumps(compact, indent=2)}"""
+                }],
+            )
+            claude_raw = verify_resp.content[0].text
+            claude_items = _parse_llm_json(claude_raw)
+            if isinstance(claude_items, list) and len(claude_items) == len(sample):
+                overrides = 0
+                for ci, si in zip(claude_items, sample):
+                    old_cls = si.get("classification")
+                    new_cls = ci.get("classification", old_cls)
+                    if new_cls != old_cls:
+                        si["classification"] = new_cls
+                        overrides += 1
+                print(f"  ✓ Claude spot-checked {len(sample)} items, overrode {overrides}")
+            else:
+                print(f"  ⚠ Claude returned {len(claude_items) if isinstance(claude_items, list) else 'non-list'} — keeping GPT classifications")
+        except Exception as e:
+            print(f"  ⚠ Claude spot-check failed (using GPT): {e}")
 
     # 5. Split into permanent, temporary, and skip
     temporary = [i for i in verified_items if i.get("classification") == "TEMPORARY"]
