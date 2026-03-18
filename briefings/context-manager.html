@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Context Manager — Trading Covered</title>
+<link rel="icon" type="image/png" href="https://dmy0b9oeprz0f.cloudfront.net/holidayextras.co.uk/brand-guidelines/logo-tags/png/better-future.png">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>/* Context Manager — admin panel styles */
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#1a0e2e;
+  background:linear-gradient(165deg,#1a0e2e 0%,#221340 40%,#2a1850 100%);
+  color:rgba(255,255,255,0.85);
+  font-family:'Nunito',sans-serif;
+  min-height:100vh;
+}
+.cm-container{max-width:900px;margin:0 auto;padding:24px 20px 60px}
+
+/* Warning banner */
+.cm-warning{
+  background:linear-gradient(90deg,rgba(253,220,6,0.12),rgba(253,220,6,0.06));
+  border:1px solid rgba(253,220,6,0.25);border-radius:12px;
+  padding:12px 18px;font-size:13px;color:#FDDC06;margin-bottom:24px;
+  text-align:center;font-weight:600;
+}
+
+/* Header */
+.cm-header{margin-bottom:32px}
+.cm-header h1{font-size:24px;font-weight:800;color:#fff;margin-bottom:4px}
+.cm-subtitle{font-size:13px;color:rgba(255,255,255,0.4);margin-bottom:8px}
+.cm-back-link{
+  font-size:12px;color:#5FFFF0;text-decoration:none;
+  opacity:0.7;transition:opacity 0.2s;
+}
+.cm-back-link:hover{opacity:1}
+
+/* Category sections */
+.cm-category{margin-bottom:28px}
+.cm-cat-header{
+  font-size:16px;font-weight:700;color:#fff;
+  border-bottom:1px solid rgba(146,95,255,0.2);padding-bottom:8px;margin-bottom:4px;
+}
+.cm-cat-desc{font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:12px}
+.cm-readonly{
+  font-size:10px;color:rgba(255,255,255,0.3);font-weight:400;
+  background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:8px;margin-left:8px;
+}
+
+/* File cards */
+.cm-file{
+  background:rgba(84,46,145,0.08);border:1px solid rgba(146,95,255,0.12);
+  border-radius:10px;padding:12px 16px;margin-bottom:8px;
+}
+.cm-file-header{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.cm-file-icon{font-size:14px}
+.cm-file-name{font-size:13px;font-weight:600;color:rgba(255,255,255,0.7);font-family:monospace}
+.cm-file-meta{font-size:11px;color:rgba(255,255,255,0.3);margin-left:auto}
+.cm-file-title{font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:6px}
+.cm-ai-count{
+  background:rgba(0,176,166,0.12);color:#5FFFF0;
+  padding:1px 6px;border-radius:6px;font-size:10px;
+}
+
+/* AI-learned items */
+.cm-ai-item{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:6px 0;border-top:1px solid rgba(146,95,255,0.06);
+  font-size:12px;line-height:1.5;
+}
+.cm-ai-text{flex:1;color:rgba(255,255,255,0.7)}
+.cm-remove-btn{
+  background:none;border:1px solid rgba(255,95,104,0.25);color:#FF8A91;
+  font-size:10px;padding:2px 8px;border-radius:6px;cursor:pointer;
+  font-family:inherit;transition:all 0.2s;white-space:nowrap;flex-shrink:0;
+}
+.cm-remove-btn:hover{background:rgba(255,95,104,0.12);border-color:rgba(255,95,104,0.4)}
+
+/* Add context section */
+.cm-add-section{
+  background:rgba(84,46,145,0.1);border:1px solid rgba(146,95,255,0.15);
+  border-radius:12px;padding:20px;margin-top:32px;
+}
+.cm-add-section h2{font-size:16px;font-weight:700;margin-bottom:4px}
+.cm-add-desc{font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:12px}
+.cm-add-form{display:flex;flex-direction:column;gap:10px}
+.cm-add-input{
+  background:rgba(0,0,0,0.3);border:1px solid rgba(146,95,255,0.2);
+  border-radius:8px;padding:10px 14px;color:#fff;font-family:inherit;
+  font-size:13px;resize:vertical;
+}
+.cm-add-input:focus{outline:none;border-color:rgba(0,176,166,0.5)}
+.cm-add-input::placeholder{color:rgba(255,255,255,0.25)}
+.cm-add-row{display:flex;gap:10px;align-items:center}
+.cm-add-password{
+  background:rgba(0,0,0,0.3);border:1px solid rgba(146,95,255,0.2);
+  border-radius:8px;padding:8px 12px;color:#fff;font-family:inherit;
+  font-size:13px;flex:1;max-width:220px;
+}
+.cm-add-password:focus{outline:none;border-color:rgba(0,176,166,0.5)}
+.cm-add-password::placeholder{color:rgba(255,255,255,0.25)}
+.cm-add-btn{
+  background:linear-gradient(135deg,#00B0A6,#00D4C8);color:#fff;
+  border:none;border-radius:8px;padding:8px 20px;font-family:inherit;
+  font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;
+}
+.cm-add-btn:hover{transform:scale(1.03);box-shadow:0 4px 16px rgba(0,176,166,0.3)}
+
+/* Footer */
+.cm-footer{
+  text-align:center;font-size:12px;color:rgba(255,255,255,0.3);
+  margin-top:40px;padding-top:20px;
+  border-top:1px solid rgba(146,95,255,0.1);
+}
+
+/* Mobile */
+@media(max-width:600px){
+  .cm-container{padding:16px 12px 40px}
+  .cm-add-row{flex-direction:column}
+  .cm-add-password{max-width:100%}
+  .cm-ai-item{flex-direction:column;gap:4px}
+}
+</style>
+</head><body>
+<div class="cm-container">
+
+<div class="cm-warning">
+⚠ Context shown here is used by Trading Covered to understand the business. Changes affect all future briefings.
+</div>
+
+<div class="cm-header">
+<h1>Context Manager</h1>
+<p class="cm-subtitle">AI-learned context from Google Drive, meetings, and manual entries</p>
+<a href="latest.html" class="cm-back-link">← Back to briefing</a>
+</div>
+
+<div class="cm-category"><h2 class="cm-cat-header">Universal (all domains) <span class="cm-readonly">(read-only)</span></h2><p class="cm-cat-desc">Foundational context shared across all domains. Managed by engineering.</p><div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">financial-waterfall.md</span><span class="cm-file-meta">30 lines</span></div>
+<div class="cm-file-title">Financial Waterfall — From Price to GP</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">financial-year.md</span><span class="cm-file-meta">16 lines</span></div>
+<div class="cm-file-title">Financial Year</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">hx-group-structure.md</span><span class="cm-file-meta">25 lines</span></div>
+<div class="cm-file-title">HX Group Business Unit Structure</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">metrics-guide.md</span><span class="cm-file-meta">23 lines</span></div>
+<div class="cm-file-title">How We Talk About Key Metrics</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">reporting-conventions.md</span><span class="cm-file-meta">44 lines</span></div>
+<div class="cm-file-title">Reporting Conventions and Abbreviations</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">trading-framework.md</span><span class="cm-file-meta">19 lines</span></div>
+<div class="cm-file-title">Traffic & Conversion Framework</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">transaction-mechanics.md</span><span class="cm-file-meta">29 lines</span></div>
+<div class="cm-file-title">Transaction Mechanics</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">travel-events.md</span><span class="cm-file-meta">39 lines</span></div>
+<div class="cm-file-title">Travel Events and Market Factors</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">yoy-methodology.md</span><span class="cm-file-meta">16 lines</span></div>
+<div class="cm-file-title">Year-on-Year Methodology</div>
+</div>
+</div>
+<div class="cm-category"><h2 class="cm-cat-header">Insurance</h2><p class="cm-cat-desc">Insurance-specific context. AI-learned items can be removed.</p><div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">aggregator-position.md</span><span class="cm-file-meta">9 lines</span></div>
+<div class="cm-file-title">Aggregator Position</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">channels.md</span><span class="cm-file-meta">30 lines</span></div>
+<div class="cm-file-title">Insurance Distribution Channels</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">data-quirks.md</span><span class="cm-file-meta">21 lines</span></div>
+<div class="cm-file-title">Insurance Data Quirks</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">drill-dimensions.md</span><span class="cm-file-meta">15 lines</span></div>
+<div class="cm-file-title">Drill-Down Dimensions</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">funnel-stages.md</span><span class="cm-file-meta">15 lines</span></div>
+<div class="cm-file-title">Insurance Customer Funnel</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">platforms-and-partners.md</span><span class="cm-file-meta">40 lines</span></div>
+<div class="cm-file-title">Insurance Platforms and Partners</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">policy-economics.md</span><span class="cm-file-meta">15 lines</span></div>
+<div class="cm-file-title">Insurance Policy Economics</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">pricing-margin.md</span><span class="cm-file-meta">26 lines</span></div>
+<div class="cm-file-title">Pricing & Margin</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">renewal-rates.md</span><span class="cm-file-meta">8 lines</span></div>
+<div class="cm-file-title">Renewal Rate Calculation</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">schema-knowledge.md</span><span class="cm-file-meta">285 lines</span></div>
+<div class="cm-file-title">BigQuery Schema Knowledge — Insurance</div>
+</div>
+</div>
+<div class="cm-category"><h2 class="cm-cat-header">Operational</h2><p class="cm-cat-desc">Operational context including market events and intelligence sources.</p><div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">current-market-events.md</span><span class="cm-file-meta">46 lines</span></div>
+<div class="cm-file-title">Current Market Events — Active Context</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">market-intelligence.md</span><span class="cm-file-meta">14 lines</span></div>
+<div class="cm-file-title">Market Intelligence Sources</div>
+</div>
+<div class="cm-file"><div class="cm-file-header"><span class="cm-file-icon">📄</span> <span class="cm-file-name">template-extraction-plan.md</span><span class="cm-file-meta">26 lines</span></div>
+<div class="cm-file-title">HTML Template Extraction — Completed</div>
+</div>
+</div>
+
+
+<div class="cm-add-section">
+<h2>➕ Add Context</h2>
+<p class="cm-add-desc">Add something you know that the AI should learn. It will be reformatted and categorised automatically.</p>
+<div class="cm-add-form">
+<textarea id="cmAddText" class="cm-add-input" rows="3" placeholder="e.g. We just signed On the Beach as a partner, worth about 150k a year in insurance referrals"></textarea>
+<div class="cm-add-row">
+<input type="password" id="cmAddPassword" class="cm-add-password" placeholder="Verification password">
+<button class="cm-add-btn" onclick="cmAddContext()">Add Context</button>
+</div>
+</div>
+</div>
+
+<div class="cm-footer">
+If you need to remove any of this context please speak to a member of commercial finance.
+</div>
+
+</div>
+
+<script>
+var __apiBase=location.hostname.includes('staging')?'https://trading-covered.pages.dev':'';
+
+function cmRemove(filedTo,filedText,elId){
+  var pwd=prompt('Enter verification password to remove this context:');
+  if(!pwd)return;
+  fetch(__apiBase+'/api/verify',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      finding_id:'context:'+elId,
+      action:'remove_context',
+      date:new Date().toISOString().split('T')[0],
+      password:pwd,
+      note:JSON.stringify({filed_to:filedTo,filed_text:filedText})
+    })
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.error){alert('Error: '+d.error);return;}
+    var el=document.getElementById(elId);
+    if(el){el.style.opacity='0.3';el.style.textDecoration='line-through';}
+  }).catch(function(e){alert('Remove failed: '+e);});
+}
+
+function cmAddContext(){
+  var text=document.getElementById('cmAddText').value.trim();
+  var pwd=document.getElementById('cmAddPassword').value;
+  if(!text){alert('Please enter some context');return;}
+  if(!pwd){alert('Password required');return;}
+  document.querySelector('.cm-add-btn').textContent='Adding...';
+  fetch(__apiBase+'/api/verify',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      finding_id:'manual:'+Date.now(),
+      action:'add_context',
+      date:new Date().toISOString().split('T')[0],
+      password:pwd,
+      note:text
+    })
+  }).then(function(r){return r.json()}).then(function(d){
+    document.querySelector('.cm-add-btn').textContent='Add Context';
+    if(d.error){alert('Error: '+d.error);return;}
+    document.getElementById('cmAddText').value='';
+    document.getElementById('cmAddPassword').value='';
+    alert('Context added! It will be reformatted by AI and appear in the next briefing run.');
+  }).catch(function(e){
+    document.querySelector('.cm-add-btn').textContent='Add Context';
+    alert('Failed: '+e);
+  });
+}
+</script>
+</body></html>
