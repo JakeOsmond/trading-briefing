@@ -82,8 +82,8 @@ export async function onRequest(context) {
     }
 
     // Validate action
-    if (!["verify", "remove", "revert", "remove_context"].includes(action)) {
-      return Response.json({ error: "Action must be 'verify', 'remove', 'revert', or 'remove_context'" }, { status: 400, headers: corsHeaders });
+    if (!["verify", "remove", "revert", "remove_context", "add_context"].includes(action)) {
+      return Response.json({ error: "Invalid action" }, { status: 400, headers: corsHeaders });
     }
 
     // Authenticate via password OR session token
@@ -123,6 +123,19 @@ export async function onRequest(context) {
       };
       await env.VERIFICATION_KV.put(ctxKey, JSON.stringify(ctxValue), { expirationTtl: 30 * 24 * 60 * 60 });
       return Response.json({ success: true, action: "context_removal_queued", key: ctxKey }, { headers: corsHeaders });
+    }
+
+    // Add context — store raw text for pipeline to reformat + classify + file
+    if (action === "add_context") {
+      const addKey = `context_add:${finding_id}`;
+      const addValue = {
+        action: "add_context",
+        raw_text: note || "",
+        added_by: verified_by || "dashboard_user",
+        timestamp: new Date().toISOString(),
+      };
+      await env.VERIFICATION_KV.put(addKey, JSON.stringify(addValue), { expirationTtl: 30 * 24 * 60 * 60 });
+      return Response.json({ success: true, action: "context_add_queued", key: addKey }, { headers: corsHeaders });
     }
 
     // Verify or remove — write to KV

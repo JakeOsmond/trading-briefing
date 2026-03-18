@@ -779,6 +779,38 @@ def _process_context_removals():
         return 0
 
 
+def _process_context_additions():
+    """Check for pending manual context additions and process them via AI."""
+    try:
+        additions_path = Path(__file__).parent / "context" / "operational" / "context-additions.json"
+        if not additions_path.exists():
+            return []
+        additions = json.loads(additions_path.read_text())
+        if not additions:
+            return []
+
+        processed = []
+        for addition in additions:
+            raw_text = addition.get("raw_text", "")
+            if not raw_text:
+                continue
+            # Format as a context item for the standard classify pipeline
+            processed.append({
+                "source": f"Manual entry by {addition.get('added_by', 'user')}",
+                "modified_by": addition.get("added_by", "user"),
+                "modified": addition.get("timestamp", ""),
+                "content_preview": raw_text,
+            })
+            print(f"  ➕ Manual context to process: {raw_text[:60]}")
+
+        # Clear the additions file
+        additions_path.write_text("[]")
+        return processed
+    except Exception as e:
+        print(f"  ⚠ Context additions processing failed: {e}")
+        return []
+
+
 def run_context_refresh(run_date):
     """Phase 0: Scan Drive + Travel Events for new context. Cross-model classify."""
     print("\n📋 Phase 0: Context intelligence refresh...")
@@ -789,6 +821,10 @@ def run_context_refresh(run_date):
         print(f"  🗑 Processed {removed} context removal(s)")
 
     items = []
+
+    # 0b. Process any pending manual context additions
+    manual_items = _process_context_additions()
+    items.extend(manual_items)
 
     # 1. Scan Drive for recently modified docs (owned + shared)
     try:
@@ -3300,7 +3336,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 
 <!-- Sticky toolbar — buttons only -->
 <div class="hdr">
-<div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end"><button class="chat-toggle-btn" onclick="toggleChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Ask</button><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button>{"<span class='inv-badge' onclick='openInvestigations()'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
+<div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end"><button class="chat-toggle-btn" onclick="toggleChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Ask</button><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button><a href="context-manager.html" class="archive-btn" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Context</a>{"<span class='inv-badge' onclick='openInvestigations()'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
 </div>
 
 <!-- Headline Tile — one-sentence takeaway -->
@@ -3404,6 +3440,176 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 
 <script>
 {js_verify_content}
+</script>
+</body></html>"""
+
+
+# ---------------------------------------------------------------------------
+def generate_context_manager_html():
+    """Generate the context management page — view, remove, add AI-learned context."""
+    context_dir = Path(__file__).parent / "context"
+    tpl_dir = Path(__file__).parent / "templates"
+
+    # Load context manager CSS
+    css_path = tpl_dir / "context-manager.css"
+    cm_css = css_path.read_text() if css_path.exists() else ""
+
+    # Build category sections
+    categories = [
+        ("universal", "Universal (all domains)", False, "Foundational context shared across all domains. Managed by engineering."),
+        ("insurance", "Insurance", True, "Insurance-specific context. AI-learned items can be removed."),
+        ("operational", "Operational", True, "Operational context including market events and intelligence sources."),
+    ]
+
+    sections_html = ""
+    for cat_key, cat_label, editable, cat_desc in categories:
+        cat_path = context_dir / cat_key
+        if not cat_path.exists():
+            continue
+
+        files_html = ""
+        for md_file in sorted(cat_path.glob("*.md")):
+            if md_file.name in ("index.md", "pending-context.md", "context-removals.json"):
+                continue
+            text = md_file.read_text()
+            lines = text.strip().split("\n")
+            title = lines[0].replace("#", "").strip() if lines else md_file.stem
+            total_lines = len(lines)
+
+            # Find AI-added items (lines with "— Source:" attribution)
+            ai_items = [l.strip() for l in lines if "— Source:" in l and l.strip().startswith("-")]
+
+            items_html = ""
+            if ai_items and editable:
+                for ai_idx, ai_line in enumerate(ai_items):
+                    clean = ai_line.lstrip("- ").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    file_rel = f"{cat_key}/{md_file.name}"
+                    escaped_text = ai_line.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "")
+                    items_html += (
+                        f'<div class="cm-ai-item" id="cm-{cat_key}-{md_file.stem}-{ai_idx}">'
+                        f'<span class="cm-ai-text">{clean}</span>'
+                        f'<button class="cm-remove-btn" onclick="cmRemove(\'{file_rel}\',\'{escaped_text}\',\'cm-{cat_key}-{md_file.stem}-{ai_idx}\')">'
+                        f'✕ Remove</button>'
+                        f'</div>\n'
+                    )
+            elif ai_items:
+                for ai_line in ai_items:
+                    clean = ai_line.lstrip("- ").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    items_html += f'<div class="cm-ai-item"><span class="cm-ai-text">{clean}</span></div>\n'
+
+            ai_count = f' <span class="cm-ai-count">{len(ai_items)} AI-learned</span>' if ai_items else ""
+
+            files_html += (
+                f'<div class="cm-file">'
+                f'<div class="cm-file-header">'
+                f'<span class="cm-file-icon">📄</span> '
+                f'<span class="cm-file-name">{md_file.name}</span>'
+                f'<span class="cm-file-meta">{total_lines} lines{ai_count}</span>'
+                f'</div>\n'
+                f'<div class="cm-file-title">{title}</div>\n'
+                f'{items_html}'
+                f'</div>\n'
+            )
+
+        edit_note = "" if editable else ' <span class="cm-readonly">(read-only)</span>'
+        sections_html += (
+            f'<div class="cm-category">'
+            f'<h2 class="cm-cat-header">{cat_label}{edit_note}</h2>'
+            f'<p class="cm-cat-desc">{cat_desc}</p>'
+            f'{files_html}'
+            f'</div>\n'
+        )
+
+    return f"""<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Context Manager — Trading Covered</title>
+<link rel="icon" type="image/png" href="https://dmy0b9oeprz0f.cloudfront.net/holidayextras.co.uk/brand-guidelines/logo-tags/png/better-future.png">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>{cm_css}</style>
+</head><body>
+<div class="cm-container">
+
+<div class="cm-warning">
+⚠ Context shown here is used by Trading Covered to understand the business. Changes affect all future briefings.
+</div>
+
+<div class="cm-header">
+<h1>Context Manager</h1>
+<p class="cm-subtitle">AI-learned context from Google Drive, meetings, and manual entries</p>
+<a href="latest.html" class="cm-back-link">← Back to briefing</a>
+</div>
+
+{sections_html}
+
+<div class="cm-add-section">
+<h2>➕ Add Context</h2>
+<p class="cm-add-desc">Add something you know that the AI should learn. It will be reformatted and categorised automatically.</p>
+<div class="cm-add-form">
+<textarea id="cmAddText" class="cm-add-input" rows="3" placeholder="e.g. We just signed On the Beach as a partner, worth about 150k a year in insurance referrals"></textarea>
+<div class="cm-add-row">
+<input type="password" id="cmAddPassword" class="cm-add-password" placeholder="Verification password">
+<button class="cm-add-btn" onclick="cmAddContext()">Add Context</button>
+</div>
+</div>
+</div>
+
+<div class="cm-footer">
+If you need to remove any of this context please speak to a member of commercial finance.
+</div>
+
+</div>
+
+<script>
+var __apiBase=location.hostname.includes('staging')?'https://trading-covered.pages.dev':'';
+
+function cmRemove(filedTo,filedText,elId){{
+  var pwd=prompt('Enter verification password to remove this context:');
+  if(!pwd)return;
+  fetch(__apiBase+'/api/verify',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{
+      finding_id:'context:'+elId,
+      action:'remove_context',
+      date:new Date().toISOString().split('T')[0],
+      password:pwd,
+      note:JSON.stringify({{filed_to:filedTo,filed_text:filedText}})
+    }})
+  }}).then(function(r){{return r.json()}}).then(function(d){{
+    if(d.error){{alert('Error: '+d.error);return;}}
+    var el=document.getElementById(elId);
+    if(el){{el.style.opacity='0.3';el.style.textDecoration='line-through';}}
+  }}).catch(function(e){{alert('Remove failed: '+e);}});
+}}
+
+function cmAddContext(){{
+  var text=document.getElementById('cmAddText').value.trim();
+  var pwd=document.getElementById('cmAddPassword').value;
+  if(!text){{alert('Please enter some context');return;}}
+  if(!pwd){{alert('Password required');return;}}
+  document.querySelector('.cm-add-btn').textContent='Adding...';
+  fetch(__apiBase+'/api/verify',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{
+      finding_id:'manual:'+Date.now(),
+      action:'add_context',
+      date:new Date().toISOString().split('T')[0],
+      password:pwd,
+      note:text
+    }})
+  }}).then(function(r){{return r.json()}}).then(function(d){{
+    document.querySelector('.cm-add-btn').textContent='Add Context';
+    if(d.error){{alert('Error: '+d.error);return;}}
+    document.getElementById('cmAddText').value='';
+    document.getElementById('cmAddPassword').value='';
+    alert('Context added! It will be reformatted by AI and appear in the next briefing run.');
+  }}).catch(function(e){{
+    document.querySelector('.cm-add-btn').textContent='Add Context';
+    alert('Failed: '+e);
+  }});
+}}
 </script>
 </body></html>"""
 
@@ -3628,6 +3834,14 @@ def main():
 
     # Generate archive index for the archive viewer
     _generate_archive_index(briefings_dir)
+
+    # Generate context manager page
+    try:
+        cm_html = generate_context_manager_html()
+        Path(f"{briefings_dir}/context-manager.html").write_text(cm_html)
+        print(f"   📋 Context manager: {briefings_dir}/context-manager.html")
+    except Exception as e:
+        print(f"   ⚠ Context manager generation failed (non-fatal): {e}")
 
     # Open in Arc (skip in CI)
     if not os.environ.get("CI"):
