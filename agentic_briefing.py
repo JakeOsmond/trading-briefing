@@ -939,7 +939,7 @@ Rules:
 - GOOD: "On the Beach partnership worth approximately £150k/year"
 - GOOD: "Carnival cruise traffic down 20% week on week"
 - If the doc is a raw data dump (CSV of numbers with no narrative), or sensitive (names, salaries), return {"facts": [], "skip_reason": "raw data / sensitive"}
-- Max 5 facts per document. Only the most useful ones.
+- Extract ALL useful facts — no limit. Be thorough.
 - Each fact should be a single sentence a trading analyst would find valuable."""
 
     classify_prompt = """Classify this fact for a trading briefing context system. Return JSON only.
@@ -959,7 +959,7 @@ SKIP = not useful for trading analysis"""
             # Stage 1: Extract facts
             extract_resp = client_oai.chat.completions.create(
                 model=MODEL,
-                max_completion_tokens=500,
+                max_completion_tokens=2000,
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": extract_prompt},
@@ -978,7 +978,7 @@ SKIP = not useful for trading analysis"""
             print(f"    📄 {item['source']}: {len(facts)} facts extracted")
 
             # Stage 2: Classify each fact
-            for fact in facts[:5]:
+            for fact in facts:
                 try:
                     cls_resp = client_oai.chat.completions.create(
                         model=LIGHTWEIGHT_MODEL,
@@ -1050,6 +1050,41 @@ Be conservative: if unsure, choose TEMPORARY over PERMANENT."""
     permanent = [i for i in verified_items if i.get("classification") == "PERMANENT"]
     skipped = [i for i in verified_items if i.get("classification") == "SKIP"]
     print(f"  📋 Result: {len(temporary)} temporary, {len(permanent)} permanent, {len(skipped)} skipped")
+
+    # 5b. Write temporary facts to temporary-context.md with expiry dates
+    if temporary:
+        context_dir_tmp = Path(__file__).parent / "context" / "operational"
+        temp_path = context_dir_tmp / "temporary-context.md"
+        today_iso = run_date.isoformat()
+        expiry_iso = (run_date + timedelta(days=7)).isoformat()
+
+        # First, prune expired entries from the file
+        if temp_path.exists():
+            lines = temp_path.read_text().strip().split("\n")
+            kept = [lines[0]] if lines else ["# Temporary Context — Auto-Expires After 7 Days"]  # keep header
+            for line in lines[1:]:
+                if "expires:" in line:
+                    try:
+                        exp_date = line.split("expires:")[1].strip().rstrip(")")
+                        if exp_date >= today_iso:
+                            kept.append(line)
+                        else:
+                            print(f"  🗑 Expired: {line[:60]}")
+                    except Exception:
+                        kept.append(line)
+                elif line.strip():
+                    kept.append(line)
+            temp_path.write_text("\n".join(kept) + "\n")
+        else:
+            temp_path.write_text("# Temporary Context — Auto-Expires After 7 Days\n\n_Facts below are used in briefings but expire automatically. Do not edit manually._\n\n")
+
+        # Append new temporary facts
+        with open(temp_path, "a") as f:
+            for item in temporary:
+                fact = item.get("summary", "").replace("\n", " ")
+                source = item.get("source", "")
+                f.write(f"- {fact} — Source: {source}, {today_iso} (expires: {expiry_iso})\n")
+        print(f"  📝 {len(temporary)} temporary facts written to temporary-context.md (expire {expiry_iso})")
 
     # 6. Dedup + auto-file permanent items into the correct context file
     if permanent:
