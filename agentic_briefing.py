@@ -923,61 +923,90 @@ def run_context_refresh(run_date):
         print("  ℹ No new context found")
         return {"temporary": [], "permanent": [], "section_html": ""}
 
-    # 3. GPT classifies each item individually (one call per doc — more reliable)
-    print(f"  🧠 Classifying {len(items)} items individually (GPT)...")
-    classify_prompt = """Classify this document for a daily trading briefing. Return JSON only.
+    # 3. Two-stage: EXTRACT facts from each doc, then CLASSIFY each fact
+    print(f"  🧠 Stage 1: Extracting facts from {len(items)} items (GPT)...")
 
-{"summary": "<what changed, max 100 chars>", "classification": "<PERMANENT|TEMPORARY|SKIP>", "reasoning": "<why, max 50 chars>"}
+    extract_prompt = """You are reading a document related to HX insurance trading.
+Extract SPECIFIC, CONCRETE facts that would help an AI analyse insurance trading data better.
 
-PERMANENT = new product, new partner, business rule, structural change
-TEMPORARY = price change, promotion, weekly metric, data export
-SKIP = sensitive data, raw dumps, uninterpretable content"""
+Return JSON: {"facts": ["fact 1", "fact 2", ...], "skip_reason": null}
+
+Rules:
+- Extract actual numbers, thresholds, rules, names, rates, dates — NOT descriptions of what the doc is
+- BAD: "UW rules have been updated" — this tells us nothing useful
+- GOOD: "Max age limit for single trip policies is 85 years"
+- GOOD: "Gadget attachment rate reached 10.9% in February, up from 3-4% last year"
+- GOOD: "On the Beach partnership worth approximately £150k/year"
+- GOOD: "Carnival cruise traffic down 20% week on week"
+- If the doc is a raw data dump (CSV of numbers with no narrative), or sensitive (names, salaries), return {"facts": [], "skip_reason": "raw data / sensitive"}
+- Max 5 facts per document. Only the most useful ones.
+- Each fact should be a single sentence a trading analyst would find valuable."""
+
+    classify_prompt = """Classify this fact for a trading briefing context system. Return JSON only.
+
+{"classification": "<PERMANENT|TEMPORARY|SKIP>", "reasoning": "<why, max 30 chars>"}
+
+PERMANENT = structural rule, product change, new partner, threshold, business logic that won't change week to week
+TEMPORARY = this week's metric, current promotion, recent price change, market condition that will evolve
+SKIP = not useful for trading analysis"""
 
     client_oai = openai.OpenAI(api_key=OPENAI_API_KEY)
     gpt_items = []
+
     for item in items:
         try:
-            item_text = f"Source: {item['source']}\nModified by: {item['modified_by']}\nDate: {item['modified']}\nContent:\n{item['content_preview'][:1500]}"
-            resp = client_oai.chat.completions.create(
+            item_text = f"Source: {item['source']}\nContent:\n{item['content_preview'][:3000]}"
+            # Stage 1: Extract facts
+            extract_resp = client_oai.chat.completions.create(
                 model=MODEL,
-                max_completion_tokens=200,
+                max_completion_tokens=500,
                 response_format={"type": "json_object"},
                 messages=[
-                    {"role": "system", "content": classify_prompt},
+                    {"role": "system", "content": extract_prompt},
                     {"role": "user", "content": item_text},
                 ],
             )
-            raw = resp.choices[0].message.content
-            parsed = _parse_llm_json(raw)
-            if isinstance(parsed, dict) and "classification" in parsed:
-                parsed["source"] = item["source"]
-                cls = parsed["classification"]
-                print(f"    {cls}: {parsed.get('summary', '')[:60]}")
-                gpt_items.append(parsed)
-            elif isinstance(parsed, list) and parsed:
-                parsed[0]["source"] = item["source"]
-                gpt_items.append(parsed[0])
-            else:
-                # Fallback: try to extract classification from raw text
-                raw_upper = raw.upper()
-                cls = "SKIP"
-                if "PERMANENT" in raw_upper:
-                    cls = "PERMANENT"
-                elif "TEMPORARY" in raw_upper:
-                    cls = "TEMPORARY"
-                summary = raw.split("\n")[0][:100].strip('" {}')
-                if cls != "SKIP":
-                    gpt_items.append({"summary": summary, "classification": cls, "source": item["source"], "reasoning": "parsed from text"})
-                    print(f"    {cls} (text fallback): {summary[:60]}")
-                else:
-                    print(f"    SKIP (unparseable): {item['source']}")
-        except Exception as e:
-            print(f"    ⚠ Classification failed for {item['source']}: {e}")
+            extract_raw = extract_resp.choices[0].message.content
+            extracted = _parse_llm_json(extract_raw)
+            facts = extracted.get("facts", []) if isinstance(extracted, dict) else []
+            skip = extracted.get("skip_reason") if isinstance(extracted, dict) else None
 
-    print(f"  📝 GPT classified {len(gpt_items)}/{len(items)} items")
+            if skip or not facts:
+                print(f"    ⏭ {item['source']}: {skip or 'no extractable facts'}")
+                continue
+
+            print(f"    📄 {item['source']}: {len(facts)} facts extracted")
+
+            # Stage 2: Classify each fact
+            for fact in facts[:5]:
+                try:
+                    cls_resp = client_oai.chat.completions.create(
+                        model=LIGHTWEIGHT_MODEL,
+                        max_completion_tokens=100,
+                        response_format={"type": "json_object"},
+                        messages=[
+                            {"role": "system", "content": classify_prompt},
+                            {"role": "user", "content": fact},
+                        ],
+                    )
+                    cls_parsed = _parse_llm_json(cls_resp.choices[0].message.content)
+                    cls = cls_parsed.get("classification", "TEMPORARY") if isinstance(cls_parsed, dict) else "TEMPORARY"
+                    gpt_items.append({
+                        "summary": fact,
+                        "classification": cls,
+                        "source": item["source"],
+                        "reasoning": cls_parsed.get("reasoning", "") if isinstance(cls_parsed, dict) else "",
+                    })
+                    print(f"      {cls}: {fact[:70]}")
+                except Exception as e:
+                    print(f"      ⚠ Classify failed for fact: {e}")
+        except Exception as e:
+            print(f"    ⚠ Extraction failed for {item['source']}: {e}")
+
+    print(f"  📝 Extracted and classified {len(gpt_items)} facts from {len(items)} docs")
 
     if not gpt_items:
-        print("  ℹ No classifiable items")
+        print("  ℹ No useful facts extracted")
         return {"temporary": [], "permanent": [], "section_html": ""}
 
     # 4. Claude verifies the classifications (batch — summaries only)
@@ -1115,31 +1144,33 @@ Return ONLY valid JSON array."""
 
         permanent = new_permanent
 
-    # 7. Build HTML section with remove buttons on permanent items
+    # 7. Build collapsible HTML section — shows ALL facts learned
     display_items = temporary + permanent
     if not display_items:
         return {"temporary": temporary, "permanent": permanent, "section_html": ""}
 
+    perm_count = len(permanent)
+    temp_count = len(temporary)
+
     html_items = []
-    for idx, item in enumerate(display_items[:5]):
+    for idx, item in enumerate(display_items):
         cls = item.get("classification", "TEMPORARY")
         badge_cls = "context-badge-temp" if cls == "TEMPORARY" else "context-badge-perm"
-        badge_text = "This week" if cls == "TEMPORARY" else "New context"
-        summary = (item.get("summary", "Unknown update")
+        badge_text = "This week" if cls == "TEMPORARY" else "Learned"
+        summary = (item.get("summary", "Unknown")
                    .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                    .replace('"', "&quot;").replace("'", "&#39;"))
         source = (item.get("source", "")
                   .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
 
         remove_btn = ""
-        if cls == "PERMANENT":
-            filed_to = item.get("_filed_to", "").replace("'", "\\'")
-            filed_text = (item.get("_filed_text", "")
-                          .replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n"))
+        if cls == "PERMANENT" and item.get("_filed_to"):
+            filed_to = item.get("_filed_to", "").replace("'", "")
+            filed_text = item.get("_filed_text", "").replace("'", "").replace("\n", " ")
             ctx_id = f"ctx-{idx}"
             remove_btn = (
                 f' <button class="context-remove-btn" '
-                f'onclick="removeContext(\'{ctx_id}\',\'{filed_to}\',\'{filed_text}\')"'
+                f'onclick="removeContext(&quot;{ctx_id}&quot;,&quot;{filed_to}&quot;,&quot;{filed_text[:200]}&quot;)"'
                 f'>✕ Remove</button>'
             )
 
@@ -1151,12 +1182,25 @@ Return ONLY valid JSON array."""
             f'</div>'
         )
 
+    subtitle = []
+    if perm_count:
+        subtitle.append(f"{perm_count} new fact{'s' if perm_count != 1 else ''} learned")
+    if temp_count:
+        subtitle.append(f"{temp_count} temporary insight{'s' if temp_count != 1 else ''}")
+    subtitle_text = " &middot; ".join(subtitle)
+
     section_html = (
         '<div class="section-gap" data-animate="reveal">\n'
-        '<div class="section-title">Context Update</div>\n'
+        '<div class="section-title">What Trading Covered Learned Today</div>\n'
         '<div class="context-update glass-card">\n'
+        f'<p class="context-intro">This tool continuously reads your Google Drive and team documents to stay up to date. '
+        f'Here is what it picked up today. <strong>{subtitle_text}.</strong></p>\n'
+        f'<button class="trail-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span\').textContent=this.nextElementSibling.style.display===\'none\'?\'Show\':\'Hide\'">'
+        f'<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+        f' <span>Show</span> what was learned</button>\n'
+        f'<div class="context-items-body" style="display:none">\n'
         + "\n".join(html_items)
-        + '\n</div>\n</div>\n'
+        + '\n</div>\n</div>\n</div>\n'
     )
 
     return {"temporary": temporary, "permanent": permanent, "section_html": section_html}

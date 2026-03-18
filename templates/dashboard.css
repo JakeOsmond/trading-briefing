@@ -1349,8 +1349,11 @@ table.ai-table tr:hover td{background:rgba(51,65,85,0.3);}
   padding:2px 8px;border-radius:10px;margin-right:8px;
   background:rgba(0,176,166,0.12);color:#5FFFF0;border:1px solid rgba(0,176,166,0.3);
 }
+.context-intro{color:rgba(255,255,255,0.5);font-size:12px;margin-bottom:10px}
+.context-intro strong{color:rgba(255,255,255,0.7)}
+.context-items-body{margin-top:12px}
 .context-source{
-  display:block;font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;
+  display:block;font-size:10px;color:rgba(255,255,255,0.25);margin-top:3px;font-style:italic;
 }
 .context-remove-btn{
   background:none;border:1px solid rgba(255,95,104,0.3);color:#FF8A91;
