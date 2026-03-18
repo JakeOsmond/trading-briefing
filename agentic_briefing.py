@@ -1074,13 +1074,25 @@ Be conservative: if unsure, choose TEMPORARY.
         else:
             temp_path.write_text("# Temporary Context — Auto-Expires After 7 Days\n\n_Facts below are used in briefings but expire automatically. Do not edit manually._\n\n")
 
-        # Append new temporary facts
-        with open(temp_path, "a") as f:
-            for item in temporary:
-                fact = item.get("summary", "").replace("\n", " ")
-                source = item.get("source", "")
-                f.write(f"- {fact} — Source: {source}, {today_iso} (expires: {expiry_iso})\n")
-        print(f"  📝 {len(temporary)} temporary facts written to temporary-context.md (expire {expiry_iso})")
+        # Dedup temporary facts against existing temp file
+        existing_temp = temp_path.read_text().lower() if temp_path.exists() else ""
+        new_temp = []
+        for item in temporary:
+            fact = item.get("summary", "").replace("\n", " ")
+            key_words = [w for w in fact.lower().split() if len(w) > 4]
+            matches = sum(1 for w in key_words if w in existing_temp)
+            if matches / max(len(key_words), 1) > 0.7:
+                continue  # already exists
+            new_temp.append(item)
+
+        if new_temp:
+            with open(temp_path, "a") as f:
+                for item in new_temp:
+                    fact = item.get("summary", "").replace("\n", " ")
+                    source = item.get("source", "")
+                    f.write(f"- {fact} — Source: {source}, {today_iso} (expires: {expiry_iso})\n")
+        print(f"  📝 {len(new_temp)} new temporary facts written ({len(temporary) - len(new_temp)} already in temp file)")
+        temporary = new_temp
 
     # 6. Dedup + auto-file permanent items into the correct context file
     if permanent:
@@ -1175,63 +1187,84 @@ Return ONLY valid JSON array."""
 
         permanent = new_permanent
 
-    # 7. Build collapsible HTML section — shows ALL facts learned
-    display_items = temporary + permanent
-    if not display_items:
+    # 7. Build collapsible HTML section — permanent on top, temporary below, both expandable
+    if not temporary and not permanent:
         return {"temporary": temporary, "permanent": permanent, "section_html": ""}
+
+    def _escape(s):
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&#39;")
+
+    def _build_items(items, badge_cls, badge_text, start_idx=0):
+        html = ""
+        for i, item in enumerate(items):
+            idx = start_idx + i
+            summary = _escape(item.get("summary", "Unknown"))
+            source = _escape(item.get("source", ""))
+            remove_btn = ""
+            if item.get("_filed_to"):
+                filed_to = item.get("_filed_to", "").replace("'", "").replace('"', "")
+                filed_text = item.get("_filed_text", "").replace("'", "").replace('"', "").replace("\n", " ")[:200]
+                remove_btn = (
+                    f' <button class="context-remove-btn" '
+                    f'onclick="removeContext(&quot;ctx-{idx}&quot;,&quot;{filed_to}&quot;,&quot;{filed_text}&quot;)"'
+                    f'>✕ Remove</button>'
+                )
+            html += (
+                f'<div class="context-item" id="ctx-{idx}">'
+                f'<span class="{badge_cls}">{badge_text}</span> '
+                f'{summary}{remove_btn}'
+                f'<span class="context-source">{source}</span>'
+                f'</div>\n'
+            )
+        return html
 
     perm_count = len(permanent)
     temp_count = len(temporary)
-
-    html_items = []
-    for idx, item in enumerate(display_items):
-        cls = item.get("classification", "TEMPORARY")
-        badge_cls = "context-badge-temp" if cls == "TEMPORARY" else "context-badge-perm"
-        badge_text = "This week" if cls == "TEMPORARY" else "Learned"
-        summary = (item.get("summary", "Unknown")
-                   .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                   .replace('"', "&quot;").replace("'", "&#39;"))
-        source = (item.get("source", "")
-                  .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
-
-        remove_btn = ""
-        if cls == "PERMANENT" and item.get("_filed_to"):
-            filed_to = item.get("_filed_to", "").replace("'", "")
-            filed_text = item.get("_filed_text", "").replace("'", "").replace("\n", " ")
-            ctx_id = f"ctx-{idx}"
-            remove_btn = (
-                f' <button class="context-remove-btn" '
-                f'onclick="removeContext(&quot;{ctx_id}&quot;,&quot;{filed_to}&quot;,&quot;{filed_text[:200]}&quot;)"'
-                f'>✕ Remove</button>'
-            )
-
-        html_items.append(
-            f'<div class="context-item" id="ctx-{idx}">'
-            f'<span class="{badge_cls}">{badge_text}</span> '
-            f'{summary}{remove_btn}'
-            f'<span class="context-source">{source}</span>'
-            f'</div>'
-        )
-
     subtitle = []
     if perm_count:
-        subtitle.append(f"{perm_count} new fact{'s' if perm_count != 1 else ''} learned")
+        subtitle.append(f"{perm_count} new fact{'s' if perm_count != 1 else ''} stored permanently")
     if temp_count:
-        subtitle.append(f"{temp_count} temporary insight{'s' if temp_count != 1 else ''}")
+        subtitle.append(f"{temp_count} temporary insight{'s' if temp_count != 1 else ''} (7-day expiry)")
     subtitle_text = " &middot; ".join(subtitle)
+
+    # Build permanent subsection
+    perm_html = ""
+    if permanent:
+        perm_items = _build_items(permanent, "context-badge-perm", "Learned", 0)
+        perm_html = (
+            f'<div class="context-subsection">'
+            f'<div class="context-sub-header" onclick="var b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">'
+            f'<strong>Permanently learned ({perm_count})</strong> — stored in context files'
+            f'<span class="context-sub-toggle">&#9660;</span></div>'
+            f'<div class="context-sub-body">{perm_items}</div>'
+            f'</div>\n'
+        )
+
+    # Build temporary subsection
+    temp_html = ""
+    if temporary:
+        temp_items = _build_items(temporary, "context-badge-temp", "This week", perm_count)
+        temp_html = (
+            f'<div class="context-subsection">'
+            f'<div class="context-sub-header" onclick="var b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">'
+            f'<strong>This week ({temp_count})</strong> — temporary, expires in 7 days'
+            f'<span class="context-sub-toggle">&#9660;</span></div>'
+            f'<div class="context-sub-body" style="display:none">{temp_items}</div>'
+            f'</div>\n'
+        )
 
     section_html = (
         '<div class="section-gap" data-animate="reveal">\n'
         '<div class="section-title">What Trading Covered Learned Today</div>\n'
         '<div class="context-update glass-card">\n'
         f'<p class="context-intro">This tool continuously reads your Google Drive and team documents to stay up to date. '
-        f'Here is what it picked up today. <strong>{subtitle_text}.</strong></p>\n'
+        f'<strong>{subtitle_text}.</strong></p>\n'
         f'<button class="trail-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span\').textContent=this.nextElementSibling.style.display===\'none\'?\'Show\':\'Hide\'">'
         f'<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
         f' <span>Show</span> what was learned</button>\n'
         f'<div class="context-items-body" style="display:none">\n'
-        + "\n".join(html_items)
-        + '\n</div>\n</div>\n</div>\n'
+        f'{perm_html}{temp_html}'
+        f'</div>\n</div>\n</div>\n'
     )
 
     return {"temporary": temporary, "permanent": permanent, "section_html": section_html}
