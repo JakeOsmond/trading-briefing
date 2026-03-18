@@ -568,7 +568,7 @@ def tool_scan_drive(keywords: str, days_back: int = 14) -> str:
         return f"Drive error: {e}"
 
 
-def tool_read_drive_doc(file_id: str, max_chars: int = 2000) -> str:
+def tool_read_drive_doc(file_id: str, max_chars: int = 20000) -> str:
     """Read the text content of a Google Drive document (Doc, Sheet, or text file)."""
     import io
     from googleapiclient.http import MediaIoBaseDownload
@@ -3711,12 +3711,12 @@ function cmAddContext(){{
     /* Show the added item immediately with a remove button */
     __addCounter++;
     var itemId='cm-manual-'+__addCounter;
-    var safeText=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    var escapedText=text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var safeText=text.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
+    var escapedText=text.split("'").join("_");
     var itemHtml='<div class="cm-ai-item" id="'+itemId+'">'
       +'<span class="cm-ai-text">'+safeText
       +' <em style="opacity:0.5">(pending AI reformat — next pipeline run)</em></span>'
-      +'<button class="cm-remove-btn" onclick="cmRemoveManual(\''+addId+'\',\''+itemId+'\')">✕ Remove</button>'
+      +'<button class="cm-remove-btn" onclick="cmRemoveManual(&quot;'+addId+'&quot;,&quot;'+itemId+'&quot;)">✕ Remove</button>'
       +'</div>';
     var addSection=document.querySelector('.cm-add-section');
     addSection.insertAdjacentHTML('beforebegin',
