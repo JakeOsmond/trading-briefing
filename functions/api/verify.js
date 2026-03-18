@@ -159,7 +159,8 @@ export async function onRequest(context) {
 
     // Delete a pending add — removes the context_add: KV entry before pipeline processes it
     if (action === "delete_pending_add") {
-      const addKey = `context_add:${finding_id}`;
+      // finding_id may already include the prefix (from KV list), or not (from client-side add)
+      const addKey = finding_id.startsWith("context_add:") ? finding_id : `context_add:${finding_id}`;
       await env.VERIFICATION_KV.delete(addKey);
       return Response.json({ success: true, action: "pending_add_deleted", key: addKey }, { headers: corsHeaders });
     }
