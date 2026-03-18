@@ -929,7 +929,10 @@ Rules:
 - GOOD: "Gadget attachment rate reached 10.9% in February, up from 3-4% last year"
 - GOOD: "On the Beach partnership worth approximately £150k/year"
 - GOOD: "Carnival cruise traffic down 20% week on week"
-- If the doc is a raw data dump (CSV of numbers with no narrative), or sensitive (names, salaries), return {"facts": [], "skip_reason": "raw data / sensitive"}
+- If the doc contains ONLY raw numbers in a CSV/table with no narrative or context, return {"facts": [], "skip_reason": "raw data with no narrative"}
+- If the doc contains personal data (individual names, salaries, addresses), return {"facts": [], "skip_reason": "sensitive personal data"}
+- NEVER skip documents about market events, travel events, pricing changes, competitor activity, or trading performance — these are core trading context
+- Travel Events Log entries are NOT sensitive — they describe external market events (strikes, holidays, geopolitical events). Always extract facts from these.
 - Extract ALL useful facts — no limit. Be thorough.
 - Each fact should be a single sentence a trading analyst would find valuable."""
 
