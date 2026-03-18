@@ -3796,6 +3796,19 @@ If you need to remove any of this context please speak to a member of commercial
 
 <script>
 var __apiBase=location.hostname.includes('staging')?'https://trading-covered.pages.dev':'';
+var __cmSession=null;
+function _ensureAuth(){{
+  if(__cmSession)return Promise.resolve({{session_token:__cmSession}});
+  var pwd=prompt('Enter verification password:');
+  if(!pwd)return Promise.resolve(null);
+  return fetch(__apiBase+'/api/verify',{{
+    method:'POST',headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{action:'auth',password:pwd}})
+  }}).then(function(r){{return r.json()}}).then(function(d){{
+    if(d.session_token){{__cmSession=d.session_token;return {{session_token:d.session_token}};}}
+    return {{password:pwd}};
+  }}).catch(function(){{return {{password:pwd}};}});
+}}
 
 function cmRemove(filedTo,filedText,elId){{
   var pwd=prompt('Enter verification password to remove this context:');
@@ -3873,21 +3886,23 @@ function cmAddContext(){{
 }}
 
 function cmRemoveManual(addId,elId){{
-  /* Remove a just-added item — deletes from KV before pipeline processes it */
-  fetch(__apiBase+'/api/verify',{{
-    method:'POST',
-    headers:{{'Content-Type':'application/json'}},
-    body:JSON.stringify({{
+  /* Remove a pending add — needs auth, then deletes the context_add: KV entry */
+  _ensureAuth().then(function(auth){{
+    if(!auth)return;
+    var payload=Object.assign({{
       finding_id:addId,
-      action:'remove_context',
-      date:new Date().toISOString().split('T')[0],
-      password:'skip',
-      note:JSON.stringify({{filed_to:'_pending_add',filed_text:addId}})
-    }})
-  }}).then(function(r){{return r.json()}}).then(function(d){{
-    var el=document.getElementById(elId);
-    if(el)el.parentElement.remove();
-  }}).catch(function(e){{alert('Remove failed: '+e);}});
+      action:'delete_pending_add',
+      date:new Date().toISOString().split('T')[0]
+    }},auth);
+    fetch(__apiBase+'/api/verify',{{
+      method:'POST',
+      headers:{{'Content-Type':'application/json'}},
+      body:JSON.stringify(payload)
+    }}).then(function(r){{return r.json()}}).then(function(d){{
+      var el=document.getElementById(elId);
+      if(el)el.parentElement.remove();
+    }}).catch(function(e){{alert('Remove failed: '+e);}});
+  }});
 }}
 
 /* Load pending context from KV on page load — visible to everyone */

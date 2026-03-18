@@ -101,7 +101,7 @@ export async function onRequest(context) {
     }
 
     // Validate action
-    if (!["verify", "remove", "revert", "remove_context", "add_context"].includes(action)) {
+    if (!["verify", "remove", "revert", "remove_context", "add_context", "delete_pending_add"].includes(action)) {
       return Response.json({ error: "Invalid action" }, { status: 400, headers: corsHeaders });
     }
 
@@ -155,6 +155,13 @@ export async function onRequest(context) {
       };
       await env.VERIFICATION_KV.put(addKey, JSON.stringify(addValue), { expirationTtl: 30 * 24 * 60 * 60 });
       return Response.json({ success: true, action: "context_add_queued", key: addKey }, { headers: corsHeaders });
+    }
+
+    // Delete a pending add — removes the context_add: KV entry before pipeline processes it
+    if (action === "delete_pending_add") {
+      const addKey = `context_add:${finding_id}`;
+      await env.VERIFICATION_KV.delete(addKey);
+      return Response.json({ success: true, action: "pending_add_deleted", key: addKey }, { headers: corsHeaders });
     }
 
     // Verify or remove — write to KV
