@@ -22,19 +22,38 @@ export async function onRequest(context) {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  // GET — fetch all verification overrides for a date
+  // GET — fetch verification overrides or pending context
   if (request.method === "GET") {
     const url = new URL(request.url);
+
+    if (!env.VERIFICATION_KV) {
+      return Response.json({ findings: {}, pending_adds: [], pending_removals: [] }, { headers: corsHeaders });
+    }
+
+    // Pending context — list all pending adds and removals
+    const type = url.searchParams.get("type");
+    if (type === "pending_context") {
+      const adds = [];
+      const removals = [];
+      const addList = await env.VERIFICATION_KV.list({ prefix: "context_add:" });
+      for (const key of addList.keys) {
+        const value = await env.VERIFICATION_KV.get(key.name, { type: "json" });
+        if (value) adds.push({ id: key.name, ...value });
+      }
+      const rmList = await env.VERIFICATION_KV.list({ prefix: "context_removal:" });
+      for (const key of rmList.keys) {
+        const value = await env.VERIFICATION_KV.get(key.name, { type: "json" });
+        if (value) removals.push({ id: key.name, ...value });
+      }
+      return Response.json({ pending_adds: adds, pending_removals: removals }, { headers: corsHeaders });
+    }
+
+    // Standard verification overrides for a date
     const date = url.searchParams.get("date");
     if (!date) {
       return Response.json({ error: "Missing date parameter" }, { status: 400, headers: corsHeaders });
     }
 
-    if (!env.VERIFICATION_KV) {
-      return Response.json({ findings: {} }, { headers: corsHeaders });
-    }
-
-    // List all keys for this date
     const prefix = `verification:${date}:`;
     const list = await env.VERIFICATION_KV.list({ prefix });
     const findings = {};

@@ -972,35 +972,37 @@ Return ONLY valid JSON object. No explanation."""
         print("  ℹ No classifiable items")
         return {"temporary": [], "permanent": [], "section_html": ""}
 
-    # 4. Claude verifies the classifications
+    # 4. Claude verifies the classifications (batch — summaries only)
     print(f"  🔍 Cross-verifying {len(gpt_items)} classifications (Claude)...")
     try:
+        # Build compact summary for Claude (just summary + classification, not full content)
+        compact_items = [{"summary": i.get("summary", ""), "classification": i.get("classification", ""), "source": i.get("source", "")} for i in gpt_items]
         client_ant = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         verify_resp = client_ant.messages.create(
             model=VERIFY_MODEL,
-            max_tokens=2000,
+            max_tokens=4000,
             messages=[{
                 "role": "user",
-                "content": f"""Review these context classifications for a trading briefing.
-GPT classified these items from Google Drive and the Travel Events Log.
+                "content": f"""Review these context classifications for a daily trading briefing.
 
-GPT's classifications:
-{json.dumps(gpt_items, indent=2)}
+GPT classified {len(compact_items)} items:
+{json.dumps(compact_items, indent=2)}
 
-Original content summaries:
-{items_text[:3000]}
-
-For each item, confirm the classification or override it.
-Return ONLY a JSON array with the same structure. If you agree, keep it as-is.
-If you disagree, change the classification and update reasoning to explain why.
-Be conservative: if unsure between PERMANENT and TEMPORARY, choose TEMPORARY.
-If unsure whether to SKIP, err on the side of including it as TEMPORARY."""
+For each item, confirm or override the classification.
+Return ONLY a JSON array with the same structure (summary, classification, source).
+Rules: PERMANENT = structural changes. TEMPORARY = short-term. SKIP = sensitive/irrelevant.
+Be conservative: if unsure, choose TEMPORARY over PERMANENT."""
             }],
         )
         claude_raw = verify_resp.content[0].text
         verified_items = _parse_llm_json(claude_raw)
         if not isinstance(verified_items, list):
             verified_items = verified_items.get("items", []) if isinstance(verified_items, dict) else gpt_items
+        # Merge Claude's classifications back onto the GPT items (which have full data)
+        if len(verified_items) == len(gpt_items):
+            for vi, gi in zip(verified_items, gpt_items):
+                gi["classification"] = vi.get("classification", gi.get("classification"))
+            verified_items = gpt_items
         print(f"  ✓ Claude verified {len(verified_items)} items")
     except Exception as e:
         print(f"  ⚠ Claude verification failed, using GPT classifications: {e}")
@@ -3771,6 +3773,35 @@ function cmRemoveManual(addId,elId){{
     if(el)el.parentElement.remove();
   }}).catch(function(e){{alert('Remove failed: '+e);}});
 }}
+
+/* Load pending context from KV on page load — visible to everyone */
+(function loadPendingContext(){{
+  fetch(__apiBase+'/api/verify?type=pending_context')
+    .then(function(r){{return r.json()}})
+    .then(function(d){{
+      var adds=d.pending_adds||[];
+      if(!adds.length)return;
+      var addSection=document.querySelector('.cm-add-section');
+      if(!addSection)return;
+      adds.forEach(function(item,i){{
+        var safeText=(item.raw_text||'').split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
+        var addId=item.id||('pending-'+i);
+        var itemId='cm-pending-'+i;
+        var by=item.added_by||'user';
+        var when=item.timestamp?new Date(item.timestamp).toLocaleDateString():'';
+        var html='<div class="cm-file" style="border-color:rgba(253,220,6,0.3)">'
+          +'<div class="cm-file-header"><span class="cm-file-icon">⏳</span> '
+          +'<span class="cm-file-name">Pending — added by '+by+'</span>'
+          +'<span class="cm-file-meta">'+when+' · awaiting next pipeline run</span></div>'
+          +'<div class="cm-ai-item" id="'+itemId+'">'
+          +'<span class="cm-ai-text">'+safeText+'</span>'
+          +'<button class="cm-remove-btn" onclick="cmRemoveManual(&quot;'+addId+'&quot;,&quot;'+itemId+'&quot;)">✕ Remove</button>'
+          +'</div></div>';
+        addSection.insertAdjacentHTML('beforebegin',html);
+      }});
+    }})
+    .catch(function(){{}});
+}})();
 </script>
 </body></html>"""
 
