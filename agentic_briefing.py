@@ -574,26 +574,55 @@ def tool_read_drive_doc(file_id: str, max_chars: int = 2000) -> str:
         # Get file metadata to determine type
         meta = DRIVE_SVC.files().get(fileId=file_id, fields="mimeType,name").execute()
         mime = meta.get("mimeType", "")
+        name = meta.get("name", "unknown")
 
-        if "document" in mime:
+        text = ""
+
+        if "spreadsheet" in mime:
+            # Google Sheet — use Sheets API (more reliable than Drive export)
+            try:
+                result = SHEETS_SVC.spreadsheets().values().get(
+                    spreadsheetId=file_id, range="A1:Z30"
+                ).execute()
+                rows = result.get("values", [])
+                text = "\n".join(["\t".join(row) for row in rows[:30]])
+            except Exception as sheet_err:
+                # Sheets API failed — try Drive export as CSV
+                try:
+                    content = DRIVE_SVC.files().export(fileId=file_id, mimeType="text/csv").execute()
+                    text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+                except Exception:
+                    return f"Could not read sheet: {sheet_err}"
+
+        elif "document" in mime:
             # Google Doc — export as plain text
-            content = DRIVE_SVC.files().export(fileId=file_id, mimeType="text/plain").execute()
-            text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
-        elif "spreadsheet" in mime:
-            # Google Sheet — read first sheet as CSV-like summary
-            from googleapiclient.discovery import build
-            sheets = build("sheets", "v4", credentials=DRIVE_SVC._http.credentials if hasattr(DRIVE_SVC, '_http') else None)
-            result = SHEETS_SVC.spreadsheets().values().get(
-                spreadsheetId=file_id, range="A1:Z20"
-            ).execute()
-            rows = result.get("values", [])
-            text = "\n".join(["\t".join(row) for row in rows[:20]])
-        else:
-            # Try plain text export
-            content = DRIVE_SVC.files().get_media(fileId=file_id).execute()
-            text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+            try:
+                content = DRIVE_SVC.files().export(fileId=file_id, mimeType="text/plain").execute()
+                text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+            except Exception as doc_err:
+                return f"Could not read doc: {doc_err}"
 
-        return text[:max_chars]
+        elif "presentation" in mime:
+            # Google Slides — export as plain text
+            try:
+                content = DRIVE_SVC.files().export(fileId=file_id, mimeType="text/plain").execute()
+                text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+            except Exception:
+                return f"Could not read presentation: {name}"
+
+        elif "pdf" in mime:
+            # PDF — can't easily read, skip
+            return f"Could not read doc: PDF files not supported ({name})"
+
+        else:
+            # Other file types — try downloading raw content
+            try:
+                content = DRIVE_SVC.files().get_media(fileId=file_id).execute()
+                text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+            except Exception as dl_err:
+                return f"Could not read doc: {dl_err}"
+
+        return text[:max_chars] if text.strip() else f"Could not read doc: empty content ({name})"
     except Exception as e:
         return f"Could not read doc: {e}"
 
