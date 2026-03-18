@@ -570,6 +570,9 @@ def tool_scan_drive(keywords: str, days_back: int = 14) -> str:
 
 def tool_read_drive_doc(file_id: str, max_chars: int = 2000) -> str:
     """Read the text content of a Google Drive document (Doc, Sheet, or text file)."""
+    import io
+    from googleapiclient.http import MediaIoBaseDownload
+
     try:
         # Get file metadata to determine type
         meta = DRIVE_SVC.files().get(fileId=file_id, fields="mimeType,name").execute()
@@ -579,7 +582,7 @@ def tool_read_drive_doc(file_id: str, max_chars: int = 2000) -> str:
         text = ""
 
         if "spreadsheet" in mime:
-            # Google Sheet — use Sheets API (more reliable than Drive export)
+            # Google Sheet — use Sheets API
             try:
                 result = SHEETS_SVC.spreadsheets().values().get(
                     spreadsheetId=file_id, range="A1:Z30"
@@ -587,40 +590,44 @@ def tool_read_drive_doc(file_id: str, max_chars: int = 2000) -> str:
                 rows = result.get("values", [])
                 text = "\n".join(["\t".join(row) for row in rows[:30]])
             except Exception as sheet_err:
-                # Sheets API failed — try Drive export as CSV
-                try:
-                    content = DRIVE_SVC.files().export(fileId=file_id, mimeType="text/csv").execute()
-                    text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
-                except Exception:
-                    return f"Could not read sheet: {sheet_err}"
+                return f"Could not read sheet '{name}': {sheet_err}"
 
-        elif "document" in mime:
-            # Google Doc — export as plain text
+        elif "document" in mime or "presentation" in mime:
+            # Google Doc/Slides — export as plain text using media download
             try:
-                content = DRIVE_SVC.files().export(fileId=file_id, mimeType="text/plain").execute()
-                text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
-            except Exception as doc_err:
-                return f"Could not read doc: {doc_err}"
-
-        elif "presentation" in mime:
-            # Google Slides — export as plain text
-            try:
-                content = DRIVE_SVC.files().export(fileId=file_id, mimeType="text/plain").execute()
-                text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+                request = DRIVE_SVC.files().export_media(fileId=file_id, mimeType="text/plain")
+                buf = io.BytesIO()
+                downloader = MediaIoBaseDownload(buf, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+                text = buf.getvalue().decode("utf-8")
             except Exception:
-                return f"Could not read presentation: {name}"
+                # Fallback: try simple export (works for smaller files)
+                try:
+                    content = DRIVE_SVC.files().export(fileId=file_id, mimeType="text/plain").execute()
+                    if isinstance(content, bytes):
+                        text = content.decode("utf-8")
+                    else:
+                        text = str(content)
+                except Exception as e2:
+                    return f"Could not read '{name}': {e2}"
 
         elif "pdf" in mime:
-            # PDF — can't easily read, skip
-            return f"Could not read doc: PDF files not supported ({name})"
+            return f"Could not read doc: PDF not supported ({name})"
 
         else:
-            # Other file types — try downloading raw content
+            # Other file types — download raw bytes
             try:
-                content = DRIVE_SVC.files().get_media(fileId=file_id).execute()
-                text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+                request = DRIVE_SVC.files().get_media(fileId=file_id)
+                buf = io.BytesIO()
+                downloader = MediaIoBaseDownload(buf, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+                text = buf.getvalue().decode("utf-8", errors="replace")
             except Exception as dl_err:
-                return f"Could not read doc: {dl_err}"
+                return f"Could not read '{name}': {dl_err}"
 
         return text[:max_chars] if text.strip() else f"Could not read doc: empty content ({name})"
     except Exception as e:

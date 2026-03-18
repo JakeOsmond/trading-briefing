@@ -52,7 +52,7 @@ jobs:
       - name: Write GCP credentials file
         run: |
           echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
-          echo "Service account: $(python3 -c "import json; print(json.load(open('/tmp/gcp-key.json')).get('client_email','unknown'))")"
+          python3 -c "import json; c=json.load(open('/tmp/gcp-key.json')); print(f'Credential type: {c.get(\"type\",\"unknown\")}'); print(f'Account: {c.get(\"client_email\", c.get(\"account\", \"authorized_user\"))}')"
 
       - name: Run briefing script
         env:
