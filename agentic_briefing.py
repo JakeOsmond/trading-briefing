@@ -813,11 +813,110 @@ def _google_trends_compare_link(terms, start_date, end_date, geo="GB"):
     return f"https://trends.google.com/explore?q={q}&date={start_str}%20{end_str}&geo={geo}"
 
 
-def fetch_google_trends(run_date):
-    """Fetch Google Trends data for insurance and holiday terms (2-year window).
+def _fetch_trends_batch(pytrends, terms, timeframe):
+    """Fetch a single batch of up to 5 terms from Google Trends. Returns {term: [values]} or {}."""
+    try:
+        pytrends.build_payload(terms, cat=0, timeframe=timeframe, geo="GB")
+        df = pytrends.interest_over_time()
+        if df.empty:
+            return {}, []
+        if "isPartial" in df.columns:
+            df = df.drop(columns=["isPartial"])
+        dates = [d.isoformat() for d in df.index]
+        data = {}
+        for col in df.columns:
+            data[col] = df[col].tolist()
+        return data, dates
+    except Exception as e:
+        print(f"    ⚠ Google Trends batch failed: {e}")
+        return {}, []
 
-    Returns dict with per-term YoY changes, deep links, and raw weekly data.
-    Falls back gracefully if pytrends fails (rate limits, etc).
+
+def _compute_yoy(values, n):
+    """Compute YoY change from a weekly time series: recent 4 weeks vs same 4 weeks a year ago."""
+    recent_4w = max(0, n - 4)
+    ly_4w_start = max(0, n - 56)
+    ly_4w_end = max(0, n - 52)
+    recent_avg = sum(values[recent_4w:]) / max(1, n - recent_4w) if recent_4w < n else 0
+    ly_avg = sum(values[ly_4w_start:ly_4w_end]) / max(1, ly_4w_end - ly_4w_start) if ly_4w_end > ly_4w_start else 0
+    yoy = ((recent_avg - ly_avg) / ly_avg * 100) if ly_avg > 0 else 0
+    return round(recent_avg, 1), round(ly_avg, 1), round(yoy, 1)
+
+
+def _ai_suggest_deep_dive_terms(base_terms_summary):
+    """Ask AI to suggest follow-up Google Trends terms based on the biggest movers."""
+    if not OPENAI_API_KEY:
+        return []
+
+    # Pick top 3 insurance + top 3 holiday by absolute YoY variance
+    insurance = [(t, d) for t, d in base_terms_summary.items() if d["category"] == "insurance"]
+    holiday = [(t, d) for t, d in base_terms_summary.items() if d["category"] == "holiday"]
+    top_insurance = sorted(insurance, key=lambda x: abs(x[1]["yoy_change_pct"]), reverse=True)[:3]
+    top_holiday = sorted(holiday, key=lambda x: abs(x[1]["yoy_change_pct"]), reverse=True)[:3]
+
+    movers_text = "TOP INSURANCE MOVERS:\n"
+    for term, d in top_insurance:
+        movers_text += f"- \"{term}\": {d['yoy_change_pct']:+.1f}% YoY (recent avg {d['recent_avg']}, LY avg {d['ly_avg']})\n"
+    movers_text += "\nTOP HOLIDAY MOVERS:\n"
+    for term, d in top_holiday:
+        movers_text += f"- \"{term}\": {d['yoy_change_pct']:+.1f}% YoY (recent avg {d['recent_avg']}, LY avg {d['ly_avg']})\n"
+
+    prompt = f"""You are analysing UK Google Trends search data for an insurance trading team.
+
+{movers_text}
+
+For EACH of the 6 terms above, suggest 10 related Google Trends search terms that might EXPLAIN
+why that term is moving up or down. Think about:
+- Competitor brands that might be gaining/losing (e.g. "Staysure travel insurance", "Post Office travel insurance")
+- Specific products or covers (e.g. "cruise travel insurance", "medical travel insurance")
+- External factors (e.g. "FCDO travel advice", "flight cancellation", "travel warning")
+- Seasonal/destination terms (e.g. "Spain holiday", "Turkey holiday", "ski holiday")
+- Price-related terms (e.g. "cheap travel insurance", "travel insurance cost")
+- Channel terms (e.g. "compare travel insurance", "MoneySupermarket travel insurance")
+
+Return JSON: {{"deep_dive_terms": ["term1", "term2", ...]}}
+
+Rules:
+- Return exactly 60 terms (10 per mover)
+- Each term should be a realistic Google Trends search query (1-4 words, UK English)
+- Don't repeat any of the 11 base terms
+- Focus on terms that would EXPLAIN the movements, not just related terms
+- Include competitor brand + product combinations
+- Include destination-specific terms if holiday terms are moving"""
+
+    try:
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        resp = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            max_completion_tokens=2000,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": "You suggest Google Trends search terms. Return JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        result = _parse_llm_json(resp.choices[0].message.content)
+        terms = result.get("deep_dive_terms", []) if isinstance(result, dict) else []
+        # Dedupe against base terms
+        base_set = {t.lower() for t in INSURANCE_INTENT_TERMS + HOLIDAY_INTENT_TERMS}
+        terms = [t for t in terms if isinstance(t, str) and t.lower() not in base_set]
+        return terms[:60]
+    except Exception as e:
+        print(f"    ⚠ AI term suggestion failed: {e}")
+        return []
+
+
+def fetch_google_trends(run_date):
+    """Fetch Google Trends data for insurance + holiday terms, then AI-suggested deep-dive terms.
+
+    Flow:
+    1. Fetch 11 base terms (5 insurance + 6 holiday), compute YoY
+    2. AI picks top 3 insurance + top 3 holiday by variance, suggests 60 follow-up terms
+    3. Fetch follow-up terms from Google Trends, compute YoY
+    4. Return everything with deep links
+
+    Returns dict with base terms, deep-dive terms, and compare links.
+    Falls back gracefully if pytrends or AI fails.
     """
     try:
         from pytrends.request import TrendReq
@@ -835,7 +934,7 @@ def fetch_google_trends(run_date):
     if cache_file.exists():
         try:
             cached = json.loads(cache_file.read_text())
-            print(f"  📊 Google Trends: loaded from cache ({len(cached.get('terms', {}))} terms)")
+            print(f"  📊 Google Trends: loaded from cache ({len(cached.get('terms', {}))} base + {len(cached.get('deep_dive_terms', {}))} deep-dive terms)")
             return cached
         except Exception:
             pass
@@ -843,72 +942,133 @@ def fetch_google_trends(run_date):
     print("  📊 Google Trends: fetching live data (2-year window)...")
     pytrends = TrendReq(hl="en-GB", tz=0)
 
-    all_terms = INSURANCE_INTENT_TERMS + HOLIDAY_INTENT_TERMS
-    # Google Trends allows max 5 terms per query — use "travel insurance" as anchor
+    # --- STAGE 1: Base terms ---
+    all_base = INSURANCE_INTENT_TERMS + HOLIDAY_INTENT_TERMS
     anchor = "travel insurance"
-    other_terms = [t for t in all_terms if t != anchor]
-    batches = []
-    for i in range(0, len(other_terms), 4):
-        batches.append([anchor] + other_terms[i:i + 4])
+    other = [t for t in all_base if t != anchor]
+    batches = [[anchor] + other[i:i + 4] for i in range(0, len(other), 4)]
 
-    # Fetch each batch
     all_data = {}
+    all_dates = []
     for batch in batches:
-        try:
-            pytrends.build_payload(batch, cat=0, timeframe=timeframe, geo="GB")
-            df = pytrends.interest_over_time()
-            if df.empty:
-                continue
-            if "isPartial" in df.columns:
-                df = df.drop(columns=["isPartial"])
-            for col in df.columns:
-                if col != "date":
-                    all_data[col] = df[col].tolist()
-                    if "date" not in all_data:
-                        all_data["_dates"] = [d.isoformat() for d in df.index]
-            print(f"    ✓ Fetched: {', '.join(batch)}")
-            time.sleep(15)  # Rate limit protection
-        except Exception as e:
-            print(f"    ⚠ Google Trends batch failed: {e}")
-            continue
+        data, dates = _fetch_trends_batch(pytrends, batch, timeframe)
+        if data:
+            all_data.update(data)
+            if not all_dates and dates:
+                all_dates = dates
+            print(f"    ✓ Base: {', '.join(batch)}")
+        time.sleep(15)
 
-    if not all_data or "_dates" not in all_data:
+    if not all_data or not all_dates:
         print("  ⚠ Google Trends: no data retrieved")
         return None
 
-    # Compute per-term stats: recent 4 weeks vs same 4 weeks last year
-    dates = all_data.pop("_dates")
-    n = len(dates)
-    recent_4w = max(0, n - 4)  # last 4 data points
-    ly_4w_start = max(0, n - 56)  # ~52 weeks back, 4 week window
-    ly_4w_end = max(0, n - 52)
-
+    n = len(all_dates)
     terms_summary = {}
     for term, values in all_data.items():
         if len(values) != n:
             continue
-        recent_avg = sum(values[recent_4w:]) / max(1, n - recent_4w) if recent_4w < n else 0
-        ly_avg = sum(values[ly_4w_start:ly_4w_end]) / max(1, ly_4w_end - ly_4w_start) if ly_4w_end > ly_4w_start else 0
-        yoy_change = ((recent_avg - ly_avg) / ly_avg * 100) if ly_avg > 0 else 0
-
+        recent_avg, ly_avg, yoy = _compute_yoy(values, n)
         category = "insurance" if term in INSURANCE_INTENT_TERMS else "holiday"
-        deep_link = _google_trends_deep_link(term, start_date, end_date)
-
         terms_summary[term] = {
             "category": category,
-            "recent_avg": round(recent_avg, 1),
-            "ly_avg": round(ly_avg, 1),
-            "yoy_change_pct": round(yoy_change, 1),
-            "direction": "up" if yoy_change > 2 else ("down" if yoy_change < -2 else "flat"),
-            "deep_link": deep_link,
+            "recent_avg": recent_avg,
+            "ly_avg": ly_avg,
+            "yoy_change_pct": yoy,
+            "direction": "up" if yoy > 2 else ("down" if yoy < -2 else "flat"),
+            "deep_link": _google_trends_deep_link(term, start_date, end_date),
         }
+
+    print(f"  📊 Base terms: {len(terms_summary)} analysed")
+
+    # --- STAGE 2: AI suggests deep-dive terms ---
+    print("  🤖 Asking AI to suggest deep-dive search terms...")
+    suggested_terms = _ai_suggest_deep_dive_terms(terms_summary)
+    print(f"  🤖 AI suggested {len(suggested_terms)} deep-dive terms")
+
+    # --- STAGE 3: Fetch deep-dive terms ---
+    deep_dive_summary = {}
+    if suggested_terms:
+        print(f"  📊 Fetching {len(suggested_terms)} deep-dive terms from Google Trends...")
+        # Batch in groups of 5 (no anchor needed — each batch is independent)
+        dd_batches = [suggested_terms[i:i + 5] for i in range(0, len(suggested_terms), 5)]
+        fetched = 0
+        for batch in dd_batches:
+            data, dates = _fetch_trends_batch(pytrends, batch, timeframe)
+            if data and dates:
+                batch_n = len(dates)
+                for term, values in data.items():
+                    if len(values) != batch_n:
+                        continue
+                    recent_avg, ly_avg, yoy = _compute_yoy(values, batch_n)
+                    deep_dive_summary[term] = {
+                        "category": "deep_dive",
+                        "recent_avg": recent_avg,
+                        "ly_avg": ly_avg,
+                        "yoy_change_pct": yoy,
+                        "direction": "up" if yoy > 2 else ("down" if yoy < -2 else "flat"),
+                        "deep_link": _google_trends_deep_link(term, start_date, end_date),
+                    }
+                    fetched += 1
+                print(f"    ✓ Deep-dive: {', '.join(batch[:3])}{'...' if len(batch) > 3 else ''}")
+            time.sleep(15)
+        print(f"  📊 Deep-dive: {fetched} terms analysed")
 
     # Build compare links
     insurance_compare = _google_trends_compare_link(INSURANCE_INTENT_TERMS, start_date, end_date)
     holiday_compare = _google_trends_compare_link(HOLIDAY_INTENT_TERMS, start_date, end_date)
 
+    # --- STAGE 4: AI narrative — synthesise all trends into a daily context summary ---
+    narrative = ""
+    if OPENAI_API_KEY and (terms_summary or deep_dive_summary):
+        print("  🤖 Generating Google Trends narrative...")
+        try:
+            # Build a concise data summary for the AI
+            base_lines = []
+            for term, d in sorted(terms_summary.items(), key=lambda x: abs(x[1]["yoy_change_pct"]), reverse=True):
+                base_lines.append(f"- {term} ({d['category']}): {d['yoy_change_pct']:+.1f}% YoY, direction={d['direction']}")
+            dd_lines = []
+            for term, d in sorted(deep_dive_summary.items(), key=lambda x: abs(x[1]["yoy_change_pct"]), reverse=True)[:30]:
+                dd_lines.append(f"- {term}: {d['yoy_change_pct']:+.1f}% YoY")
+
+            narrative_prompt = f"""You are writing a daily Google Trends intelligence summary for an insurance trading team at Holiday Extras (HX).
+
+BASE SEARCH TERMS (insurance vs holiday demand):
+{chr(10).join(base_lines)}
+
+TOP DEEP-DIVE TERMS (AI-suggested to explain the base movements):
+{chr(10).join(dd_lines) if dd_lines else '(none available)'}
+
+Date range: {start_date.isoformat()} to {end_date.isoformat()} (UK, Google Trends)
+
+Write a 4-8 sentence narrative that:
+1. Summarises the overall picture: is insurance search demand keeping pace with holiday demand?
+2. Highlights the biggest movers and what the deep-dive terms suggest about WHY
+3. Calls out any competitor or destination terms that are surging or declining
+4. Notes any divergences between insurance and holiday intent (e.g. people searching for holidays but NOT insurance)
+5. Ends with 1-2 implications for trading (e.g. "This suggests pricing pressure on annual policies" or "Cruise insurance demand is outpacing cruise holiday searches")
+
+Be specific with numbers. Write in plain English for a trading team — no jargon. This will be used as daily context for the full trading analysis."""
+
+            client = openai.OpenAI(api_key=OPENAI_API_KEY)
+            resp = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                max_completion_tokens=500,
+                messages=[
+                    {"role": "system", "content": "You write concise daily market intelligence summaries based on Google Trends data. Be specific, use numbers, write for traders."},
+                    {"role": "user", "content": narrative_prompt},
+                ],
+            )
+            narrative = resp.choices[0].message.content.strip()
+            print(f"  ✓ Trends narrative: {len(narrative)} chars")
+        except Exception as e:
+            print(f"  ⚠ Trends narrative failed (non-fatal): {e}")
+
     result = {
         "terms": terms_summary,
+        "deep_dive_terms": deep_dive_summary,
+        "deep_dive_suggested_by": "gpt-4.1-mini",
+        "narrative": narrative,
         "insurance_compare_link": insurance_compare,
         "holiday_compare_link": holiday_compare,
         "date_range": f"{start_date.isoformat()} to {end_date.isoformat()}",
@@ -921,7 +1081,8 @@ def fetch_google_trends(run_date):
     except Exception:
         pass
 
-    print(f"  📊 Google Trends: {len(terms_summary)} terms analysed")
+    total = len(terms_summary) + len(deep_dive_summary)
+    print(f"  📊 Google Trends complete: {total} terms ({len(terms_summary)} base + {len(deep_dive_summary)} deep-dive)")
     return result
 
 
@@ -2196,6 +2357,14 @@ USE THESE DATE LITERALS in all sql-dig blocks (do NOT use a 'period' column — 
 ## CUSTOMER SEARCH INTENT — Google Trends (live data with deep links)
 Each term has a `deep_link` field — use these as markdown source links in the briefing.
 The `insurance_compare_link` and `holiday_compare_link` fields compare all terms in each category.
+The `deep_dive_terms` section contains AI-suggested follow-up terms that explain WHY base terms are moving.
+The `narrative` field is a pre-written daily intelligence summary — use it as context for the Customer Search Intent
+section AND for the wider trading analysis (it explains search demand dynamics that may drive trading movements).
+
+### Google Trends Daily Narrative
+{baseline_data.get('google_trends', {}).get('narrative', '(not available)') if isinstance(baseline_data.get('google_trends'), dict) else '(not available)'}
+
+### Full Google Trends Data
 ```json
 {json.dumps(baseline_data.get('google_trends', {}), indent=2, default=str)}
 ```

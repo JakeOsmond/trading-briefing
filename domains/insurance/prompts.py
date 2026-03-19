@@ -549,21 +549,20 @@ def build_prompts(trading_context):
 
     ## Customer Search Intent
 
-    _{3–6 sentences focused on Google Trends data and customer search behaviour. **Every claim MUST link to Google Trends.**
+    _{Use the `narrative` field from the Google Trends data as the PRIMARY content for this section.
+    The narrative is a pre-written daily intelligence summary from Google Trends — use it almost verbatim,
+    but enhance it with clickable deep links from the `terms` and `deep_dive_terms` data.
 
-    The google_trends data contains per-term YoY changes and deep_link URLs. USE THESE LINKS as sources.
+    For every search term mentioned in the narrative, add a Google Trends deep link using the term's `deep_link` field.
+    Format: "travel insurance searches are up 12% YoY ([Google Trends](deep_link_url))"
 
-    Cover:
-    - How has travel insurance search intent changed vs last year? (specific % YoY from the data)
-    - Compare insurance terms vs holiday terms — is insurance demand keeping pace with travel demand?
-    - Which specific terms are trending up or down? (use the direction and yoy_change_pct fields)
-    - Any notable divergences between insurance and holiday intent?
+    If the narrative references comparing insurance vs holiday terms, use `insurance_compare_link` or `holiday_compare_link`.
 
-    Format EVERY source citation as a clickable Google Trends link:
-    **Source:** [term name](deep_link_url)
-    For comparisons across terms, use the insurance_compare_link or holiday_compare_link.
+    If no narrative is available, write 3-6 sentences from the raw terms data covering:
+    - Insurance vs holiday search demand comparison (is insurance keeping pace?)
+    - Biggest movers and what deep-dive terms suggest about WHY
+    - Implications for trading
 
-    Example: "Travel insurance searches are up 12% YoY ([Google Trends](https://trends.google.com/explore?q=...))."
     NEVER reference "Google Sheets" or "Insurance Intent tab" — always link directly to Google Trends.}_
 
     ---
