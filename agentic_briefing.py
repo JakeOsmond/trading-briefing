@@ -918,31 +918,59 @@ def run_context_refresh(run_date):
     print(f"  🧠 Stage 1: Extracting facts from {len(items)} items (GPT)...")
 
     extract_prompt = """You are reading a document related to HX insurance trading.
-Extract SPECIFIC, CONCRETE facts that would help an AI analyse insurance trading data better.
+Extract ONLY facts that could MATERIALLY IMPACT future trading decisions or explain a change in trading performance.
 
 Return JSON: {"facts": ["fact 1", "fact 2", ...], "skip_reason": null}
 
-Rules:
-- Extract actual numbers, thresholds, rules, names, rates, dates — NOT descriptions of what the doc is
-- BAD: "UW rules have been updated" — this tells us nothing useful
-- GOOD: "Max age limit for single trip policies is 85 years"
-- GOOD: "Gadget attachment rate reached 10.9% in February, up from 3-4% last year"
-- GOOD: "On the Beach partnership worth approximately £150k/year"
-- GOOD: "Carnival cruise traffic down 20% week on week"
-- If the doc contains ONLY raw numbers in a CSV/table with no narrative or context, return {"facts": [], "skip_reason": "raw data with no narrative"}
-- If the doc contains personal data (individual names, salaries, addresses), return {"facts": [], "skip_reason": "sensitive personal data"}
-- NEVER skip documents about market events, travel events, pricing changes, competitor activity, or trading performance — these are core trading context
-- Travel Events Log entries are NOT sensitive — they describe external market events (strikes, holidays, geopolitical events). Always extract facts from these.
-- Extract ALL useful facts — no limit. Be thorough.
-- Each fact should be a single sentence a trading analyst would find valuable."""
+THE MATERIAL IMPACT TEST — every fact you extract MUST pass this test:
+"Could this fact CHANGE how we trade, EXPLAIN a movement in trading performance, or DRIVE a future decision?"
+If the answer is no, do NOT extract it.
+
+EXTRACT (these CAUSE or EXPLAIN trading impact):
+- Pricing changes: "EU Exc yielding margins were increased on 12/03/2026"
+- Product launches/changes: "Specialist cruise product launched with flexible excess options"
+- Competitor actions: "Carnival launched £850 onboard spend offer to combat slow trading"
+- Partner dynamics: "On the Beach partnership worth approximately £150k/year"
+- Market events: "Iran conflict causing aggregator quote surge"
+- UW rule changes: "Max age limit for single trip policies changed to 85 years"
+- Promotional campaigns: "HX Insurance Competition runs April-September 2026 with £10k prize"
+- Conversion/funnel changes: "Payment process optimisation with WorldPay to address low start purchase conversion"
+- Strategy decisions: "AMT discounts cannot go live until RNWL rates received — compliance constraint"
+
+DO NOT EXTRACT (these are trading OUTPUTS, not causes):
+- Historical data points: "The Combined Demand Index was 88.6 in 2015Q4" — this is a result, not a driver
+- Periodic metrics/figures: "H1 FY26 delivered 180k policies" — this is what happened, not why
+- Per-month booking statistics: "P&O Cruises had 38,067 total bookings in April 2025"
+- Generic definitions: "CTR is defined as the percentage of impressions that were clicked"
+- Operational process details: "A rota is used to assign agents to payment-taking"
+- Tool/vendor descriptions: "The WeDiscover website is www.we-discover.com"
+- Document metadata: "The document is dated January 2026"
+- Conversion rates without context: "Start Purchase was 92.2% over the last 7 days" — a snapshot metric, not actionable
+- Weekly trading figures that just state what happened: "Policy volume increased by 4.6% last week"
+
+ALSO SKIP:
+- Raw data tables (CSV/spreadsheet dumps with no narrative)
+- Sensitive personal data (individual names, salaries, addresses)
+- Summaries/max/min of historical time series
+
+Travel Events Log entries are ALWAYS worth extracting — they describe external events that drive trading.
+
+Each fact should be a single sentence that a trader could ACT on or use to EXPLAIN a movement."""
 
     classify_prompt = """Classify this fact for a trading briefing context system. Return JSON only.
 
 {"classification": "<PERMANENT|TEMPORARY|SKIP>", "reasoning": "<why, max 30 chars>"}
 
-PERMANENT = structural rule, product change, new partner, threshold, business logic that won't change week to week
-TEMPORARY = this week's metric, current promotion, recent price change, market condition that will evolve
-SKIP = not useful for trading analysis"""
+PERMANENT = structural rule, product change, new partner, UW threshold, business logic that won't change week to week
+TEMPORARY = current promotion, recent pricing change, active market event, competitor action that will evolve
+SKIP = not useful for trading decisions. ALWAYS skip these:
+  - Historical metrics/figures (e.g. "H1 FY26 was 180k policies")
+  - Periodic booking stats (e.g. "P&O had 38,067 bookings in April")
+  - Generic definitions (e.g. "CTR is the percentage of impressions clicked")
+  - Operational processes (e.g. "A rota is used to assign agents")
+  - Document metadata (e.g. "The document is dated November 2025")
+  - Tool/vendor contact info
+  - Data that describes WHAT HAPPENED rather than WHY or WHAT CHANGED"""
 
     client_oai = openai.OpenAI(api_key=OPENAI_API_KEY)
     gpt_items = []
@@ -1013,9 +1041,11 @@ SKIP = not useful for trading analysis"""
     if gpt_items:
         print(f"  🔍 Cross-verifying {len(gpt_items)} facts ({VERIFY_MODELS[0]} vs {VERIFY_MODELS[1]})...")
         verify_prompt = """Classify each fact for a trading briefing. Return JSON: {"items": [{"classification": "PERMANENT|TEMPORARY|SKIP"}, ...]}
-PERMANENT = structural rule, threshold, new product/partner — won't change week-to-week
-TEMPORARY = this week's metric, current price, recent market condition
-SKIP = not useful for trading analysis. Be conservative: if unsure, TEMPORARY."""
+PERMANENT = structural rule, UW threshold, new product/partner — won't change week-to-week
+TEMPORARY = active promotion, recent pricing change, current market event, competitor action
+SKIP = not useful for trading DECISIONS. Always skip: historical figures, periodic stats,
+generic definitions, operational processes, document metadata, booking volume snapshots.
+Ask: "Could a trader ACT on this or use it to EXPLAIN a movement?" If no → SKIP."""
 
         # Build character-length batches (~4000 chars each)
         batches = []
@@ -1160,18 +1190,26 @@ SKIP = not useful for trading analysis. Be conservative: if unsure, TEMPORARY.""
                     max_completion_tokens=8000,
                     response_format={"type": "json_object"},
                     messages=[
-                        {"role": "system", "content": """You are deduplicating a list of trading context facts.
+                        {"role": "system", "content": """You are cleaning a list of trading context facts. Remove low-value and duplicate items.
 
 Return JSON: {"facts": ["- fact 1 — Source: ...", "- fact 2 — Source: ...", ...]}
 
-Rules:
-- Remove exact and near-duplicates (same fact worded slightly differently)
-- When duplicates exist, KEEP the one with the EARLIEST date (oldest source date) — it has the earliest expiry
-- Remove facts that are too vague to be useful (e.g. "The document is dated January 2026")
-- Remove facts that are just describing what a document IS rather than stating a useful fact
-- Keep all facts that contain specific numbers, rates, thresholds, dates, or named entities
-- Preserve the FULL line exactly as-is including "— Source: ..." and "(expires: YYYY-MM-DD)"
-- Do NOT rewrite, rephrase, or merge facts — only remove lines"""},
+REMOVE these categories:
+- Exact and near-duplicates (same fact worded slightly differently) — keep the EARLIEST dated version
+- Historical data points and time-series values (e.g. "The Combined Demand Index was 88.6 in 2015Q4")
+- Per-month/quarter booking statistics (e.g. "P&O Cruises had 38,067 bookings in April 2025")
+- Generic metric definitions (e.g. "CTR is defined as the percentage of impressions that were clicked")
+- Document metadata (e.g. "The document is dated January 2026", "The document is for Insurance Circle")
+- Operational process descriptions (rotas, email addresses, Zapier feeds)
+- Tool/vendor descriptions and contact info
+- Weekly trading output snapshots that just report WHAT HAPPENED (e.g. "Policy volume increased by 4.6% last week")
+- Vague facts with no actionable content
+
+KEEP only facts a trader could ACT on or use to EXPLAIN a movement:
+- Pricing changes, product launches, competitor actions, promotions, UW rules, strategy decisions, market events
+
+Preserve the FULL line exactly as-is including "— Source: ..." and "(expires: YYYY-MM-DD)"
+Do NOT rewrite, rephrase, or merge facts — only remove lines."""},
                         {"role": "user", "content": "\n".join(temp_lines)},
                     ],
                 )
@@ -1360,7 +1398,7 @@ Return ONLY valid JSON array."""
         '<div class="section-gap" data-animate="reveal">\n'
         '<div class="section-title">What Trading Covered Learned Today</div>\n'
         '<div class="context-update glass-card">\n'
-        f'<p class="context-intro">This tool continuously reads your Google Drive and team documents to stay up to date. '
+        f'<p class="context-intro">Auto-learned from Drive and team docs. '
         f'<strong>{subtitle_text}.</strong></p>\n'
         f'<button class="trail-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'span\').textContent=this.nextElementSibling.style.display===\'none\'?\'Show\':\'Hide\'">'
         f'<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'

@@ -322,3 +322,111 @@ class TestDomainConfig:
         models = config.get("models", {})
         for role in self.REQUIRED_MODEL_ROLES:
             assert role in models, f"Missing model role: {role}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 7. CONTEXT INTELLIGENCE — PROMPT CONTENT & DEDUP LOGIC (12 tests)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestContextPromptContent:
+    """Verify extraction and classification prompts enforce material impact filtering."""
+
+    def _get_extract_prompt(self):
+        """Read the extract prompt from source code."""
+        src = Path(__file__).resolve().parent.parent / "agentic_briefing.py"
+        text = src.read_text()
+        # Find the extract_prompt string
+        start = text.index('extract_prompt = """')
+        end = text.index('"""', start + 20) + 3
+        return text[start:end]
+
+    def _get_classify_prompt(self):
+        """Read the classify prompt from source code."""
+        src = Path(__file__).resolve().parent.parent / "agentic_briefing.py"
+        text = src.read_text()
+        start = text.index('classify_prompt = """')
+        end = text.index('"""', start + 21) + 3
+        return text[start:end]
+
+    def test_extract_prompt_has_material_impact_test(self):
+        prompt = self._get_extract_prompt()
+        assert "MATERIAL IMPACT TEST" in prompt, "Extract prompt must include material impact test"
+
+    def test_extract_prompt_rejects_historical_data(self):
+        prompt = self._get_extract_prompt()
+        assert "Historical data points" in prompt or "historical" in prompt.lower()
+        assert "DO NOT EXTRACT" in prompt
+
+    def test_extract_prompt_rejects_definitions(self):
+        prompt = self._get_extract_prompt()
+        assert "definitions" in prompt.lower() or "CTR" in prompt
+
+    def test_extract_prompt_rejects_booking_stats(self):
+        prompt = self._get_extract_prompt()
+        assert "booking" in prompt.lower()
+
+    def test_extract_prompt_accepts_pricing_changes(self):
+        prompt = self._get_extract_prompt()
+        assert "Pricing change" in prompt or "pricing" in prompt.lower()
+
+    def test_extract_prompt_accepts_competitor_actions(self):
+        prompt = self._get_extract_prompt()
+        assert "Competitor" in prompt or "competitor" in prompt
+
+    def test_classify_prompt_skips_trading_outputs(self):
+        prompt = self._get_classify_prompt()
+        assert "SKIP" in prompt
+        assert "Historical metrics" in prompt or "trading output" in prompt.lower() or "WHAT HAPPENED" in prompt
+
+    def test_classify_prompt_has_skip_examples(self):
+        prompt = self._get_classify_prompt()
+        # Should have concrete examples of what to skip
+        assert "e.g." in prompt or "180k policies" in prompt or "bookings" in prompt
+
+
+class TestContextDedup:
+    """Tests for the word-set dedup logic used in Phase 0."""
+
+    @staticmethod
+    def _compute_overlap(fact1, fact2, min_word_len=5):
+        """Replicate the dedup logic from agentic_briefing.py."""
+        words1 = frozenset(w for w in fact1.lower().split() if len(w) > min_word_len - 1)
+        words2 = frozenset(w for w in fact2.lower().split() if len(w) > min_word_len - 1)
+        if not words1 or not words2:
+            return 0.0
+        return len(words1 & words2) / min(len(words1), len(words2))
+
+    def test_near_duplicates_detected(self):
+        """Two phrasings of the same fact should have >60% overlap."""
+        f1 = "Margins were increased for EU Excluding in Direct Yielding on 12/03/2026"
+        f2 = "Direct Yielding margins increased for EU Excluding effective 12/03/2026"
+        assert self._compute_overlap(f1, f2) > 0.6
+
+    def test_distinct_facts_preserved(self):
+        """Two genuinely different facts should have <60% overlap."""
+        f1 = "Carnival launched an offer of £850 onboard spend plus a low deposit"
+        f2 = "AMT discounts cannot be pushed live until RNWL rates are received"
+        assert self._compute_overlap(f1, f2) < 0.6
+
+    def test_empty_facts_dont_crash(self):
+        """Edge case: empty or very short facts should return 0 overlap."""
+        assert self._compute_overlap("", "test fact here") == 0.0
+        assert self._compute_overlap("hi", "hello") == 0.0
+
+
+class TestContextLoading:
+    """Verify context loading includes all expected files."""
+
+    def test_trading_context_includes_temporary_context(self):
+        """The TRADING_CONTEXT global should include temporary context facts."""
+        from agentic_briefing import TRADING_CONTEXT
+        # temporary-context.md should be loaded as part of context/operational/
+        assert "Temporary Context" in TRADING_CONTEXT or "temporary" in TRADING_CONTEXT.lower() or "expires" in TRADING_CONTEXT
+
+    def test_trading_context_loads_all_subdirs(self):
+        """TRADING_CONTEXT should contain content from universal, insurance, and operational dirs."""
+        from agentic_briefing import TRADING_CONTEXT
+        # Universal dir content
+        assert "HX" in TRADING_CONTEXT or "Holiday Extras" in TRADING_CONTEXT
+        # Operational dir content (temporary context or market events)
+        assert len(TRADING_CONTEXT) > 1000, "TRADING_CONTEXT suspiciously small"

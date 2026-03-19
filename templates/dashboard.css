@@ -1336,40 +1336,40 @@ table.ai-table tr:hover td{background:rgba(51,65,85,0.3);}
 .chat-welcome strong{color:#5FFFF0;}
 
 /* ── Context Update section ── */
-.context-update{padding:16px 20px;font-size:13px;line-height:1.6}
-.context-item{padding:6px 0;border-bottom:1px solid rgba(146,95,255,0.1)}
+.context-update{padding:14px 18px;font-size:13px;line-height:1.5}
+.context-item{padding:5px 0;border-bottom:1px solid rgba(146,95,255,0.08)}
 .context-item:last-child{border-bottom:none}
 .context-badge-temp{
   display:inline-block;font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
-  padding:2px 8px;border-radius:10px;margin-right:8px;
-  background:rgba(253,220,6,0.12);color:#FDDC06;border:1px solid rgba(253,220,6,0.3);
+  padding:1px 7px;border-radius:10px;margin-right:6px;vertical-align:middle;
+  background:rgba(253,220,6,0.10);color:#FDDC06;border:1px solid rgba(253,220,6,0.25);
 }
 .context-badge-perm{
   display:inline-block;font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
-  padding:2px 8px;border-radius:10px;margin-right:8px;
-  background:rgba(0,176,166,0.12);color:#5FFFF0;border:1px solid rgba(0,176,166,0.3);
+  padding:1px 7px;border-radius:10px;margin-right:6px;vertical-align:middle;
+  background:rgba(0,176,166,0.10);color:#5FFFF0;border:1px solid rgba(0,176,166,0.25);
 }
-.context-intro{color:rgba(255,255,255,0.5);font-size:12px;margin-bottom:10px}
-.context-intro strong{color:rgba(255,255,255,0.7)}
-.context-items-body{margin-top:12px}
-.context-subsection{margin-bottom:12px;border:1px solid rgba(146,95,255,0.08);border-radius:8px;overflow:hidden}
+.context-intro{color:rgba(255,255,255,0.45);font-size:11px;margin-bottom:8px;line-height:1.4}
+.context-intro strong{color:rgba(255,255,255,0.65)}
+.context-items-body{margin-top:10px}
+.context-subsection{margin-bottom:10px;border:1px solid rgba(146,95,255,0.06);border-radius:8px;overflow:hidden}
 .context-sub-header{
-  padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
-  background:rgba(84,46,145,0.06);font-size:12px;color:rgba(255,255,255,0.6);transition:background 0.2s;
+  padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+  background:rgba(84,46,145,0.05);font-size:11px;color:rgba(255,255,255,0.55);transition:background 0.2s;
 }
-.context-sub-header:hover{background:rgba(84,46,145,0.12)}
-.context-sub-header strong{color:rgba(255,255,255,0.8)}
-.context-sub-toggle{font-size:10px;opacity:0.4;transition:transform 0.2s}
-.context-sub-body{padding:4px 14px}
+.context-sub-header:hover{background:rgba(84,46,145,0.10)}
+.context-sub-header strong{color:rgba(255,255,255,0.75)}
+.context-sub-toggle{font-size:10px;opacity:0.35;transition:transform 0.2s}
+.context-sub-body{padding:3px 12px}
 .context-source{
-  display:block;font-size:10px;color:rgba(255,255,255,0.25);margin-top:3px;font-style:italic;
+  display:block;font-size:9px;color:rgba(255,255,255,0.2);margin-top:2px;font-style:italic;
 }
 .context-remove-btn{
-  background:none;border:1px solid rgba(255,95,104,0.3);color:#FF8A91;
-  font-size:10px;padding:2px 8px;border-radius:8px;cursor:pointer;
-  margin-left:8px;font-family:inherit;transition:all 0.2s;
+  background:none;border:1px solid rgba(255,95,104,0.25);color:#FF8A91;
+  font-size:9px;padding:1px 7px;border-radius:8px;cursor:pointer;
+  margin-left:6px;font-family:inherit;transition:all 0.2s;
 }
-.context-remove-btn:hover{background:rgba(255,95,104,0.15);border-color:rgba(255,95,104,0.5)}
+.context-remove-btn:hover{background:rgba(255,95,104,0.12);border-color:rgba(255,95,104,0.4)}
 
 /* ── Investigation trail ── */
 .trail-section{margin-bottom:24px}
