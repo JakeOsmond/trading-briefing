@@ -865,24 +865,21 @@ def _ai_suggest_deep_dive_terms(base_terms_summary):
 
 {movers_text}
 
-For EACH of the 6 terms above, suggest 10 related Google Trends search terms that might EXPLAIN
+For EACH of the 6 terms above, suggest 5 related Google Trends search terms that might EXPLAIN
 why that term is moving up or down. Think about:
-- Competitor brands that might be gaining/losing (e.g. "Staysure travel insurance", "Post Office travel insurance")
+- Competitor brands (e.g. "Staysure travel insurance", "Post Office travel insurance")
 - Specific products or covers (e.g. "cruise travel insurance", "medical travel insurance")
 - External factors (e.g. "FCDO travel advice", "flight cancellation", "travel warning")
-- Seasonal/destination terms (e.g. "Spain holiday", "Turkey holiday", "ski holiday")
-- Price-related terms (e.g. "cheap travel insurance", "travel insurance cost")
-- Channel terms (e.g. "compare travel insurance", "MoneySupermarket travel insurance")
+- Seasonal/destination terms (e.g. "Spain holiday", "Turkey holiday")
+- Price/channel terms (e.g. "cheap travel insurance", "MoneySupermarket travel insurance")
 
 Return JSON: {{"deep_dive_terms": ["term1", "term2", ...]}}
 
 Rules:
-- Return exactly 60 terms (10 per mover)
+- Return exactly 30 terms (5 per mover)
 - Each term should be a realistic Google Trends search query (1-4 words, UK English)
 - Don't repeat any of the 11 base terms
-- Focus on terms that would EXPLAIN the movements, not just related terms
-- Include competitor brand + product combinations
-- Include destination-specific terms if holiday terms are moving"""
+- Focus on terms that would EXPLAIN the movements, not just related terms"""
 
     try:
         client = openai.OpenAI(api_key=OPENAI_API_KEY)
@@ -900,7 +897,7 @@ Rules:
         # Dedupe against base terms
         base_set = {t.lower() for t in INSURANCE_INTENT_TERMS + HOLIDAY_INTENT_TERMS}
         terms = [t for t in terms if isinstance(t, str) and t.lower() not in base_set]
-        return terms[:60]
+        return terms[:30]
     except Exception as e:
         print(f"    ⚠ AI term suggestion failed: {e}")
         return []
@@ -1023,12 +1020,14 @@ def fetch_google_trends(run_date):
     if OPENAI_API_KEY and (terms_summary or deep_dive_summary):
         print("  🤖 Generating Google Trends narrative...")
         try:
-            # Build a concise data summary for the AI
+            # Build a concise data summary — only include terms with meaningful movement
             base_lines = []
             for term, d in sorted(terms_summary.items(), key=lambda x: abs(x[1]["yoy_change_pct"]), reverse=True):
-                base_lines.append(f"- {term} ({d['category']}): {d['yoy_change_pct']:+.1f}% YoY, direction={d['direction']}")
+                base_lines.append(f"- {term} ({d['category']}): {d['yoy_change_pct']:+.1f}% YoY")
+            # Only include deep-dive terms with >10% absolute YoY change
+            dd_meaningful = [(t, d) for t, d in deep_dive_summary.items() if abs(d["yoy_change_pct"]) > 10]
             dd_lines = []
-            for term, d in sorted(deep_dive_summary.items(), key=lambda x: abs(x[1]["yoy_change_pct"]), reverse=True)[:30]:
+            for term, d in sorted(dd_meaningful, key=lambda x: abs(x[1]["yoy_change_pct"]), reverse=True)[:15]:
                 dd_lines.append(f"- {term}: {d['yoy_change_pct']:+.1f}% YoY")
 
             narrative_prompt = f"""You are writing a daily Google Trends intelligence summary for an insurance trading team at Holiday Extras (HX).
@@ -1036,8 +1035,8 @@ def fetch_google_trends(run_date):
 BASE SEARCH TERMS (insurance vs holiday demand):
 {chr(10).join(base_lines)}
 
-TOP DEEP-DIVE TERMS (AI-suggested to explain the base movements):
-{chr(10).join(dd_lines) if dd_lines else '(none available)'}
+DEEP-DIVE TERMS WITH MEANINGFUL MOVEMENT (>10% YoY change):
+{chr(10).join(dd_lines) if dd_lines else '(none had >10% movement)'}
 
 Date range: {start_date.isoformat()} to {end_date.isoformat()} (UK, Google Trends)
 
@@ -1045,10 +1044,12 @@ Write a 4-8 sentence narrative that:
 1. Summarises the overall picture: is insurance search demand keeping pace with holiday demand?
 2. Highlights the biggest movers and what the deep-dive terms suggest about WHY
 3. Calls out any competitor or destination terms that are surging or declining
-4. Notes any divergences between insurance and holiday intent (e.g. people searching for holidays but NOT insurance)
-5. Ends with 1-2 implications for trading (e.g. "This suggests pricing pressure on annual policies" or "Cruise insurance demand is outpacing cruise holiday searches")
+4. Notes any divergences between insurance and holiday intent
+5. Ends with 1-2 implications for trading
 
-Be specific with numbers. Write in plain English for a trading team — no jargon. This will be used as daily context for the full trading analysis."""
+Only mention deep-dive terms that have meaningful movement — don't pad with flat terms.
+Be specific with numbers. Write in plain English for a trading team — no jargon.
+This will appear on the daily trading briefing as the Customer Search Intent section."""
 
             client = openai.OpenAI(api_key=OPENAI_API_KEY)
             resp = client.chat.completions.create(
