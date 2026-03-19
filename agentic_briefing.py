@@ -813,23 +813,32 @@ def _google_trends_compare_link(terms, start_date, end_date, geo="GB"):
     return f"https://trends.google.com/explore?q={q}&date={start_str}%20{end_str}&geo={geo}"
 
 
-def _fetch_trends_batch(pytrends, terms, timeframe):
-    """Fetch a single batch of up to 5 terms from Google Trends. Returns {term: [values]} or {}."""
-    try:
-        pytrends.build_payload(terms, cat=0, timeframe=timeframe, geo="GB")
-        df = pytrends.interest_over_time()
-        if df.empty:
+def _fetch_trends_batch(pytrends, terms, timeframe, max_retries=3):
+    """Fetch a single batch of up to 5 terms from Google Trends with retry on 429."""
+    backoff = 30
+    for attempt in range(max_retries):
+        try:
+            pytrends.build_payload(terms, cat=0, timeframe=timeframe, geo="GB")
+            df = pytrends.interest_over_time()
+            if df.empty:
+                return {}, []
+            if "isPartial" in df.columns:
+                df = df.drop(columns=["isPartial"])
+            dates = [d.isoformat() for d in df.index]
+            data = {}
+            for col in df.columns:
+                data[col] = df[col].tolist()
+            return data, dates
+        except Exception as e:
+            err = str(e)
+            if "429" in err and attempt < max_retries - 1:
+                print(f"    ⚠ Rate limited (attempt {attempt + 1}/{max_retries}), waiting {backoff}s...")
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+            print(f"    ⚠ Google Trends batch failed: {e}")
             return {}, []
-        if "isPartial" in df.columns:
-            df = df.drop(columns=["isPartial"])
-        dates = [d.isoformat() for d in df.index]
-        data = {}
-        for col in df.columns:
-            data[col] = df[col].tolist()
-        return data, dates
-    except Exception as e:
-        print(f"    ⚠ Google Trends batch failed: {e}")
-        return {}, []
+    return {}, []
 
 
 def _compute_yoy(values, n):
@@ -954,7 +963,7 @@ def fetch_google_trends(run_date):
             if not all_dates and dates:
                 all_dates = dates
             print(f"    ✓ Base: {', '.join(batch)}")
-        time.sleep(15)
+        time.sleep(30)
 
     if not all_data or not all_dates:
         print("  ⚠ Google Trends: no data retrieved")
@@ -1008,7 +1017,7 @@ def fetch_google_trends(run_date):
                     }
                     fetched += 1
                 print(f"    ✓ Deep-dive: {', '.join(batch[:3])}{'...' if len(batch) > 3 else ''}")
-            time.sleep(15)
+            time.sleep(30)
         print(f"  📊 Deep-dive: {fetched} terms analysed")
 
     # Build compare links
