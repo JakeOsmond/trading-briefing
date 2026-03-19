@@ -46,3 +46,5 @@ Non-brand PPC driving policy growth but at negative GP-to-PPC cost ratio. The in
 - **Your Park Travel** — live on referral, ~£X/week GP
 
 - Ofgem introduced new household energy price cap in GB — Source: Travel Events Log, 2026-03-18
+
+- Specialist Cruise product changes are scheduled to go live on 17/03/2026 to roll out dynami — Source: Drive: 'Weekly Pricing Updates', 2026-03-19
