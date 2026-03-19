@@ -155,8 +155,7 @@ def build_prompts(trading_context):
     - 'Dashboard Section Trends' — term-level trends (section, term, current, peak, change_pct, trending)
     - 'Dashboard Metrics' — headline metrics (metric_key, value, direction, description)
     - 'Dashboard Weekly' — weekly combined/holiday/insurance index scores
-    - 'Insurance Intent' — Google Trends data for insurance search terms (date, source, metric_name, normalised_value, is_spike)
-    - 'Holiday Intent' — Google Trends for holiday terms
+    - Google Trends data is now fetched DIRECTLY (not from sheets) — per-term YoY changes with deep links to Google Trends
     - 'Spike Log' — known anomalies (date, source, metric_name, spike_event — includes COVID, Thomas Cook etc)
     - 'Global Aviation', 'ONS Travel', 'UK Passengers' — macro travel data
     """)
@@ -550,17 +549,22 @@ def build_prompts(trading_context):
 
     ## Customer Search Intent
 
-    _{3–6 sentences focused on Google Trends data and customer search behaviour. **Cite your sources.**
-    For every claim, attribute it: "According to Google Trends data..." or "Insurance Intent data shows..."
-    If a Google Trends link is available, include it as a markdown link.
+    _{3–6 sentences focused on Google Trends data and customer search behaviour. **Every claim MUST link to Google Trends.**
+
+    The google_trends data contains per-term YoY changes and deep_link URLs. USE THESE LINKS as sources.
 
     Cover:
-    - How has travel insurance search intent changed vs last year? (specific % YoY)
-    - Which destinations, trip types, or products are trending up or down?
-    - Any notable spikes or dips in search volume and possible causes?
-    - Use data from the Insurance Intent and Dashboard Metrics tabs. Be specific with numbers.
+    - How has travel insurance search intent changed vs last year? (specific % YoY from the data)
+    - Compare insurance terms vs holiday terms — is insurance demand keeping pace with travel demand?
+    - Which specific terms are trending up or down? (use the direction and yoy_change_pct fields)
+    - Any notable divergences between insurance and holiday intent?
 
-    Format source citations as: **Source:** [Name](URL) or **Source:** Google Sheets — Insurance Intent tab}_
+    Format EVERY source citation as a clickable Google Trends link:
+    **Source:** [term name](deep_link_url)
+    For comparisons across terms, use the insurance_compare_link or holiday_compare_link.
+
+    Example: "Travel insurance searches are up 12% YoY ([Google Trends](https://trends.google.com/explore?q=...))."
+    NEVER reference "Google Sheets" or "Insurance Intent tab" — always link directly to Google Trends.}_
 
     ---
 

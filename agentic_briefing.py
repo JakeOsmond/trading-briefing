@@ -774,6 +774,158 @@ SYNTHESIS_SYSTEM = _PROMPTS["synthesis"]
 
 
 # ---------------------------------------------------------------------------
+# GOOGLE TRENDS — direct fetch for Customer Search Intent
+# ---------------------------------------------------------------------------
+
+INSURANCE_INTENT_TERMS = [
+    "travel insurance",
+    "holiday insurance",
+    "annual travel insurance",
+    "single trip travel insurance",
+    "travel insurance comparison",
+]
+HOLIDAY_INTENT_TERMS = [
+    "book holiday",
+    "cheap flights",
+    "package holiday",
+    "all inclusive holiday",
+    "summer holiday",
+    "winter sun",
+]
+
+_TRENDS_CACHE_DIR = Path(__file__).parent / ".trends_cache"
+
+
+def _google_trends_deep_link(term, start_date, end_date, geo="GB"):
+    """Generate a Google Trends explore URL for a search term."""
+    from urllib.parse import quote
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return f"https://trends.google.com/explore?q={quote(term)}&date={start_str}%20{end_str}&geo={geo}"
+
+
+def _google_trends_compare_link(terms, start_date, end_date, geo="GB"):
+    """Generate a Google Trends compare URL for multiple terms."""
+    from urllib.parse import quote
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    q = ",".join(quote(t) for t in terms[:5])  # GT max 5 terms
+    return f"https://trends.google.com/explore?q={q}&date={start_str}%20{end_str}&geo={geo}"
+
+
+def fetch_google_trends(run_date):
+    """Fetch Google Trends data for insurance and holiday terms (2-year window).
+
+    Returns dict with per-term YoY changes, deep links, and raw weekly data.
+    Falls back gracefully if pytrends fails (rate limits, etc).
+    """
+    try:
+        from pytrends.request import TrendReq
+    except ImportError:
+        print("  ⚠ pytrends not installed — skipping Google Trends")
+        return None
+
+    end_date = run_date
+    start_date = date(end_date.year - 2, end_date.month, end_date.day)
+    timeframe = f"{start_date.isoformat()} {end_date.isoformat()}"
+
+    # Check cache (24h TTL)
+    _TRENDS_CACHE_DIR.mkdir(exist_ok=True)
+    cache_file = _TRENDS_CACHE_DIR / f"trends_{run_date.isoformat()}.json"
+    if cache_file.exists():
+        try:
+            cached = json.loads(cache_file.read_text())
+            print(f"  📊 Google Trends: loaded from cache ({len(cached.get('terms', {}))} terms)")
+            return cached
+        except Exception:
+            pass
+
+    print("  📊 Google Trends: fetching live data (2-year window)...")
+    pytrends = TrendReq(hl="en-GB", tz=0)
+
+    all_terms = INSURANCE_INTENT_TERMS + HOLIDAY_INTENT_TERMS
+    # Google Trends allows max 5 terms per query — use "travel insurance" as anchor
+    anchor = "travel insurance"
+    other_terms = [t for t in all_terms if t != anchor]
+    batches = []
+    for i in range(0, len(other_terms), 4):
+        batches.append([anchor] + other_terms[i:i + 4])
+
+    # Fetch each batch
+    all_data = {}
+    for batch in batches:
+        try:
+            pytrends.build_payload(batch, cat=0, timeframe=timeframe, geo="GB")
+            df = pytrends.interest_over_time()
+            if df.empty:
+                continue
+            if "isPartial" in df.columns:
+                df = df.drop(columns=["isPartial"])
+            for col in df.columns:
+                if col != "date":
+                    all_data[col] = df[col].tolist()
+                    if "date" not in all_data:
+                        all_data["_dates"] = [d.isoformat() for d in df.index]
+            print(f"    ✓ Fetched: {', '.join(batch)}")
+            time.sleep(15)  # Rate limit protection
+        except Exception as e:
+            print(f"    ⚠ Google Trends batch failed: {e}")
+            continue
+
+    if not all_data or "_dates" not in all_data:
+        print("  ⚠ Google Trends: no data retrieved")
+        return None
+
+    # Compute per-term stats: recent 4 weeks vs same 4 weeks last year
+    dates = all_data.pop("_dates")
+    n = len(dates)
+    recent_4w = max(0, n - 4)  # last 4 data points
+    ly_4w_start = max(0, n - 56)  # ~52 weeks back, 4 week window
+    ly_4w_end = max(0, n - 52)
+
+    terms_summary = {}
+    for term, values in all_data.items():
+        if len(values) != n:
+            continue
+        recent_avg = sum(values[recent_4w:]) / max(1, n - recent_4w) if recent_4w < n else 0
+        ly_avg = sum(values[ly_4w_start:ly_4w_end]) / max(1, ly_4w_end - ly_4w_start) if ly_4w_end > ly_4w_start else 0
+        yoy_change = ((recent_avg - ly_avg) / ly_avg * 100) if ly_avg > 0 else 0
+
+        category = "insurance" if term in INSURANCE_INTENT_TERMS else "holiday"
+        deep_link = _google_trends_deep_link(term, start_date, end_date)
+
+        terms_summary[term] = {
+            "category": category,
+            "recent_avg": round(recent_avg, 1),
+            "ly_avg": round(ly_avg, 1),
+            "yoy_change_pct": round(yoy_change, 1),
+            "direction": "up" if yoy_change > 2 else ("down" if yoy_change < -2 else "flat"),
+            "deep_link": deep_link,
+        }
+
+    # Build compare links
+    insurance_compare = _google_trends_compare_link(INSURANCE_INTENT_TERMS, start_date, end_date)
+    holiday_compare = _google_trends_compare_link(HOLIDAY_INTENT_TERMS, start_date, end_date)
+
+    result = {
+        "terms": terms_summary,
+        "insurance_compare_link": insurance_compare,
+        "holiday_compare_link": holiday_compare,
+        "date_range": f"{start_date.isoformat()} to {end_date.isoformat()}",
+        "fetched_at": datetime.datetime.now().isoformat(),
+    }
+
+    # Cache
+    try:
+        cache_file.write_text(json.dumps(result, indent=2))
+    except Exception:
+        pass
+
+    print(f"  📊 Google Trends: {len(terms_summary)} terms analysed")
+    return result
+
+
+# ---------------------------------------------------------------------------
 # PHASE 0: CONTEXT INTELLIGENCE — scan Drive, classify, surface in briefing
 # ---------------------------------------------------------------------------
 
@@ -1487,11 +1639,9 @@ def run_baseline_queries(date_params):
         dashboard_weekly = dashboard_weekly[-20:]
     print("  ✓ Dashboard Weekly (recent 20 rows)")
 
-    insurance_intent = _fetch_sheet_tab("Insurance Intent", "A1:Z500")
-    # Keep only last 30 rows for insurance intent
-    if len(insurance_intent) > 30:
-        insurance_intent = insurance_intent[-30:]
-    print("  ✓ Insurance Intent (recent 30 rows)")
+    # Google Trends — fetch directly instead of via Google Sheet
+    run_date_obj = date.fromisoformat(date_params["yesterday"])
+    google_trends = fetch_google_trends(run_date_obj)
 
     spike_log = _fetch_sheet_tab("Spike Log", "A1:Z500")
     print("  ✓ Spike Log")
@@ -1507,7 +1657,7 @@ def run_baseline_queries(date_params):
         "section_trends": section_trends,
         "dashboard_metrics": dashboard_metrics,
         "dashboard_weekly": dashboard_weekly,
-        "insurance_intent": insurance_intent,
+        "google_trends": google_trends,
         "spike_log": spike_log,
     }
 
@@ -1637,9 +1787,9 @@ def run_ai_analysis(baseline_data, track_results, run_date):
 ```json
 {json.dumps(baseline_data.get('ai_insights', []), indent=2, default=str)}
 ```
-### Insurance Intent (Google Trends)
+### Google Trends — Search Intent (live data, 2-year window)
 ```json
-{json.dumps(baseline_data.get('insurance_intent', [])[:15], indent=2, default=str)}
+{json.dumps(baseline_data.get('google_trends', {}), indent=2, default=str)}
 ```
 ### Dashboard Section Trends
 ```json
@@ -2043,9 +2193,11 @@ USE THESE DATE LITERALS in all sql-dig blocks (do NOT use a 'period' column — 
 {json.dumps(baseline_data.get('ai_insights', []), indent=2, default=str)}
 ```
 
-## CUSTOMER SEARCH INTENT — Insurance Intent / Google Trends (use for the "Customer Search Intent" section)
+## CUSTOMER SEARCH INTENT — Google Trends (live data with deep links)
+Each term has a `deep_link` field — use these as markdown source links in the briefing.
+The `insurance_compare_link` and `holiday_compare_link` fields compare all terms in each category.
 ```json
-{json.dumps(baseline_data.get('insurance_intent', []), indent=2, default=str)}
+{json.dumps(baseline_data.get('google_trends', {}), indent=2, default=str)}
 ```
 
 ## DASHBOARD METRICS (search volume, demand signals)

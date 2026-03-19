@@ -13,3 +13,5 @@ schemas/
 .dev.vars
 # Generated at deploy time by scripts/inject-ask-context.sh
 functions/api/_generated-context.js
+# Google Trends cache (regenerated daily)
+.trends_cache/
