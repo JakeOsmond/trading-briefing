@@ -597,18 +597,29 @@ body::after{
 [class^="badge-confidence-"]:hover .conf-tip{
   visibility:visible;opacity:1;
 }
-/* ── View Trend button ── */
+/* ── Persistence dot infographic ── */
+.persistence-dots{display:inline-flex;flex-direction:column;align-items:flex-start;vertical-align:middle;margin-right:6px}
+.persistence-dots .dot-row{display:flex;gap:2px;align-items:center}
+.persistence-dots .dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.1);flex-shrink:0}
+.persistence-dots .dot.filled-recurring{background:#FF8A91}
+.persistence-dots .dot.filled-emerging{background:#FFB55F}
+.persistence-dots .dot.filled-new{background:#5FFFF0}
+.persistence-dots .dot-label{font-size:9px;color:rgba(255,255,255,0.45);line-height:1;margin-top:2px;white-space:nowrap}
+/* ── View Trend button (in dig-buttons row) ── */
 .view-trend-btn{
-  display:inline-flex;align-items:center;gap:5px;
-  font-size:10px;font-weight:600;letter-spacing:.3px;
-  background:rgba(146,95,255,0.08);color:var(--accent-light);
-  border:1px solid rgba(146,95,255,0.2);border-radius:10px;
-  padding:3px 10px;margin-left:8px;vertical-align:middle;
-  cursor:pointer;font-family:inherit;transition:all 0.2s;
+  background:rgba(146,95,255,0.06);
+  color:var(--accent-light);
+  border:1px solid rgba(146,95,255,0.15);
+  border-radius:10px;padding:8px 16px;
+  font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;
+  transition:all .2s ease-out;
+  display:inline-flex;align-items:center;gap:6px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  letter-spacing:.2px;
 }
 .view-trend-btn:hover{
   background:rgba(146,95,255,0.15);border-color:rgba(146,95,255,0.4);
-  color:rgba(146,95,255,1);
+  box-shadow:0 0 16px rgba(146,95,255,0.15);transform:translateY(-1px);
 }
 .view-trend-btn svg{width:12px;height:12px}
 /* YoY trend bar chart */

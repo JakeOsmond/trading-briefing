@@ -3222,15 +3222,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         trend_attr = f' data-trend-key="{trend_key}"' if trend_key else ''
         # Title on its own line — pills go below
         h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}" data-finding-id="{finding_id}"{trend_attr}>{match.group(1)}</h3>'
-        # Pills line: confidence badge will be injected by initDriverTrends, verification pill + trend button here
+        # Pills line: persistence dots + confidence injected by initDriverTrends, verification pill here
+        # Trend button is now created by JS in the .dig-buttons row
         pills_line = f'<div class="driver-pills">'
-        pills_line += (
-            f'<button class="view-trend-btn" onclick="toggleMatchedTrend(\'{tid}\',this)" '
-            f'data-trend-id="{tid}" style="display:none">'
-            f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
-            f'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
-            f'Trend</button>'
-        )
         verdict = vr.get("verdict", "")
         reasoning = (vr.get("reasoning") or "").replace('"', '&quot;').replace("'", "&#39;")
         concern = (vr.get("concern") or "").replace('"', '&quot;').replace("'", "&#39;")

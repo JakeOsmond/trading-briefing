@@ -1310,68 +1310,119 @@ function openInvestigations(){
 
   /* 10. Init driver trend badges + buttons from computed data */
   (function initDriverTrends(){
-    const trends=window.__driverTrends||{};
-    if(!Object.keys(trends).length) return;
-    const headings=document.querySelectorAll('h3[data-driver-idx]');
+    var trends=window.__driverTrends||{};
+    var headings=document.querySelectorAll('h3[data-driver-idx]');
 
-    headings.forEach(h3=>{
-      const trendKey=h3.getAttribute('data-trend-key');
+    headings.forEach(function(h3){
+      var trendKey=h3.getAttribute('data-trend-key');
       /* Find the pills line — next sibling div.driver-pills */
-      const pillsDiv=h3.nextElementSibling&&h3.nextElementSibling.classList.contains('driver-pills')?h3.nextElementSibling:null;
-      const btn=pillsDiv?pillsDiv.querySelector('.view-trend-btn'):h3.querySelector('.view-trend-btn');
-      const tid=btn?btn.getAttribute('data-trend-id'):null;
+      var pillsDiv=h3.nextElementSibling&&h3.nextElementSibling.classList.contains('driver-pills')?h3.nextElementSibling:null;
+      if(!pillsDiv) return;
 
-      /* No trend data for this heading — leave as-is */
-      if(!trendKey||!trends[trendKey]) return;
+      var td=trendKey&&trends[trendKey]?trends[trendKey]:null;
+      var p=td?(td.persistence||'new'):'new';
+      var cd=td?(td.consistent_days||0):0;
+      var tot=td?(td.total_days||10):10;
+      var conf=td?(td.confidence||'Low'):'Low';
+      var recovery=td?!!td.recovery:false;
+      var hasTrend=!!td;
 
-      const td=trends[trendKey];
-      const p=td.persistence||'new';
-      const cd=td.consistent_days||0;
-      const tot=td.total_days||10;
-      const recovery=td.recovery||false;
-
-      if(tid){
-        const container=document.getElementById(tid);
+      /* Store matched data on trend container */
+      var idx=h3.getAttribute('data-driver-idx');
+      var tid='trend-'+idx;
+      if(hasTrend){
+        var container=document.getElementById(tid);
         if(container) container._matchedData=td;
       }
 
-      /* Move persistence badge (recurring/emerging/new) from h3 to pills line */
-      const target=pillsDiv||h3;
-      const oldBadge=h3.querySelector('.badge-recurring,.badge-emerging,.badge-new');
-      if(oldBadge&&target!==h3){
-        oldBadge.remove();
-        target.prepend(oldBadge);
+      /* Remove old persistence badges from h3 and pills */
+      var oldBadges=h3.querySelectorAll('.badge-recurring,.badge-emerging,.badge-new');
+      oldBadges.forEach(function(b){b.remove();});
+      var oldPBadges=pillsDiv.querySelectorAll('.badge-recurring,.badge-emerging,.badge-new');
+      oldPBadges.forEach(function(b){b.remove();});
+
+      /* Remove any old confidence badges */
+      var oldConf=pillsDiv.querySelectorAll('[class^="badge-confidence-"]');
+      oldConf.forEach(function(b){b.remove();});
+      var oldConfH3=h3.querySelectorAll('[class^="badge-confidence-"]');
+      oldConfH3.forEach(function(b){b.remove();});
+
+      /* Remove old trend button from pills (it moves to dig-buttons) */
+      var oldTrendBtn=pillsDiv.querySelector('.view-trend-btn');
+      if(oldTrendBtn) oldTrendBtn.remove();
+
+      /* 1. Build persistence dot infographic */
+      var dotsWrap=document.createElement('span');
+      dotsWrap.className='persistence-dots';
+      var dotRow=document.createElement('span');
+      dotRow.className='dot-row';
+      var colorClass=hasTrend?'filled-'+p:'';
+      for(var i=0;i<10;i++){
+        var dot=document.createElement('span');
+        dot.className='dot'+(i<cd?' '+colorClass:'');
+        dotRow.appendChild(dot);
       }
+      dotsWrap.appendChild(dotRow);
+      var label=document.createElement('span');
+      label.className='dot-label';
+      if(hasTrend){
+        var pLabel=p.charAt(0).toUpperCase()+p.slice(1);
+        label.textContent=cd+'/'+tot+' days \u00b7 '+pLabel;
+      }else{
+        label.textContent='No data';
+      }
+      dotsWrap.appendChild(label);
+      /* Insert dots at the start of pills */
+      pillsDiv.insertBefore(dotsWrap,pillsDiv.firstChild);
 
-      /* Remove any old confidence badge from h3 (shouldn't be there, but defensive) */
-      const oldConfBadge=h3.querySelector('[class^="badge-confidence-"]');
-      if(oldConfBadge) oldConfBadge.remove();
-
-      /* Insert confidence badge into pills line */
-      const conf=(td.confidence||'Low');
-      const confSlug=conf.toLowerCase().replace(/\s+/g,'-');
-      const badge=document.createElement('span');
+      /* 2. Confidence badge */
+      var confSlug=conf.toLowerCase().replace(/\s+/g,'-');
+      var badge=document.createElement('span');
       badge.className='badge-confidence-'+confSlug;
       badge.textContent=conf+' confidence';
-      const tip=document.createElement('span');
+      var tip=document.createElement('span');
       tip.className='conf-tip';
       tip.textContent=cd+'/'+tot+' days consistent. Click Trend for full analysis.';
       badge.appendChild(tip);
-      /* Insert confidence pill at the start of the pills line (before trend btn, after persistence badge) */
-      if(btn) target.insertBefore(badge,btn);
-      else target.appendChild(badge);
+      /* Insert after dots, before verification pill */
+      var verifyPill=pillsDiv.querySelector('.verify-pill');
+      if(verifyPill) pillsDiv.insertBefore(badge,verifyPill);
+      else pillsDiv.appendChild(badge);
 
-      if(btn){
-        btn.style.display='';
-        btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend';
-      }
-
+      /* 3. Recovery badge (if applicable) */
       if(recovery){
-        const recBadge=document.createElement('span');
+        var recBadge=document.createElement('span');
         recBadge.className='badge-recovery';
         recBadge.textContent='Recovery';
-        if(btn) target.insertBefore(recBadge,btn);
-        else target.appendChild(recBadge);
+        if(verifyPill) pillsDiv.insertBefore(recBadge,verifyPill);
+        else pillsDiv.appendChild(recBadge);
+      }
+
+      /* 4. Move/create trend button into .dig-buttons row */
+      if(hasTrend){
+        /* Find the nearest .dig-buttons in the same driver section */
+        var sibling=pillsDiv.nextElementSibling;
+        var digBtns=null;
+        while(sibling){
+          if(sibling.tagName==='H3'||sibling.tagName==='H2') break;
+          if(sibling.classList.contains('dig-wrap')){
+            digBtns=sibling.querySelector('.dig-buttons');
+            break;
+          }
+          sibling=sibling.nextElementSibling;
+        }
+        if(digBtns){
+          var trendBtn=document.createElement('button');
+          trendBtn.className='view-trend-btn';
+          trendBtn.setAttribute('data-trend-id',tid);
+          trendBtn.setAttribute('onclick',"toggleMatchedTrend('"+tid+"',this)");
+          trendBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend';
+          /* Insert between Ask and Dig buttons (after first child) */
+          var askBtn=digBtns.querySelector('.ask-driver-btn');
+          var digBtn=digBtns.querySelector('.dig-btn');
+          if(askBtn&&digBtn) digBtns.insertBefore(trendBtn,digBtn);
+          else digBtns.appendChild(trendBtn);
+        }
       }
     });
   })();
