@@ -3195,17 +3195,27 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         """Match a heading to its verification result by driver name similarity."""
         h_lower = heading_text.lower().strip()
         h_words = set(w for w in re.sub(r'[^a-z0-9\s]', '', h_lower).split() if len(w) > 2)
+        if not h_words:
+            return {}
         best_match = None
         best_score = 0
+        best_pct = 0
         for driver_name, vdata in _verification_by_name.items():
             d_words = set(w for w in re.sub(r'[^a-z0-9\s]', '', driver_name).split() if len(w) > 2)
+            if not d_words:
+                continue
             shared = h_words & d_words
             score = len(shared)
-            if score > best_score:
+            # Percentage of smaller set that matches
+            pct = score / min(len(h_words), len(d_words)) if min(len(h_words), len(d_words)) > 0 else 0
+            if score > best_score or (score == best_score and pct > best_pct):
                 best_score = score
+                best_pct = pct
                 best_match = vdata
-        # Require at least 2 matching words to accept the match
-        return best_match if best_score >= 2 else {}
+        # Accept if ≥2 matching words, OR ≥1 word matching ≥50% of the shorter set
+        if best_score >= 2 or (best_score >= 1 and best_pct >= 0.5):
+            return best_match
+        return {}
 
     _used_verification = set()  # track which verifications have been assigned
 
@@ -3259,9 +3269,10 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
             pill += f'<span class="verify-tip">OpenAI and Claude disagree on this finding. {concern}. Please speak with Commercial Finance to verify.</span>'
             pill += '</span>'
             pills_line += f' {pill}'
-        elif verdict == "unverified":
+        else:
+            # No verification match or explicit "unverified" — always show a pill
             pill = f'<span class="verify-pill verify-pill-unverified" data-finding-id="{finding_id}">UNVERIFIED'
-            pill += '<span class="verify-tip">Cross-model verification was unavailable for this finding. The Claude API could not be reached during pipeline execution.</span>'
+            pill += '<span class="verify-tip">Cross-model verification was unavailable for this finding. The heading could not be matched to a verification result, or the Claude API could not be reached during pipeline execution.</span>'
             pill += '</span>'
             pills_line += f' {pill}'
 
