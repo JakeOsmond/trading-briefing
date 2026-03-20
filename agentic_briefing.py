@@ -2343,6 +2343,10 @@ def run_synthesis(baseline_data, analysis, follow_up_results, track_results, run
             merged_findings.setdefault("material_movers", []).extend(fu_movers)
         # Merge market context
         fu_context = follow_up_results.get("market_context", "")
+
+    # Inject finding IDs into each mover so the LLM can tag headings
+    for i, mover in enumerate(merged_findings.get("material_movers", [])):
+        mover["finding_id"] = f"finding-{i}"
         if fu_context:
             merged_findings["market_context"] = str(merged_findings.get("market_context", "")) + " " + str(fu_context)
         # Merge recent changes
@@ -2410,6 +2414,7 @@ Now produce the final briefing following the 3-tier format exactly:
 1. Headline (one sentence, like a newspaper)
 2. At a Glance (5 traffic light bullets, biggest £ first)
 3. What's Driving This (ALL 8 movers, ordered by CONFIDENCE: VERY HIGH first, then HIGH, MEDIUM, LOW, VERY LOW. Within each confidence tier, order by absolute £ impact. Each needs its confidence tag: VERY HIGH CONFIDENCE / HIGH CONFIDENCE / MEDIUM CONFIDENCE / LOW CONFIDENCE / VERY LOW CONFIDENCE instead of the old RECURRING/EMERGING/NEW tags. 2 sentences + sql-dig)
+   IMPORTANT: Each mover has a `finding_id` field (e.g. "finding-0"). You MUST include it at the END of each ### heading as a hidden span: `### Driver heading <span data-fid="finding-0"></span>`. This links each driver to its verification result.
 4. Customer Search Intent (Google Trends / search behaviour data)
 5. News & Market Context (AI Insights, competitor activity, external factors)
 6. Actions table (max 5, with £ values)
@@ -3183,10 +3188,10 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         _used_k.add(k_idx)
         _h_to_k[h_idx] = _trend_keys[k_idx]
 
-    # Build verification lookup — keyed by driver name for fuzzy matching
-    _verification_raw = verification or {}
+    # Build verification lookup — keyed by finding ID and by driver name for fuzzy matching
+    _verification_results = verification or {}
     _verification_by_name = {}
-    for fid, vdata in _verification_raw.items():
+    for fid, vdata in _verification_results.items():
         driver = vdata.get("driver", "")
         if driver:
             _verification_by_name[driver.lower().strip()] = {**vdata, "_original_id": fid}
@@ -3220,27 +3225,36 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     _used_verification = set()  # track which verifications have been assigned
 
     def _add_driver_id(match):
-        heading_text = re.sub(r'<[^>]+>', '', match.group(1))
+        heading_html = match.group(1)
+        heading_text = re.sub(r'<[^>]+>', '', heading_html)
         slug = re.sub(r'[^a-z0-9]+', '-', heading_text.lower().strip()).strip('-')
         idx = _driver_idx[0]
         _driver_idx[0] += 1
         tid = f'trend-{idx}'
 
-        # Match verification by driver name, not sequential index
-        vr = _find_verification(heading_text)
-        finding_id = vr.get("_original_id", f"finding-{idx}")
-        # Prevent the same verification from being used twice
-        if finding_id in _used_verification:
-            vr = {}
-            finding_id = f'finding-{idx}'
-        elif vr:
-            _used_verification.add(finding_id)
+        # Try to extract finding_id from data-fid span injected by synthesis LLM
+        fid_match = re.search(r'data-fid="(finding-\d+)"', heading_html)
+        if fid_match:
+            finding_id = fid_match.group(1)
+            vr = _verification_results.get(finding_id, {})
+        else:
+            # Fallback: match verification by driver name similarity
+            vr = _find_verification(heading_text)
+            finding_id = vr.get("_original_id", f"finding-{idx}")
+            # Prevent the same verification from being used twice
+            if finding_id in _used_verification:
+                vr = {}
+                finding_id = f'finding-{idx}'
+            elif vr:
+                _used_verification.add(finding_id)
 
         # Embed matched trend key directly as data attribute
         trend_key = _h_to_k.get(idx, '')
         trend_attr = f' data-trend-key="{trend_key}"' if trend_key else ''
+        # Strip the data-fid span from visible heading text (used for ID matching, not display)
+        clean_heading = re.sub(r'\s*<span\s+data-fid="[^"]*"\s*>\s*</span>\s*', '', match.group(1))
         # Title on its own line — pills go below
-        h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}" data-finding-id="{finding_id}"{trend_attr}>{match.group(1)}</h3>'
+        h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}" data-finding-id="{finding_id}"{trend_attr}>{clean_heading}</h3>'
         # Pills line: persistence dots + confidence injected by initDriverTrends, verification pill here
         # Trend button is now created by JS in the .dig-buttons row
         pills_line = f'<div class="driver-pills">'
