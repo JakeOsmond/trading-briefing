@@ -1398,31 +1398,37 @@ function openInvestigations(){
         else pillsDiv.appendChild(recBadge);
       }
 
-      /* 4. Move/create trend button into .dig-buttons row */
-      if(hasTrend){
-        /* Find the nearest .dig-buttons in the same driver section */
-        var sibling=pillsDiv.nextElementSibling;
-        var digBtns=null;
-        while(sibling){
-          if(sibling.tagName==='H3'||sibling.tagName==='H2') break;
-          if(sibling.classList.contains('dig-wrap')){
-            digBtns=sibling.querySelector('.dig-buttons');
-            break;
-          }
-          sibling=sibling.nextElementSibling;
+      /* 4. Find the nearest dig-wrap in this driver section */
+      var sibling=pillsDiv.nextElementSibling;
+      var lastDigWrap=null;
+      var digBtns=null;
+      while(sibling){
+        if(sibling.tagName==='H3'||sibling.tagName==='H2') break;
+        if(sibling.classList.contains('dig-wrap')){
+          lastDigWrap=sibling;
+          if(!digBtns) digBtns=sibling.querySelector('.dig-buttons');
         }
-        if(digBtns){
-          var trendBtn=document.createElement('button');
-          trendBtn.className='view-trend-btn';
-          trendBtn.setAttribute('data-trend-id',tid);
-          trendBtn.setAttribute('onclick',"toggleMatchedTrend('"+tid+"',this)");
-          trendBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend';
-          /* Insert between Ask and Dig buttons (after first child) */
-          var askBtn=digBtns.querySelector('.ask-driver-btn');
-          var digBtn=digBtns.querySelector('.dig-btn');
-          if(askBtn&&digBtn) digBtns.insertBefore(trendBtn,digBtn);
-          else digBtns.appendChild(trendBtn);
-        }
+        sibling=sibling.nextElementSibling;
+      }
+
+      /* 5. Relocate trend container AFTER the last dig-wrap (fixes above-content rendering) */
+      var trendContainer=document.getElementById(tid);
+      if(trendContainer&&lastDigWrap){
+        lastDigWrap.parentNode.insertBefore(trendContainer,lastDigWrap.nextSibling);
+      }
+
+      /* 6. Move/create trend button into .dig-buttons row */
+      if(hasTrend&&digBtns){
+        var trendBtn=document.createElement('button');
+        trendBtn.className='view-trend-btn';
+        trendBtn.setAttribute('data-trend-id',tid);
+        trendBtn.setAttribute('onclick',"toggleMatchedTrend('"+tid+"',this)");
+        trendBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend';
+        /* Insert between Ask and Dig buttons (after first child) */
+        var askBtn=digBtns.querySelector('.ask-driver-btn');
+        var digBtn=digBtns.querySelector('.dig-btn');
+        if(askBtn&&digBtn) digBtns.insertBefore(trendBtn,digBtn);
+        else digBtns.appendChild(trendBtn);
       }
     });
   })();
@@ -1458,6 +1464,9 @@ function toggleArchive(){
     overlay.classList.remove('open');
   }
 }
+let archiveData=[];
+let archiveMonth=null; /* {year, month} currently displayed */
+
 function loadArchive(){
   const list = document.getElementById('archiveList');
   list.innerHTML = '<div class="archive-empty">Loading...</div>';
@@ -1468,20 +1477,90 @@ function loadArchive(){
         list.innerHTML = '<div class="archive-empty">No archived briefings yet.</div>';
         return;
       }
-      list.innerHTML = entries.map(e => {
-        const d = new Date(e.date + 'T00:00:00');
-        const dayName = d.toLocaleDateString('en-GB', {weekday:'short'});
-        const dateStr = d.toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
-        return `<div class="archive-item" onclick="window.location.href='${e.file}'">
-          <span class="archive-date">${dayName} ${dateStr}</span>
-          <span class="archive-headline">${e.headline || '—'}</span>
-          <span class="archive-size">${e.size_kb}kb</span>
-        </div>`;
-      }).join('');
+      archiveData=entries;
+      /* Default to most recent briefing's month */
+      const latest=new Date(entries[0].date+'T00:00:00');
+      archiveMonth={year:latest.getFullYear(),month:latest.getMonth()};
+      renderCalendar();
     })
     .catch(() => {
-      list.innerHTML = '<div class="archive-empty">Could not load archive. Run the briefing to generate archive.json.</div>';
+      list.innerHTML = '<div class="archive-empty">Could not load archive.</div>';
     });
+}
+
+function renderCalendar(){
+  const list=document.getElementById('archiveList');
+  const y=archiveMonth.year, m=archiveMonth.month;
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  /* Build lookup of dates with briefings */
+  const briefingDates={};
+  archiveData.forEach(function(e){briefingDates[e.date]={file:e.file,size:e.size_kb};});
+
+  /* First day of month (0=Sun, adjust to Mon=0) */
+  const firstDay=new Date(y,m,1).getDay();
+  const startOffset=(firstDay===0?6:firstDay-1); /* Mon-based offset */
+  const daysInMonth=new Date(y,m+1,0).getDate();
+
+  /* Check if any other months have data for nav indicators */
+  const allMonths=new Set();
+  archiveData.forEach(function(e){
+    var d=new Date(e.date+'T00:00:00');
+    allMonths.add(d.getFullYear()*12+d.getMonth());
+  });
+  const curKey=y*12+m;
+  const hasPrev=Array.from(allMonths).some(function(k){return k<curKey;});
+  const hasNext=Array.from(allMonths).some(function(k){return k>curKey;});
+
+  let html='<div class="cal-nav">';
+  html+='<button class="cal-nav-btn'+(hasPrev?'':' cal-nav-disabled')+'" onclick="archiveNavMonth(-1)">&larr;</button>';
+  html+='<span class="cal-month-label">'+monthNames[m]+' '+y+'</span>';
+  html+='<button class="cal-nav-btn'+(hasNext?'':' cal-nav-disabled')+'" onclick="archiveNavMonth(1)">&rarr;</button>';
+  html+='</div>';
+
+  html+='<div class="cal-grid">';
+  /* Day headers */
+  ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(function(d){
+    html+='<div class="cal-header">'+d+'</div>';
+  });
+
+  /* Empty cells before first day */
+  for(var i=0;i<startOffset;i++) html+='<div class="cal-day cal-empty"></div>';
+
+  /* Day cells */
+  var today=new Date();
+  for(var day=1;day<=daysInMonth;day++){
+    var dateStr=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    var dow=new Date(y,m,day).getDay();
+    var isWeekend=(dow===0||dow===6);
+    var entry=briefingDates[dateStr];
+    var classes='cal-day';
+    if(isWeekend) classes+=' cal-weekend';
+    if(entry) classes+=' cal-has-briefing';
+    if(y===today.getFullYear()&&m===today.getMonth()&&day===today.getDate()) classes+=' cal-today';
+
+    if(entry){
+      /* Sanitize file name to prevent XSS — only allow safe filename chars */
+      var safeFile=entry.file.replace(/[^a-zA-Z0-9._-]/g,'');
+      html+='<div class="'+classes+'" onclick="window.location.href=\''+safeFile+'\'" title="'+dateStr+' ('+entry.size+'kb)">';
+      html+='<span class="cal-day-num">'+day+'</span>';
+      html+='<span class="cal-dot"></span>';
+      html+='</div>';
+    }else{
+      html+='<div class="'+classes+'">';
+      html+='<span class="cal-day-num">'+day+'</span>';
+      html+='</div>';
+    }
+  }
+  html+='</div>';
+  list.innerHTML=html;
+}
+
+function archiveNavMonth(dir){
+  archiveMonth.month+=dir;
+  if(archiveMonth.month>11){archiveMonth.month=0;archiveMonth.year++;}
+  if(archiveMonth.month<0){archiveMonth.month=11;archiveMonth.year--;}
+  renderCalendar();
 }
 // Close archive on escape or clicking outside
 document.addEventListener('keydown', e => {

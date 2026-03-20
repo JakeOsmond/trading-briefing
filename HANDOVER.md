@@ -84,6 +84,12 @@ AI-powered daily trading briefing for HX Insurance. ~4,400-line Python pipeline 
 - **Trend button moved** from pills to action row (between Ask and GBQ buttons), matching glass-morphism style
 - Confidence and verification pills unchanged
 
+### Auto-Handover Hook (Global)
+- **PostCompact hook** in `~/.claude/settings.json` — fires when Claude Code context is compacted
+- Uses exit code 2 pattern to send feedback back to Claude: "update HANDOVER.md with session state"
+- Currently triggers on ALL compaction (manual `/compact` and automatic). After testing, add `"matcher": "auto"` to restrict to automatic compaction only.
+- This is a **global** hook — works in every project, not just trading-briefing.
+
 ### Other
 - `pytrends` added to requirements.txt
 - `.trends_cache/` added to .gitignore
@@ -92,7 +98,7 @@ AI-powered daily trading briefing for HX Insurance. ~4,400-line Python pipeline 
 
 ## Known Issues / Active Items
 
-1. **Google Trends 429 rate limiting** — First pipeline run got rate limited from GitHub Actions IP. Retry logic now in place (30/60/120s backoff). Second run (currently in progress) will test this. If it persists, may need a proxy or pre-cached data approach.
+1. **Google Trends 429 rate limiting** — First pipeline run got rate limited from GitHub Actions IP. Retry logic now in place (30/60/120s backoff). Second run (run ID 23337099407) was in progress at session end — check result. If 429s persist, may need a proxy or pre-cached data approach.
 2. **Read-only BigQuery credentials** — Still using Jake's personal creds. Richard hasn't responded.
 3. **KV fetch in CI** — Python Cloudflare REST API call gets 403. Token needs "Workers KV Storage: Edit" scope. Manual context adds from the site stored in KV but pipeline can't read them.
 4. **Phase 0 takes ~11 min** — 30 docs × LLM calls. Acceptable but slow.

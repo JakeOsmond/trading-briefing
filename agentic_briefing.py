@@ -1673,11 +1673,20 @@ Return ONLY valid JSON array."""
                     f'onclick="removeContext(&quot;ctx-{idx}&quot;,&quot;{filed_to}&quot;,&quot;{filed_text}&quot;)"'
                     f'>✕ Remove</button>'
                 )
+            # Build source line — hyperlink to GitHub if filed_to is available
+            source_html = ""
+            if source:
+                filed_to_path = item.get("_filed_to", "")
+                if filed_to_path:
+                    gh_url = f"https://github.com/JakeOsmond/trading-briefing/blob/main/context/{filed_to_path}"
+                    source_html = f'<a class="context-source" href="{gh_url}" target="_blank" rel="noopener">{source}</a>'
+                else:
+                    source_html = f'<span class="context-source">{source}</span>'
             html += (
                 f'<div class="context-item" id="ctx-{idx}">'
                 f'<span class="{badge_cls}">{badge_text}</span> '
                 f'{summary}{remove_btn}'
-                f'<span class="context-source">{source}</span>'
+                f'{source_html}'
                 f'</div>\n'
             )
         return html
@@ -4028,7 +4037,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 
 <!-- Sticky toolbar — buttons only -->
 <div class="hdr">
-<div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end"><button class="chat-toggle-btn" onclick="toggleChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Ask</button><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button><a href="context-manager.html" class="archive-btn" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Context</a>{"<span class='inv-badge' onclick='openInvestigations()'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
+<div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end"><button class="refresh-btn" onclick="triggerRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button><button class="archive-btn" onclick="toggleArchive()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>Archive</button><a href="context-manager.html" class="archive-btn" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Context</a>{"<span class='inv-badge' onclick='openInvestigations()'>" + str(inv_count) + " investigations<span class='inv-tooltip'>Trading Covered ran <strong>" + str(inv_count) + " automated checks</strong> across trading data, web analytics, market intelligence, and internal documents before writing this briefing.<br><br><strong>Click to see exactly what was investigated.</strong></span></span>" if inv_count else ""}</div>
 </div>
 
 <!-- Headline Tile — one-sentence takeaway -->
