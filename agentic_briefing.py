@@ -2832,7 +2832,7 @@ ORDER BY period, dt
             except Exception as stat_err:
                 print(f"     ⚠ Statistical confidence failed: {stat_err}")
 
-            driver_trends[driver_name] = {
+            trend_entry = {
                 "ty": ty_parsed,
                 "ly": ly_parsed,
                 "metric_label": metric_label,
@@ -2848,6 +2848,10 @@ ORDER BY period, dt
                 "confidence_explanation": confidence_data["explanation"],
                 "bank_holiday_note": confidence_data.get("bank_holiday_note"),
             }
+            driver_trends[driver_name] = trend_entry
+            # Also key by finding_id for direct matching via data-fid span
+            finding_id = mover.get("finding_id", f"finding-{i}")
+            driver_trends[finding_id] = trend_entry
         except Exception as e:
             print(f"  ⚠ Trend query failed for '{driver_name}': {e}")
             continue
@@ -3270,7 +3274,12 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
                 _used_verification.add(finding_id)
 
         # Embed matched trend key directly as data attribute
-        trend_key = _h_to_k.get(idx, '')
+        # Try finding_id first (direct match), then fall back to fuzzy h_to_k
+        trend_key = ''
+        if finding_id and _all_trends_for_js and finding_id in _all_trends_for_js:
+            trend_key = finding_id
+        if not trend_key:
+            trend_key = _h_to_k.get(idx, '')
         trend_attr = f' data-trend-key="{trend_key}"' if trend_key else ''
         # Strip the data-fid span from visible heading text (used for ID matching, not display)
         clean_heading = re.sub(r'\s*<span\s+data-fid="[^"]*"\s*>\s*</span>\s*', '', match.group(1))
