@@ -1,4 +1,4 @@
-"""Insurance investigation tracks — 23 deterministic SQL queries for trading analysis."""
+"""Insurance investigation tracks — 28 deterministic SQL queries for trading analysis."""
 
 
 def build_investigation_tracks(dp, policies_table, web_table):
@@ -14,21 +14,21 @@ def build_investigation_tracks(dp, policies_table, web_table):
         'sql': f"""
 SELECT 'TY' AS yr, distribution_channel, policy_type,
     SUM(policy_count) AS policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_price,
     SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_commission,
     SUM(CAST(total_discount_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_discount
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY distribution_channel, policy_type
 UNION ALL
 SELECT 'LY', distribution_channel, policy_type,
-    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
+    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_discount_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY distribution_channel, policy_type
 """
     }
@@ -40,18 +40,18 @@ GROUP BY distribution_channel, policy_type
         'sql': f"""
 SELECT 'TY' AS yr, scheme_name,
     SUM(policy_count) AS policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_price
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY scheme_name
 HAVING ABS(SUM(policy_count)) >= 5
 UNION ALL
 SELECT 'LY', scheme_name,
-    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
+    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY scheme_name
 HAVING ABS(SUM(policy_count)) >= 5
 ORDER BY gp DESC
@@ -67,21 +67,21 @@ SELECT 'TY' AS yr,
     CASE WHEN max_medical_score > 0 THEN 'Medical' ELSE 'Non-medical' END AS medical_flag,
     max_medical_score_grouped, policy_type, distribution_channel,
     SUM(policy_count) AS policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
     SUM(CAST(medical_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_medical_premium,
     SUM(CAST(medical_net_to_underwriter AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_medical_uw_cost
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY medical_flag, max_medical_score_grouped, policy_type, distribution_channel
 UNION ALL
 SELECT 'LY' AS yr,
     CASE WHEN max_medical_score > 0 THEN 'Medical' ELSE 'Non-medical' END AS medical_flag,
     max_medical_score_grouped, policy_type, distribution_channel,
-    SUM(policy_count) AS policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
+    SUM(policy_count) AS policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
     SUM(CAST(medical_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_medical_premium,
     SUM(CAST(medical_net_to_underwriter AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_medical_uw_cost
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY medical_flag, max_medical_score_grouped, policy_type, distribution_channel
 """
     }
@@ -93,21 +93,21 @@ GROUP BY medical_flag, max_medical_score_grouped, policy_type, distribution_chan
         'sql': f"""
 SELECT 'TY' AS yr, cover_level_name, cover_level_tier,
     SUM(policy_count) AS policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
     SUM(CAST(base_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_base_price,
     SUM(CAST(option_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_option_price,
     SUM(CAST(total_gadget_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gadget_price,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY cover_level_name, cover_level_tier
 UNION ALL
 SELECT 'LY', cover_level_name, cover_level_tier,
-    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
+    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
     SUM(CAST(base_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(option_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_gadget_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0)
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY cover_level_name, cover_level_tier
 """
     }
@@ -123,8 +123,8 @@ SELECT 'TY' AS yr, insurance_group, distribution_channel,
     SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_commission,
     SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(NULLIF(SUM(CAST(total_gross_inc_ipt AS FLOAT64)), 0), 0) AS commission_rate,
     SUM(CAST(campaign_commission_value AS FLOAT64)) AS campaign_commission,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY insurance_group, distribution_channel
 HAVING ABS(SUM(policy_count)) >= 3
 UNION ALL
@@ -133,8 +133,8 @@ SELECT 'LY', insurance_group, distribution_channel,
     SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(NULLIF(SUM(CAST(total_gross_inc_ipt AS FLOAT64)), 0), 0),
     SUM(CAST(campaign_commission_value AS FLOAT64)),
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY insurance_group, distribution_channel
 HAVING ABS(SUM(policy_count)) >= 3
 """
@@ -154,9 +154,9 @@ SELECT 'TY' AS yr, customer_type, customer_type_insurance_only,
         WHEN max_age_at_purchase >= 80 THEN '80+'
     END AS age_band,
     SUM(policy_count) AS policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY customer_type, customer_type_insurance_only, age_band
 UNION ALL
 SELECT 'LY' AS yr, customer_type, customer_type_insurance_only,
@@ -167,9 +167,9 @@ SELECT 'LY' AS yr, customer_type, customer_type_insurance_only,
         WHEN max_age_at_purchase BETWEEN 70 AND 79 THEN '70-79'
         WHEN max_age_at_purchase >= 80 THEN '80+'
     END AS age_band,
-    SUM(policy_count) AS policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    SUM(policy_count) AS policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY customer_type, customer_type_insurance_only, age_band
 """
     }
@@ -181,15 +181,15 @@ GROUP BY customer_type, customer_type_insurance_only, age_band
         'sql': f"""
 SELECT 'TY' AS yr, destination_group,
     SUM(policy_count) AS policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY destination_group
 UNION ALL
 SELECT 'LY', destination_group,
-    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0)
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY destination_group
 """
     }
@@ -201,16 +201,16 @@ GROUP BY destination_group
         'sql': f"""
 SELECT 'TY' AS yr, cancellation_reason, policy_type, distribution_channel,
     SUM(policy_count) AS cancellations,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp_impact
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp_impact
 FROM {P}
-WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
   AND transaction_type = 'Cancellation'
 GROUP BY cancellation_reason, policy_type, distribution_channel
 UNION ALL
 SELECT 'LY', cancellation_reason, policy_type, distribution_channel,
-    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))
 FROM {P}
-WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
   AND transaction_type = 'Cancellation'
 GROUP BY cancellation_reason, policy_type, distribution_channel
 """
@@ -224,28 +224,28 @@ GROUP BY cancellation_reason, policy_type, distribution_channel
 -- Part A: Blended renewal rate — expiring policies vs renewed policies (weekly)
 WITH expiry_pols AS (
     SELECT 'TY' AS yr, SUM(policy_count) AS expiring,
-        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS expiring_gp
+        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS expiring_gp
     FROM {P}
-    WHERE travel_end_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    WHERE looker_end_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
       AND LOWER(policy_type) = 'annual'
     UNION ALL
     SELECT 'LY', SUM(policy_count),
-        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))
     FROM {P}
-    WHERE travel_end_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    WHERE looker_end_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
       AND LOWER(policy_type) = 'annual'
 ),
 renewal_pols AS (
     SELECT 'TY' AS yr, SUM(policy_count) AS renewed,
-        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS renewed_gp
+        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS renewed_gp
     FROM {P}
-    WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
       AND LOWER(distribution_channel) = 'renewals'
     UNION ALL
     SELECT 'LY', SUM(policy_count),
-        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))
+        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))
     FROM {P}
-    WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
       AND LOWER(distribution_channel) = 'renewals'
 )
 SELECT e.yr, e.expiring, e.expiring_gp,
@@ -260,19 +260,19 @@ ORDER BY e.yr
 -- Part B: Expiry mix by original distribution channel (explains blended rate shifts)
 SELECT 'TY' AS yr, distribution_channel AS expiry_channel,
     SUM(policy_count) AS expiring_policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS expiring_gp,
-    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)), NULLIF(SUM(policy_count),0)) AS avg_gp
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS expiring_gp,
+    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)), NULLIF(SUM(policy_count),0)) AS avg_gp
 FROM {P}
-WHERE travel_end_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+WHERE looker_end_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
   AND LOWER(policy_type) = 'annual'
 GROUP BY distribution_channel
 UNION ALL
 SELECT 'LY', distribution_channel,
     SUM(policy_count),
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)), NULLIF(SUM(policy_count),0))
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
+    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)), NULLIF(SUM(policy_count),0))
 FROM {P}
-WHERE travel_end_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+WHERE looker_end_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
   AND LOWER(policy_type) = 'annual'
 GROUP BY distribution_channel
 ORDER BY yr, expiring_policies DESC
@@ -281,20 +281,20 @@ ORDER BY yr, expiring_policies DESC
 -- Part C: Renewal cohort detail — retention, pricing, auto-renew
 SELECT 'TY' AS yr, policy_renewal_year, auto_renew_opt_in,
     SUM(policy_count) AS policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_price
 FROM {P}
-WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
   AND distribution_channel = 'Renewals'
 GROUP BY policy_renewal_year, auto_renew_opt_in
 UNION ALL
 SELECT 'LY', policy_renewal_year, auto_renew_opt_in,
-    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
+    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
 FROM {P}
-WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
   AND distribution_channel = 'Renewals'
 GROUP BY policy_renewal_year, auto_renew_opt_in
 """
@@ -340,20 +340,20 @@ GROUP BY device_type, page_type
         'name': 'Day-of-Week Patterns',
         'desc': 'Daily GP pattern within the trailing week — spot individual bad days',
         'sql': f"""
-SELECT 'TY' AS yr, transaction_date,
-    FORMAT_DATE('%A', transaction_date) AS day_name,
+SELECT 'TY' AS yr, DATE(looker_trans_date) AS transaction_date,
+    FORMAT_DATE('%A', DATE(looker_trans_date)) AS day_name,
     SUM(policy_count) AS policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
-GROUP BY transaction_date
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+GROUP BY DATE(looker_trans_date)
 UNION ALL
-SELECT 'LY', transaction_date,
-    FORMAT_DATE('%A', transaction_date),
-    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
-GROUP BY transaction_date
+SELECT 'LY', DATE(looker_trans_date) AS transaction_date,
+    FORMAT_DATE('%A', DATE(looker_trans_date)),
+    SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0)
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+GROUP BY DATE(looker_trans_date)
 ORDER BY transaction_date
 """
     }
@@ -369,9 +369,9 @@ SELECT 'TY' AS yr,
     SUM(policy_count) AS policies,
     SUM(CAST(total_discount_value AS FLOAT64)) AS total_discounts,
     SUM(CAST(total_discount_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_discount,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY discount_flag, campaign_name
 HAVING ABS(SUM(policy_count)) >= 2
 UNION ALL
@@ -380,9 +380,9 @@ SELECT 'LY' AS yr,
     campaign_name,
     SUM(policy_count) AS policies, SUM(CAST(total_discount_value AS FLOAT64)) AS total_discounts,
     SUM(CAST(total_discount_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_discount,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY discount_flag, campaign_name
 HAVING ABS(SUM(policy_count)) >= 2
 """
@@ -397,18 +397,18 @@ SELECT 'TY' AS yr,
     CASE WHEN LOWER(scheme_name) LIKE '%cruise%' OR LOWER(campaign_name) LIKE '%cru%' THEN 'Cruise' ELSE 'Non-Cruise' END AS cruise_flag,
     distribution_channel, agent_name,
     SUM(policy_count) AS policies,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY cruise_flag, distribution_channel, agent_name
 HAVING ABS(SUM(policy_count)) >= 2
 UNION ALL
 SELECT 'LY' AS yr,
     CASE WHEN LOWER(scheme_name) LIKE '%cruise%' OR LOWER(campaign_name) LIKE '%cru%' THEN 'Cruise' ELSE 'Non-Cruise' END AS cruise_flag,
     distribution_channel, agent_name,
-    SUM(policy_count) AS policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    SUM(policy_count) AS policies, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY cruise_flag, distribution_channel, agent_name
 HAVING ABS(SUM(policy_count)) >= 2
 """
@@ -443,14 +443,14 @@ joined_ty AS (
         cs.web_scheme,
         CASE WHEN cs.had_medical = 1 THEN 'Medical' ELSE 'Non-medical' END AS medical_flag,
         SUM(p.policy_count) AS policies,
-        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
+        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
         SUM(CAST(p.total_gross_inc_ipt AS FLOAT64)) AS total_gross,
-        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp_per_policy,
+        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp_per_policy,
         COUNT(DISTINCT cs.session_id) AS converting_sessions,
-        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(COUNT(DISTINCT cs.session_id), 0) AS gp_per_session
+        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(COUNT(DISTINCT cs.session_id), 0) AS gp_per_session
     FROM converting_sessions_ty cs
     JOIN {P} p ON CAST(p.certificate_id AS STRING) = cs.certificate_id
-    WHERE p.transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    WHERE DATE(p.looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
     GROUP BY cs.device_type, cs.web_scheme, medical_flag
     HAVING ABS(SUM(p.policy_count)) >= 3
 ),
@@ -474,14 +474,14 @@ joined_ly AS (
         cs.web_scheme,
         CASE WHEN cs.had_medical = 1 THEN 'Medical' ELSE 'Non-medical' END AS medical_flag,
         SUM(p.policy_count) AS policies,
-        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
+        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
         SUM(CAST(p.total_gross_inc_ipt AS FLOAT64)) AS total_gross,
-        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp_per_policy,
+        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp_per_policy,
         COUNT(DISTINCT cs.session_id) AS converting_sessions,
-        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(COUNT(DISTINCT cs.session_id), 0) AS gp_per_session
+        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(COUNT(DISTINCT cs.session_id), 0) AS gp_per_session
     FROM converting_sessions_ly cs
     JOIN {P} p ON CAST(p.certificate_id AS STRING) = cs.certificate_id
-    WHERE p.transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    WHERE DATE(p.looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
     GROUP BY cs.device_type, cs.web_scheme, medical_flag
     HAVING ABS(SUM(p.policy_count)) >= 3
 )
@@ -499,10 +499,10 @@ ORDER BY total_gp DESC
         'sql': f"""
 WITH policy_values_ty AS (
     SELECT certificate_id,
-        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS policy_gp,
+        SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS policy_gp,
         MAX(policy_type) AS policy_type
     FROM {P}
-    WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
       AND certificate_id IS NOT NULL
     GROUP BY certificate_id
 ),
@@ -556,9 +556,9 @@ FROM (
     FROM {W} w
     LEFT JOIN (
         SELECT certificate_id,
-            SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS policy_gp
+            SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS policy_gp
         FROM {P}
-        WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+        WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
           AND certificate_id IS NOT NULL
         GROUP BY certificate_id
     ) pv ON CAST(pv.certificate_id AS STRING) = w.certificate_id
@@ -596,10 +596,10 @@ with_policy_ty AS (
     SELECT s.*,
         p.policy_type,
         SUM(p.policy_count) AS policies,
-        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp
+        SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) AS gp
     FROM sessions_with_outcome_ty s
     LEFT JOIN {P} p ON CAST(p.certificate_id AS STRING) = s.certificate_id
-        AND p.transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+        AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
     GROUP BY s.session_id, s.device_type, s.had_medical, s.had_multi_search,
              s.reached_search, s.reached_checkout, s.booked, s.certificate_id, p.policy_type
 )
@@ -629,8 +629,8 @@ SELECT 'LY' AS yr,
     SUM(s.booked) AS booked_sessions,
     SUM(s.had_medical) AS medical_sessions,
     SUM(s.had_multi_search) AS multi_search_sessions,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(CASE WHEN s.booked = 1 THEN 1 ELSE 0 END), 0) AS gp_per_booked_session,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(CASE WHEN s.booked = 1 THEN 1 ELSE 0 END), 0) AS gp_per_booked_session,
     SUM(p.policy_count) AS total_policies
 FROM (
     SELECT
@@ -647,7 +647,7 @@ FROM (
     GROUP BY w.session_id, w.device_type
 ) s
 LEFT JOIN {P} p ON CAST(p.certificate_id AS STRING) = s.certificate_id
-    AND p.transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY p.policy_type, s.device_type
 """
     }
@@ -677,14 +677,14 @@ SELECT 'TY' AS yr,
     SUM(sp.converted) AS converted_sessions,
     SAFE_DIVIDE(SUM(sp.converted), COUNT(DISTINCT sp.session_id)) AS conversion_rate,
     SUM(p.policy_count) AS policies,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp_per_policy,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(sp.converted), 0) AS gp_per_converted_session,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp_per_policy,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(sp.converted), 0) AS gp_per_converted_session,
     MAX(p.policy_type) AS dominant_policy_type,
     SUM(sp.had_medical) AS medical_sessions
 FROM session_profile_ty sp
 LEFT JOIN {P} p ON CAST(p.certificate_id AS STRING) = sp.certificate_id
-    AND p.transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY sp.search_type, sp.device_type
 
 UNION ALL
@@ -694,9 +694,9 @@ SELECT 'LY' AS yr, sp.search_type, sp.device_type,
     SUM(sp.converted),
     SAFE_DIVIDE(SUM(sp.converted), COUNT(DISTINCT sp.session_id)),
     SUM(p.policy_count),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(sp.converted), 0),
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0),
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(sp.converted), 0),
     MAX(p.policy_type),
     SUM(sp.had_medical)
 FROM (
@@ -711,7 +711,7 @@ FROM (
     GROUP BY w.session_id, w.device_type
 ) sp
 LEFT JOIN {P} p ON CAST(p.certificate_id AS STRING) = sp.certificate_id
-    AND p.transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY sp.search_type, sp.device_type
 """
     }
@@ -751,13 +751,13 @@ SELECT 'TY' AS yr,
     SUM(ss.booked) AS booked_sessions,
     SAFE_DIVIDE(SUM(ss.booked), COUNT(DISTINCT ss.session_id)) AS conversion_rate,
     SUM(p.policy_count) AS policies,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp_per_policy,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp_per_policy,
     SUM(CAST(p.total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_price,
     SUM(CAST(p.medical_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_medical_premium
 FROM session_screening_ty ss
 LEFT JOIN {P} p ON CAST(p.certificate_id AS STRING) = ss.certificate_id
-    AND p.transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY ss.device_type, screening_segment
 
 UNION ALL
@@ -773,8 +773,8 @@ SELECT 'LY' AS yr, ss.device_type,
     SUM(ss.reached_checkout), SUM(ss.booked),
     SAFE_DIVIDE(SUM(ss.booked), COUNT(DISTINCT ss.session_id)),
     SUM(p.policy_count),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0),
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0),
     SUM(CAST(p.total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0),
     SUM(CAST(p.medical_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0)
 FROM (
@@ -792,7 +792,7 @@ FROM (
     GROUP BY w.session_id, w.device_type
 ) ss
 LEFT JOIN {P} p ON CAST(p.certificate_id AS STRING) = ss.certificate_id
-    AND p.transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY ss.device_type, screening_segment
 """
     }
@@ -822,15 +822,15 @@ SELECT 'TY' AS yr,
     p.cover_level_tier,
     p.policy_type,
     SUM(p.policy_count) AS policies,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp,
     SUM(CAST(p.total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_price,
     SUM(CAST(p.option_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_option_premium,
     SUM(CAST(p.total_gadget_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_gadget_premium,
     COUNT(DISTINCT ws.session_id) AS converting_sessions
 FROM web_sessions_ty ws
 JOIN {P} p ON CAST(p.certificate_id AS STRING) = ws.certificate_id
-    AND p.transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY ws.web_insurance_group, ws.device_type, p.cover_level_name, p.cover_level_tier, p.policy_type
 HAVING ABS(SUM(p.policy_count)) >= 2
 
@@ -840,8 +840,8 @@ SELECT 'LY' AS yr,
     ws.web_insurance_group, ws.device_type,
     p.cover_level_name, p.cover_level_tier, p.policy_type,
     SUM(p.policy_count),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0),
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0),
     SUM(CAST(p.total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0),
     SUM(CAST(p.option_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0),
     SUM(CAST(p.total_gadget_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0),
@@ -857,7 +857,7 @@ FROM (
     GROUP BY w.session_id, w.device_type
 ) ws
 JOIN {P} p ON CAST(p.certificate_id AS STRING) = ws.certificate_id
-    AND p.transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY ws.web_insurance_group, ws.device_type, p.cover_level_name, p.cover_level_tier, p.policy_type
 HAVING ABS(SUM(p.policy_count)) >= 2
 """
@@ -896,12 +896,12 @@ SELECT 'TY' AS yr,
     SUM(b.converted) AS converted_sessions,
     SAFE_DIVIDE(SUM(b.converted), COUNT(DISTINCT b.session_id)) AS conversion_rate,
     SUM(p.policy_count) AS policies,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp,
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(b.converted), 0) AS gp_per_converted_session
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0) AS avg_gp,
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(b.converted), 0) AS gp_per_converted_session
 FROM bucketed_ty b
 LEFT JOIN {P} p ON CAST(p.certificate_id AS STRING) = b.certificate_id
-    AND p.transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+    AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY b.depth_bucket, b.device_type
 
 UNION ALL
@@ -911,9 +911,9 @@ SELECT 'LY' AS yr, b.depth_bucket, b.device_type,
     SUM(b.converted),
     SAFE_DIVIDE(SUM(b.converted), COUNT(DISTINCT b.session_id)),
     SUM(p.policy_count),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(p.policy_count), 0),
-    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(b.converted), 0)
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(p.policy_count), 0),
+    SUM(CAST(p.total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(p.ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(b.converted), 0)
 FROM (
     SELECT sd.*,
         CASE
@@ -933,7 +933,7 @@ FROM (
     ) sd
 ) b
 LEFT JOIN {P} p ON CAST(p.certificate_id AS STRING) = b.certificate_id
-    AND p.transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+    AND DATE(p.looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY b.depth_bucket, b.device_type
 """
     }
@@ -950,19 +950,19 @@ SELECT 'TY' AS yr, distribution_channel, policy_type,
     SUM(CAST(total_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_ipt,
     SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_commission,
     SUM(CAST(total_net_to_underwriter_inc_gadget AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_uw_cost,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp,
     -- As % of gross price
     SAFE_DIVIDE(SUM(CAST(total_ipt AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))) AS ipt_pct_of_gross,
     SAFE_DIVIDE(SUM(CAST(total_paid_commission_value AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))) AS commission_pct_of_gross,
     SAFE_DIVIDE(SUM(CAST(total_net_to_underwriter_inc_gadget AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))) AS uw_pct_of_gross,
-    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))) AS gp_margin_pct,
+    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))) AS gp_margin_pct,
     -- Discount as % of gross
     SAFE_DIVIDE(SUM(CAST(total_discount_value AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))) AS discount_pct_of_gross,
     -- Medical and gadget components
     SUM(CAST(medical_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_medical_premium,
     SUM(CAST(total_gadget_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gadget_premium,
     SUM(CAST(option_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_option_premium
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
 GROUP BY distribution_channel, policy_type
 UNION ALL
 SELECT 'LY', distribution_channel, policy_type,
@@ -972,16 +972,16 @@ SELECT 'LY', distribution_channel, policy_type,
     SUM(CAST(total_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_paid_commission_value AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_net_to_underwriter_inc_gadget AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0),
     SAFE_DIVIDE(SUM(CAST(total_ipt AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))),
     SAFE_DIVIDE(SUM(CAST(total_paid_commission_value AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))),
     SAFE_DIVIDE(SUM(CAST(total_net_to_underwriter_inc_gadget AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))),
-    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))),
+    SAFE_DIVIDE(SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))),
     SAFE_DIVIDE(SUM(CAST(total_discount_value AS FLOAT64)), SUM(CAST(total_gross_inc_ipt AS FLOAT64))),
     SUM(CAST(medical_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(total_gadget_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0),
     SUM(CAST(option_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
-FROM {P} WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
 GROUP BY distribution_channel, policy_type
 """
     }
@@ -1074,20 +1074,20 @@ WITH web AS (
 pol AS (
   SELECT 'TY' AS yr, customer_type, distribution_channel,
       SUM(policy_count) AS policies,
-      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp,
-      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
   FROM {P}
-  WHERE transaction_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+  WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
   GROUP BY customer_type, distribution_channel
 
   UNION ALL
 
   SELECT 'LY', customer_type, distribution_channel,
       SUM(policy_count),
-      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)),
-      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0)
   FROM {P}
-  WHERE transaction_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+  WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
   GROUP BY customer_type, distribution_channel
 )
 SELECT 'web' AS source, yr, customer_type, CAST(NULL AS STRING) AS distribution_channel,
@@ -1100,6 +1100,145 @@ SELECT 'policy', yr, customer_type, distribution_channel,
     policies, gp, avg_gp
 FROM pol
 ORDER BY source, yr, customer_type
+"""
+    }
+
+    # Track 24: PPC Cost Efficiency
+    tracks['ppc_cost_efficiency'] = {
+        'name': 'PPC cost efficiency',
+        'desc': 'PPC spend, cost per policy, and GP after PPC deduction for web advertising',
+        'sql': f"""
+SELECT 'TY' AS yr,
+    COUNT(*) AS policies,
+    SUM(COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS total_ppc,
+    AVG(COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS avg_ppc_per_policy,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp_post_ppc
+FROM {P}
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+  AND insurance_group = 'Web Advertising PPC'
+UNION ALL
+SELECT 'LY' AS yr,
+    COUNT(*) AS policies,
+    SUM(COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS total_ppc,
+    AVG(COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS avg_ppc_per_policy,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp_post_ppc
+FROM {P}
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+  AND insurance_group = 'Web Advertising PPC'
+"""
+    }
+
+    # Track 25: Renewal Rate by Channel
+    tracks['renewal_rate_by_channel'] = {
+        'name': 'Renewal rate by channel',
+        'desc': 'Renewal rates for annual policies broken down by distribution channel',
+        'sql': f"""
+SELECT 'TY' AS yr, distribution_channel,
+    COUNT(*) AS total_annual,
+    SUM(CASE WHEN renewed_flag = TRUE THEN 1 ELSE 0 END) AS renewed,
+    SAFE_DIVIDE(SUM(CASE WHEN renewed_flag = TRUE THEN 1 ELSE 0 END), COUNT(*)) AS renewal_rate
+FROM {P}
+WHERE looker_end_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+  AND policy_type = 'Annual'
+GROUP BY distribution_channel
+UNION ALL
+SELECT 'LY' AS yr, distribution_channel,
+    COUNT(*) AS total_annual,
+    SUM(CASE WHEN renewed_flag = TRUE THEN 1 ELSE 0 END) AS renewed,
+    SAFE_DIVIDE(SUM(CASE WHEN renewed_flag = TRUE THEN 1 ELSE 0 END), COUNT(*)) AS renewal_rate
+FROM {P}
+WHERE looker_end_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+  AND policy_type = 'Annual'
+GROUP BY distribution_channel
+"""
+    }
+
+    # Track 26: Cover Level Migration
+    tracks['cover_level_migration'] = {
+        'name': 'Cover level migration on renewal',
+        'desc': 'How customers move between cover levels on renewal — upsell vs downsell patterns',
+        'sql': f"""
+SELECT 'TY' AS yr,
+    previous_cover_level_name AS from_level,
+    cover_level_name AS to_level,
+    COUNT(*) AS cnt,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp
+FROM {P}
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+  AND previous_cover_level_name IS NOT NULL
+GROUP BY from_level, to_level
+UNION ALL
+SELECT 'LY' AS yr,
+    previous_cover_level_name AS from_level,
+    cover_level_name AS to_level,
+    COUNT(*) AS cnt,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp
+FROM {P}
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+  AND previous_cover_level_name IS NOT NULL
+GROUP BY from_level, to_level
+"""
+    }
+
+    # Track 27: Auto-Renewal Conversion
+    tracks['auto_renewal_conversion'] = {
+        'name': 'Auto-renewal conversion',
+        'desc': 'Renewal conversion rates by auto-renewal eligibility and payment token status',
+        'sql': f"""
+SELECT 'TY' AS yr,
+    autorenewal_eligability, payment_token_status,
+    COUNT(*) AS cnt,
+    SUM(CASE WHEN renewed_flag = TRUE THEN 1 ELSE 0 END) AS renewed
+FROM {P}
+WHERE looker_end_date BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+  AND policy_type = 'Annual'
+GROUP BY autorenewal_eligability, payment_token_status
+UNION ALL
+SELECT 'LY' AS yr,
+    autorenewal_eligability, payment_token_status,
+    COUNT(*) AS cnt,
+    SUM(CASE WHEN renewed_flag = TRUE THEN 1 ELSE 0 END) AS renewed
+FROM {P}
+WHERE looker_end_date BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+  AND policy_type = 'Annual'
+GROUP BY autorenewal_eligability, payment_token_status
+"""
+    }
+
+    # Track 28: Renewal Lag Analysis
+    tracks['renewal_timing'] = {
+        'name': 'Renewal timing analysis',
+        'desc': 'When do renewals happen relative to expiry — early, standard, last-minute, or lapsed',
+        'sql': f"""
+SELECT 'TY' AS yr,
+    CASE
+        WHEN renew_lag_to_expiry < -30 THEN 'Early (30d+)'
+        WHEN renew_lag_to_expiry BETWEEN -30 AND -8 THEN 'Standard (8-30d)'
+        WHEN renew_lag_to_expiry BETWEEN -7 AND 0 THEN 'Last week'
+        WHEN renew_lag_to_expiry > 0 THEN 'After expiry'
+        ELSE 'Unknown'
+    END AS timing_bucket,
+    COUNT(*) AS cnt,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp
+FROM {P}
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+  AND renewed_flag = TRUE
+GROUP BY timing_bucket
+UNION ALL
+SELECT 'LY' AS yr,
+    CASE
+        WHEN renew_lag_to_expiry < -30 THEN 'Early (30d+)'
+        WHEN renew_lag_to_expiry BETWEEN -30 AND -8 THEN 'Standard (8-30d)'
+        WHEN renew_lag_to_expiry BETWEEN -7 AND 0 THEN 'Last week'
+        WHEN renew_lag_to_expiry > 0 THEN 'After expiry'
+        ELSE 'Unknown'
+    END AS timing_bucket,
+    COUNT(*) AS cnt,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp
+FROM {P}
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+  AND renewed_flag = TRUE
+GROUP BY timing_bucket
 """
     }
 

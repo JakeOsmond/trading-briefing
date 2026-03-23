@@ -276,7 +276,7 @@ def _autocorrect_sql(sql: str) -> tuple[str, list[str]]:
     corrected = sql
     upper = corrected.upper()
 
-    if "INSURANCE_POLICIES_NEW" in upper:
+    if "INSURANCE_TRADING_DATA" in upper or "INSURANCE_POLICIES_NEW" in upper:
         # Fix COUNT(*) → SUM(policy_count)
         if re.search(r'\bCOUNT\s*\(\s*\*\s*\)', corrected, re.IGNORECASE):
             corrected = re.sub(r'\bCOUNT\s*\(\s*\*\s*\)', 'SUM(policy_count)', corrected, flags=re.IGNORECASE)
@@ -320,10 +320,10 @@ def _autocorrect_sql(sql: str) -> tuple[str, list[str]]:
                 offset = start + len(new_text)
             else:
                 offset = m.end()
-        # Fix EXTRACT(DATE FROM transaction_date)
+        # Fix EXTRACT(DATE FROM transaction_date) or bare transaction_date → DATE(looker_trans_date)
         if re.search(r'EXTRACT\s*\(\s*DATE\s+FROM\s+transaction_date\s*\)', corrected, re.IGNORECASE):
-            corrected = re.sub(r'EXTRACT\s*\(\s*DATE\s+FROM\s+transaction_date\s*\)', 'transaction_date', corrected, flags=re.IGNORECASE)
-            warnings.append("Auto-corrected EXTRACT(DATE FROM transaction_date) → transaction_date")
+            corrected = re.sub(r'EXTRACT\s*\(\s*DATE\s+FROM\s+transaction_date\s*\)', 'DATE(looker_trans_date)', corrected, flags=re.IGNORECASE)
+            warnings.append("Auto-corrected EXTRACT(DATE FROM transaction_date) → DATE(looker_trans_date)")
 
     # Fix invalid dates (e.g. Feb 29 in non-leap year)
     for m in re.finditer(r"'(\d{4})-(\d{2})-(\d{2})'", corrected):
@@ -652,13 +652,13 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "run_sql",
-            "description": "Execute a SQL query against Google BigQuery. CRITICAL RULES for insurance_policies_new: (1) NEVER use COUNT(*) or COUNT(DISTINCT policy_id) — always SUM(policy_count), (2) NEVER use AVG() on financial columns — always SUM(col)/NULLIF(SUM(policy_count),0), (3) transaction_date is DATE — never EXTRACT(DATE FROM it). For web table: use COUNT(DISTINCT visitor_id) for users, COUNT(DISTINCT session_id) for sessions. Always use project-qualified table names.",
+            "description": "Execute a SQL query against Google BigQuery. CRITICAL RULES for insurance_trading_data: (1) NEVER use COUNT(*) or COUNT(DISTINCT policy_id) — always SUM(policy_count), (2) NEVER use AVG() on financial columns — always SUM(col)/NULLIF(SUM(policy_count),0), (3) use DATE(looker_trans_date) for date filtering and grouping — never bare transaction_date. For web table: use COUNT(DISTINCT visitor_id) for users, COUNT(DISTINCT session_id) for sessions. Always use project-qualified table names.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "sql": {
                         "type": "string",
-                        "description": "The BigQuery SQL query to execute. Must use fully qualified table names like `hx-data-production.commercial_finance.insurance_policies_new`."
+                        "description": "The BigQuery SQL query to execute. Must use fully qualified table names like `hx-data-production.insurance.insurance_trading_data`."
                     }
                 },
                 "required": ["sql"]
@@ -1771,10 +1771,10 @@ def run_baseline_queries(date_params):
     # Data freshness gate — check that BigQuery has data for the expected date
     expected_date = date_params["yesterday"]
     freshness_sql = f"""
-    SELECT MAX(transaction_date) AS latest_date,
+    SELECT MAX(DATE(looker_trans_date)) AS latest_date,
            SUM(policy_count) AS row_count
-    FROM `{BQ_PROJECT}.commercial_finance.insurance_policies_new`
-    WHERE transaction_date = '{expected_date}'
+    FROM `{BQ_PROJECT}.insurance.insurance_trading_data`
+    WHERE DATE(looker_trans_date) = '{expected_date}'
     """
     try:
         freshness = [dict(r) for r in BQ_CLIENT.query(freshness_sql).result()]
@@ -2358,9 +2358,9 @@ def run_synthesis(baseline_data, analysis, follow_up_results, track_results, run
 run_date = {run_date}
 
 USE THESE DATE LITERALS in all sql-dig blocks (do NOT use a 'period' column — it doesn't exist):
-- Yesterday: transaction_date = '{yesterday}'
-- Trailing 7d: transaction_date BETWEEN '{week_start}' AND '{yesterday}'
-- Trailing 7d LY: transaction_date BETWEEN '{week_start_ly}' AND '{yesterday_ly}'
+- Yesterday: DATE(looker_trans_date) = '{yesterday}'
+- Trailing 7d: DATE(looker_trans_date) BETWEEN '{week_start}' AND '{yesterday}'
+- Trailing 7d LY: DATE(looker_trans_date) BETWEEN '{week_start_ly}' AND '{yesterday_ly}'
 
 ## BASELINE METRICS
 ```json
@@ -2714,7 +2714,7 @@ def collect_driver_trends(analysis, run_date):
             metric_expr = "SUM(CAST(gp AS FLOAT64)) / NULLIF(SUM(policy_count), 0)"
             metric_label = "Avg GP"
         else:
-            metric_expr = "SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))"
+            metric_expr = "SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))"
             metric_label = "GP"
 
         # If no segment_filter, skip — we can't generate a meaningful trend
@@ -2724,20 +2724,20 @@ def collect_driver_trends(analysis, run_date):
 
         sql = f"""
 SELECT
-  transaction_date AS dt,
+  DATE(looker_trans_date) AS transaction_date,
   {metric_expr} AS val
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE transaction_date BETWEEN '{start_date.strftime('%Y-%m-%d')}' AND '{yesterday.strftime('%Y-%m-%d')}'
+FROM `hx-data-production.insurance.insurance_trading_data`
+WHERE DATE(looker_trans_date) BETWEEN '{start_date.strftime('%Y-%m-%d')}' AND '{yesterday.strftime('%Y-%m-%d')}'
   AND {seg_filter}
 GROUP BY transaction_date
 ORDER BY transaction_date
 """
         sql_ly = f"""
 SELECT
-  transaction_date AS dt,
+  DATE(looker_trans_date) AS transaction_date,
   {metric_expr} AS val
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE transaction_date BETWEEN '{ly_start.strftime('%Y-%m-%d')}' AND '{ly_end.strftime('%Y-%m-%d')}'
+FROM `hx-data-production.insurance.insurance_trading_data`
+WHERE DATE(looker_trans_date) BETWEEN '{ly_start.strftime('%Y-%m-%d')}' AND '{ly_end.strftime('%Y-%m-%d')}'
   AND {seg_filter}
 GROUP BY transaction_date
 ORDER BY transaction_date
@@ -2748,8 +2748,8 @@ ORDER BY transaction_date
             ly_result = tool_run_sql(sql_ly)
             ty_rows = json.loads(ty_result.split("\n\n")[-1]) if "auto-corrected" in ty_result or "AI-corrected" in ty_result else json.loads(ty_result)
             ly_rows = json.loads(ly_result.split("\n\n")[-1]) if "auto-corrected" in ly_result or "AI-corrected" in ly_result else json.loads(ly_result)
-            ty_parsed = [{"dt": str(r.get("dt", "")), "val": float(r.get("val", 0))} for r in ty_rows]
-            ly_parsed = [{"dt": str(r.get("dt", "")), "val": float(r.get("val", 0))} for r in ly_rows]
+            ty_parsed = [{"dt": str(r.get("transaction_date", r.get("dt", ""))), "val": float(r.get("val", 0))} for r in ty_rows]
+            ly_parsed = [{"dt": str(r.get("transaction_date", r.get("dt", ""))), "val": float(r.get("val", 0))} for r in ly_rows]
             direction = mover.get("direction", "down")
             consistent, total, label = _compute_persistence(
                 [d["val"] for d in ty_parsed],
@@ -2771,17 +2771,17 @@ ORDER BY transaction_date
                 ly_seasonal_end = (yesterday - datetime.timedelta(days=364 - 21)).strftime('%Y-%m-%d')
 
                 sql_90d = f"""
-SELECT 'TY' AS period, transaction_date AS dt,
+SELECT 'TY' AS period, DATE(looker_trans_date) AS transaction_date,
   {metric_expr} AS val
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE transaction_date BETWEEN '{ty_90d_start}' AND '{yesterday.strftime('%Y-%m-%d')}'
+FROM `hx-data-production.insurance.insurance_trading_data`
+WHERE DATE(looker_trans_date) BETWEEN '{ty_90d_start}' AND '{yesterday.strftime('%Y-%m-%d')}'
   AND {seg_filter}
 GROUP BY period, transaction_date
 UNION ALL
-SELECT 'LY' AS period, transaction_date AS dt,
+SELECT 'LY' AS period, DATE(looker_trans_date) AS transaction_date,
   {metric_expr} AS val
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE transaction_date BETWEEN '{ly_seasonal_start}' AND '{ly_seasonal_end}'
+FROM `hx-data-production.insurance.insurance_trading_data`
+WHERE DATE(looker_trans_date) BETWEEN '{ly_seasonal_start}' AND '{ly_seasonal_end}'
   AND {seg_filter}
 GROUP BY period, transaction_date
 ORDER BY period, dt
@@ -2793,10 +2793,10 @@ ORDER BY period, dt
                 target_dow = yesterday.weekday()
                 ty_90d_vals = [float(r.get("val", 0)) for r in stat_rows
                                if r.get("period") == "TY"
-                               and datetime.date.fromisoformat(str(r.get("dt", ""))[:10]).weekday() == target_dow]
+                               and datetime.date.fromisoformat(str(r.get("transaction_date", r.get("dt", "")))[:10]).weekday() == target_dow]
                 ly_seasonal_vals = [float(r.get("val", 0)) for r in stat_rows
                                      if r.get("period") == "LY"
-                                     and datetime.date.fromisoformat(str(r.get("dt", ""))[:10]).weekday() == target_dow]
+                                     and datetime.date.fromisoformat(str(r.get("transaction_date", r.get("dt", "")))[:10]).weekday() == target_dow]
 
                 # Observed value = most recent TY data point (last day of 14-day series)
                 observed = ty_parsed[-1]["val"] if ty_parsed else 0.0
@@ -3426,8 +3426,8 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
             ARRAY_AGG(DISTINCT days_to_travel IGNORE NULLS LIMIT 25) AS days_to_travel,
             ARRAY_AGG(DISTINCT max_age_at_purchase IGNORE NULLS LIMIT 25) AS max_age_at_purchase,
             ARRAY_AGG(DISTINCT insurance_group IGNORE NULLS LIMIT 40) AS insurance_group
-        FROM `hx-data-production.commercial_finance.insurance_policies_new`
-        WHERE transaction_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        FROM `hx-data-production.insurance.insurance_trading_data`
+        WHERE DATE(looker_trans_date) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
         """
         _web_disc_sql = """
         SELECT
@@ -4072,9 +4072,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 <div class="section-gap">
 <div class="section-title">Key Metrics &mdash; Yesterday vs Last Year</div>
 <div class="grid4">
-<div class="card glass-card" data-animate="card" style="transition-delay:0ms"><div class="lbl">Yesterday's GP</div><div class="val" data-countup data-target="{ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{ty.get('total_gp',0):,.0f}</div><div class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('total_gp',0):,.0f}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:0ms"><div class="lbl">Yesterday's GP (Post PPC)</div><div class="val" data-countup data-target="{ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{ty.get('total_gp',0):,.0f}</div><div class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('total_gp',0):,.0f}</div></div>
 <div class="card glass-card" data-animate="card" style="transition-delay:80ms"><div class="lbl">Yesterday's Policies</div><div class="val" data-countup data-target="{ty.get('new_policies',0)}" data-prefix="">{ty.get('new_policies',0):,}</div><div class="chg {"chg-up" if vol_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(vol_pct)} vs same day LY</div><div class="sub">Same day LY: {ly.get('new_policies',0):,}</div></div>
-<div class="card glass-card" data-animate="card" style="transition-delay:160ms"><div class="lbl">Yesterday's GP / Policy</div><div class="val" data-countup data-target="{ty.get('avg_gp_per_policy',0):.2f}" data-prefix="&pound;" data-decimals="2">&pound;{ty.get('avg_gp_per_policy',0):.2f}</div><div class="chg {"chg-up" if gppp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gppp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('avg_gp_per_policy',0):.2f}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:160ms"><div class="lbl">Yesterday's GP / Policy (Post PPC)</div><div class="val" data-countup data-target="{ty.get('avg_gp_per_policy',0):.2f}" data-prefix="&pound;" data-decimals="2">&pound;{ty.get('avg_gp_per_policy',0):.2f}</div><div class="chg {"chg-up" if gppp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gppp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('avg_gp_per_policy',0):.2f}</div></div>
 <div class="card glass-card" data-animate="card" style="transition-delay:240ms"><div class="lbl">Yesterday's Avg Price</div><div class="val" data-countup data-target="{ty.get('avg_customer_price',0):.0f}" data-prefix="&pound;">&pound;{ty.get('avg_customer_price',0):.0f}</div><div class="chg {"chg-fl" if abs(price_pct)<2 else ("chg-up" if price_pct>=0 else "chg-dn")}" data-metric>{fmt_pct(price_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('avg_customer_price',0):.0f}</div></div>
 </div>
 </div>
@@ -4084,8 +4084,8 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 <div class="section-title">Period Comparison &mdash; GP vs Last Year</div>
 <div class="grid3">
 <div class="pcard glass-card" data-animate="card" style="transition-delay:0ms"><div class="pl">Yesterday</div><div class="pv" data-countup data-target="{ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}">{fmt_pct(gp_pct)} YoY</div></div>
-<div class="pcard glass-card" data-animate="card" style="transition-delay:80ms"><div class="pl">Trailing 7 Days</div><div class="pv" data-countup data-target="{w_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{w_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(w_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if w_gp_pct>=0 else "chg-dn"}">{fmt_pct(w_gp_pct)} vs same 7d LY</div></div>
-<div class="pcard glass-card" data-animate="card" style="transition-delay:160ms"><div class="pl">Trailing 28 Days</div><div class="pv" data-countup data-target="{m_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{m_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(m_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if m_gp_pct>=0 else "chg-dn"}">{fmt_pct(m_gp_pct)} vs same 28d LY</div></div>
+<div class="pcard glass-card" data-animate="card" style="transition-delay:80ms"><div class="pl">Trailing 7 Days GP (Post PPC)</div><div class="pv" data-countup data-target="{w_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{w_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(w_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if w_gp_pct>=0 else "chg-dn"}">{fmt_pct(w_gp_pct)} vs same 7d LY</div></div>
+<div class="pcard glass-card" data-animate="card" style="transition-delay:160ms"><div class="pl">Trailing 28 Days GP (Post PPC)</div><div class="pv" data-countup data-target="{m_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{m_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(m_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if m_gp_pct>=0 else "chg-dn"}">{fmt_pct(m_gp_pct)} vs same 28d LY</div></div>
 </div>
 </div>
 

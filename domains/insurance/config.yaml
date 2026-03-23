@@ -7,7 +7,7 @@ display_name: "HX Insurance Trading"
 # BigQuery
 bq_project: hx-data-production
 tables:
-  policies: "hx-data-production.commercial_finance.insurance_policies_new"
+  policies: "hx-data-production.insurance.insurance_trading_data"
   web: "hx-data-production.commercial_finance.insurance_web_utm_4"
 
 # Market intelligence

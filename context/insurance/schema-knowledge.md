@@ -2,18 +2,18 @@
 
 _Authoritative source for table schemas. Both `agentic_briefing.py` and `functions/api/ask.js` (via injection) should reflect this._
 
-## `hx-data-production.commercial_finance.insurance_policies_new`
+## `hx-data-production.insurance.insurance_trading_data`
 
 The ONLY policy table. Every row is a transaction event on a policy.
 
 ### Critical Rules
-- ALWAYS use the full backtick-quoted name: `hx-data-production.commercial_finance.insurance_policies_new`
+- ALWAYS use the full backtick-quoted name: `hx-data-production.insurance.insurance_trading_data`
 - Use `SUM(policy_count)` not `COUNT(*)` for policy counts — multiple rows per policy
 - Use `SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))` for GP — NEVER `AVG()`
 - Avg GP = `SUM(CAST(... AS FLOAT64)) / NULLIF(SUM(policy_count), 0)`
 - All BIGNUMERIC financials must be CAST to FLOAT64 for aggregation
 - YoY = 364-day offset (matches day-of-week)
-- `transaction_date` is DATE type — use directly, no `EXTRACT()`
+- `looker_trans_date` is DATETIME type — wrap in `DATE()` for date comparisons, no `EXTRACT()`
 
 ### Transaction Model
 Each policy goes through a lifecycle of transaction events, tracked by `version`:
@@ -44,17 +44,13 @@ The `transaction_type` field has values: `New Issue`, `Contra`, `MTA Debit`, `Ca
 ### Date Columns
 | Column | Type | Description |
 |--------|------|-------------|
-| `transaction_date` | DATE | **When the transaction happened** — primary date for trading analysis |
-| `transaction_datetime` | DATETIME | Exact timestamp of transaction |
-| `travel_start_date` | DATE | When the trip/cover starts |
-| `travel_end_date` | DATE | When the policy expires — used for renewal rate calculations |
+| `looker_trans_date` | DATETIME | **When the transaction happened** — primary date for trading analysis. Wrap in `DATE()` for date comparisons |
+| `looker_start_date` | DATE | When the trip/cover starts |
+| `looker_end_date` | DATE | When the policy expires — used for renewal rate calculations |
 | `duration` | INT64 | Policy duration in days (365 for annual, 8-17 typical for single) |
-| `issue_date` | DATE | Original policy issue date |
-| `issue_datetime` | DATETIME | Original issue timestamp |
-| `quote_date` | DATE | When the quote was generated |
-| `quote_datetime` | DATETIME | Quote timestamp |
-| `cancellation_date` | DATE | Cancellation date (NULL if not cancelled) |
-| `cancellation_datetime` | DATETIME | Cancellation timestamp |
+| `looker_issue_datetime` | DATETIME | Original issue timestamp |
+| `looker_quote_datetime` | DATETIME | Quote timestamp |
+| `looker_cancellation_datetime` | DATETIME | Cancellation timestamp (NULL if not cancelled) |
 | `cancellation_reason` | STRING | Reason for cancellation |
 
 ### Product & Scheme Columns
@@ -149,6 +145,9 @@ The `transaction_type` field has values: `New Issue`, `Contra`, `MTA Debit`, `Ca
 | `addon_discount_value` | FLOAT64 | Discount on add-ons |
 | `campaign_discount_perc` | INT64 | Campaign discount percentage (e.g., 15, 20, 24) |
 | `ipt_rate` | BIGNUMERIC | IPT rate applied |
+| `ppc_cost_per_policy` | FLOAT64 | PPC advertising cost allocated per policy |
+
+**GP Post PPC:** GP is calculated as `total_gross_exc_ipt_ntu_comm` minus `COALESCE(ppc_cost_per_policy, 0)` to account for PPC advertising spend.
 
 ### Financial Columns — Component Breakdown
 The financials decompose into **base** (core policy), **medical** (medical screening top-up), **option** (add-ons), and **gadget** (gadget cover). Each has inc_ipt, exc_ipt, ntu, commission variants. The naming pattern is:
@@ -169,6 +168,14 @@ The financials decompose into **base** (core policy), **medical** (medical scree
 | `auto_renew_opt_in` | BOOL | Whether customer opted into auto-renewal |
 | `currency` | STRING | Currency code (e.g., "Pound") |
 | `user` | STRING | System user who created the record |
+
+### Renewal Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `renewed_flag` | BOOL/STRING | Whether the policy was renewed |
+| `renew_lag_to_expiry` | INT64 | Days between renewal purchase and original policy expiry |
+| `previous_cover_level_name` | STRING | Cover level of the previous (expiring) policy |
+| `renewal_journey` | STRING | The renewal journey/path taken (e.g., auto-renewal, manual renewal) |
 
 ---
 

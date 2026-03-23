@@ -135,11 +135,12 @@ Even if the movement is small, always cover:
 ## SQL DIG BLOCK RULES
 
 - Use REAL DATE LITERALS (e.g., `'2026-03-02'`), never variables or functions
-- Fully qualified table names: `hx-data-production.commercial_finance.insurance_policies_new`
+- Fully qualified table names: `hx-data-production.insurance.insurance_trading_data`
 - Policy counts: `SUM(policy_count)` — NEVER `COUNT(*)`
+- GP: `SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))` — this is GP Post PPC Spend
 - Averages: `SUM(CAST(col AS FLOAT64)) / NULLIF(SUM(policy_count), 0)` — NEVER `AVG()`
 - Web data: `COUNT(DISTINCT session_id)` or `COUNT(DISTINCT visitor_id)`
-- transaction_date is DATE type — use directly, no `EXTRACT()`
+- Date filtering: `DATE(looker_trans_date)` — this is a DATETIME column, always wrap in DATE()
 - There is NO "period" column — never reference it
 
 ## ANTI-PATTERNS (do not do these)

@@ -114,18 +114,18 @@ if movers:
             print(f"  ⚠ No segment_filter for '{driver_name}' — skipping")
             continue
 
-        metric_expr = "SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))"
-        metric_label = "GP"
+        metric_expr = "SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))"
+        metric_label = "GP (Post PPC)"
 
-        sql_ty = f"""SELECT transaction_date AS dt, {metric_expr} AS val
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE transaction_date BETWEEN '{start_date}' AND '{yesterday}' AND {seg_filter}
-GROUP BY transaction_date ORDER BY transaction_date"""
+        sql_ty = f"""SELECT DATE(looker_trans_date) AS dt, {metric_expr} AS val
+FROM `hx-data-production.insurance.insurance_trading_data`
+WHERE DATE(looker_trans_date) BETWEEN '{start_date}' AND '{yesterday}' AND {seg_filter}
+GROUP BY dt ORDER BY dt"""
 
-        sql_ly = f"""SELECT transaction_date AS dt, {metric_expr} AS val
-FROM `hx-data-production.commercial_finance.insurance_policies_new`
-WHERE transaction_date BETWEEN '{ly_start}' AND '{ly_end}' AND {seg_filter}
-GROUP BY transaction_date ORDER BY transaction_date"""
+        sql_ly = f"""SELECT DATE(looker_trans_date) AS dt, {metric_expr} AS val
+FROM `hx-data-production.insurance.insurance_trading_data`
+WHERE DATE(looker_trans_date) BETWEEN '{ly_start}' AND '{ly_end}' AND {seg_filter}
+GROUP BY dt ORDER BY dt"""
 
         try:
             ty_rows = [dict(r) for r in BQ_CLIENT.query(sql_ty).result()]

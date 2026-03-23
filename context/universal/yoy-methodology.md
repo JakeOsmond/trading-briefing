@@ -7,7 +7,7 @@ YoY comparisons use a **364-day offset** (not 365) to match day-of-week. This en
 COVID years 2020-2021 are **structural breaks** — comparisons against these years are unreliable.
 
 ## Date Handling
-- `transaction_date` is already a DATE type. Use it directly in WHERE clauses — no need for EXTRACT(DATE FROM ...).
+- `looker_trans_date` is a DATETIME type. Wrap in `DATE()` for date comparisons — use `DATE(looker_trans_date)` in WHERE clauses. No need for EXTRACT(DATE FROM ...).
 - When building LY equivalents, always subtract 364 days (52 weeks exactly).
 
 ## Calendar Effects

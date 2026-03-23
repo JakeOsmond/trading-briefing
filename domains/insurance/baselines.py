@@ -8,7 +8,7 @@ from datetime import timedelta
 def get_tables(bq_project):
     """Return fully qualified table names for this domain."""
     return {
-        "policies": f"`{bq_project}.commercial_finance.insurance_policies_new`",
+        "policies": f"`{bq_project}.insurance.insurance_trading_data`",
         "web": f"`{bq_project}.commercial_finance.insurance_web_utm_4`",
     }
 
@@ -52,69 +52,69 @@ def build_baseline_trading_sql(dp):
     return f"""
 WITH daily AS (
   SELECT 'yesterday' AS period,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
     SUM(policy_count) AS new_policies,
     SUM(CASE WHEN policy_type='Annual' THEN policy_count ELSE 0 END) AS annual_policies,
     SUM(CASE WHEN policy_type='Single' THEN policy_count ELSE 0 END) AS single_policies,
     SUM(CASE WHEN transaction_type='Cancellation' THEN policy_count ELSE 0 END) AS cancellations,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_customer_price
-  FROM {POLICIES_TABLE} WHERE transaction_date = DATE('{dp["yesterday"]}')
+  FROM {POLICIES_TABLE} WHERE DATE(looker_trans_date) = DATE('{dp["yesterday"]}')
 ),
 daily_ly AS (
   SELECT 'yesterday_ly' AS period,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
     SUM(policy_count) AS new_policies,
     SUM(CASE WHEN policy_type='Annual' THEN policy_count ELSE 0 END) AS annual_policies,
     SUM(CASE WHEN policy_type='Single' THEN policy_count ELSE 0 END) AS single_policies,
     SUM(CASE WHEN transaction_type='Cancellation' THEN policy_count ELSE 0 END) AS cancellations,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_customer_price
-  FROM {POLICIES_TABLE} WHERE transaction_date = DATE('{dp["yesterday_ly"]}')
+  FROM {POLICIES_TABLE} WHERE DATE(looker_trans_date) = DATE('{dp["yesterday_ly"]}')
 ),
 weekly AS (
   SELECT 'trailing_7d' AS period,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
     SUM(policy_count) AS new_policies,
     SUM(CASE WHEN policy_type='Annual' THEN policy_count ELSE 0 END) AS annual_policies,
     SUM(CASE WHEN policy_type='Single' THEN policy_count ELSE 0 END) AS single_policies,
     SUM(CASE WHEN transaction_type='Cancellation' THEN policy_count ELSE 0 END) AS cancellations,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_customer_price
-  FROM {POLICIES_TABLE} WHERE transaction_date BETWEEN DATE('{dp["week_start"]}') AND DATE('{dp["yesterday"]}')
+  FROM {POLICIES_TABLE} WHERE DATE(looker_trans_date) BETWEEN DATE('{dp["week_start"]}') AND DATE('{dp["yesterday"]}')
 ),
 weekly_ly AS (
   SELECT 'trailing_7d_ly' AS period,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
     SUM(policy_count) AS new_policies,
     SUM(CASE WHEN policy_type='Annual' THEN policy_count ELSE 0 END) AS annual_policies,
     SUM(CASE WHEN policy_type='Single' THEN policy_count ELSE 0 END) AS single_policies,
     SUM(CASE WHEN transaction_type='Cancellation' THEN policy_count ELSE 0 END) AS cancellations,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_customer_price
-  FROM {POLICIES_TABLE} WHERE transaction_date BETWEEN DATE('{dp["week_start_ly"]}') AND DATE('{dp["yesterday_ly"]}')
+  FROM {POLICIES_TABLE} WHERE DATE(looker_trans_date) BETWEEN DATE('{dp["week_start_ly"]}') AND DATE('{dp["yesterday_ly"]}')
 ),
 monthly AS (
   SELECT 'trailing_28d' AS period,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
     SUM(policy_count) AS new_policies,
     SUM(CASE WHEN policy_type='Annual' THEN policy_count ELSE 0 END) AS annual_policies,
     SUM(CASE WHEN policy_type='Single' THEN policy_count ELSE 0 END) AS single_policies,
     SUM(CASE WHEN transaction_type='Cancellation' THEN policy_count ELSE 0 END) AS cancellations,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_customer_price
-  FROM {POLICIES_TABLE} WHERE transaction_date BETWEEN DATE('{dp["month_start"]}') AND DATE('{dp["yesterday"]}')
+  FROM {POLICIES_TABLE} WHERE DATE(looker_trans_date) BETWEEN DATE('{dp["month_start"]}') AND DATE('{dp["yesterday"]}')
 ),
 monthly_ly AS (
   SELECT 'trailing_28d_ly' AS period,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS total_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS total_gp,
     SUM(policy_count) AS new_policies,
     SUM(CASE WHEN policy_type='Annual' THEN policy_count ELSE 0 END) AS annual_policies,
     SUM(CASE WHEN policy_type='Single' THEN policy_count ELSE 0 END) AS single_policies,
     SUM(CASE WHEN transaction_type='Cancellation' THEN policy_count ELSE 0 END) AS cancellations,
-    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy,
     SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_customer_price
-  FROM {POLICIES_TABLE} WHERE transaction_date BETWEEN DATE('{dp["month_start_ly"]}') AND DATE('{dp["yesterday_ly"]}')
+  FROM {POLICIES_TABLE} WHERE DATE(looker_trans_date) BETWEEN DATE('{dp["month_start_ly"]}') AND DATE('{dp["yesterday_ly"]}')
 )
 SELECT * FROM daily UNION ALL SELECT * FROM daily_ly
 UNION ALL SELECT * FROM weekly UNION ALL SELECT * FROM weekly_ly
@@ -125,26 +125,26 @@ UNION ALL SELECT * FROM monthly UNION ALL SELECT * FROM monthly_ly
 def build_baseline_trend_sql(dp):
     """Build the 14-day trend SQL with explicit date literals."""
     return f"""
-SELECT transaction_date,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS daily_gp,
+SELECT DATE(looker_trans_date) AS transaction_date,
+  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS daily_gp,
   SUM(policy_count) AS new_policies,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy
+  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy
 FROM {POLICIES_TABLE}
-WHERE transaction_date BETWEEN DATE('{dp["trend_start"]}') AND DATE('{dp["yesterday"]}')
-GROUP BY transaction_date ORDER BY transaction_date
+WHERE DATE(looker_trans_date) BETWEEN DATE('{dp["trend_start"]}') AND DATE('{dp["yesterday"]}')
+GROUP BY DATE(looker_trans_date) ORDER BY DATE(looker_trans_date)
 """
 
 
 def build_baseline_trend_ly_sql(dp):
     """Build the 14-day LY trend SQL (364-day offset) for YoY chart comparison."""
     return f"""
-SELECT transaction_date,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS daily_gp,
+SELECT DATE(looker_trans_date) AS transaction_date,
+  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS daily_gp,
   SUM(policy_count) AS new_policies,
-  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy
+  SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp_per_policy
 FROM {POLICIES_TABLE}
-WHERE transaction_date BETWEEN DATE('{dp["trend_start_ly"]}') AND DATE('{dp["yesterday_ly"]}')
-GROUP BY transaction_date ORDER BY transaction_date
+WHERE DATE(looker_trans_date) BETWEEN DATE('{dp["trend_start_ly"]}') AND DATE('{dp["yesterday_ly"]}')
+GROUP BY DATE(looker_trans_date) ORDER BY DATE(looker_trans_date)
 """
 
 

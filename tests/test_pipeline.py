@@ -29,41 +29,41 @@ class TestSQLAutocorrect:
     """Tests for _autocorrect_sql — the first line of defence against bad AI SQL."""
 
     def test_count_star_to_sum_policy_count(self):
-        sql = "SELECT COUNT(*) FROM `hx-data-production.commercial_finance.insurance_policies_new`"
+        sql = "SELECT COUNT(*) FROM `hx-data-production.insurance.insurance_trading_data`"
         fixed, warnings = _autocorrect_sql(sql)
         assert "SUM(policy_count)" in fixed
         assert "COUNT(*)" not in fixed
         assert len(warnings) == 1
 
     def test_count_distinct_policy_id(self):
-        sql = "SELECT COUNT(DISTINCT policy_id) FROM `hx-data-production.commercial_finance.insurance_policies_new`"
+        sql = "SELECT COUNT(DISTINCT policy_id) FROM `hx-data-production.insurance.insurance_trading_data`"
         fixed, warnings = _autocorrect_sql(sql)
         assert "SUM(policy_count)" in fixed
         assert "COUNT(DISTINCT" not in fixed
 
     def test_count_policy_id(self):
-        sql = "SELECT COUNT(policy_id) FROM `hx-data-production.commercial_finance.insurance_policies_new`"
+        sql = "SELECT COUNT(policy_id) FROM `hx-data-production.insurance.insurance_trading_data`"
         fixed, warnings = _autocorrect_sql(sql)
         assert "SUM(policy_count)" in fixed
 
     def test_avg_to_sum_nullif(self):
-        sql = "SELECT AVG(gp) FROM `hx-data-production.commercial_finance.insurance_policies_new`"
+        sql = "SELECT AVG(gp) FROM `hx-data-production.insurance.insurance_trading_data`"
         fixed, warnings = _autocorrect_sql(sql)
         assert "SUM(CAST(gp AS FLOAT64))" in fixed
         assert "NULLIF(SUM(policy_count), 0)" in fixed
         assert "AVG" not in fixed
 
     def test_avg_with_cast_no_double_wrap(self):
-        sql = "SELECT AVG(CAST(gp AS FLOAT64)) FROM `hx-data-production.commercial_finance.insurance_policies_new`"
+        sql = "SELECT AVG(CAST(gp AS FLOAT64)) FROM `hx-data-production.insurance.insurance_trading_data`"
         fixed, warnings = _autocorrect_sql(sql)
         assert "SUM(CAST(gp AS FLOAT64))" in fixed
         # Should not double-wrap: no CAST(CAST(
         assert "CAST(CAST(" not in fixed
 
     def test_extract_date_from_transaction_date(self):
-        sql = "SELECT EXTRACT(DATE FROM transaction_date) FROM `hx-data-production.commercial_finance.insurance_policies_new`"
+        sql = "SELECT EXTRACT(DATE FROM transaction_date) FROM `hx-data-production.insurance.insurance_trading_data`"
         fixed, warnings = _autocorrect_sql(sql)
-        assert "transaction_date" in fixed
+        assert "DATE(looker_trans_date)" in fixed
         assert "EXTRACT" not in fixed
 
     def test_invalid_date_feb_29_non_leap(self):
@@ -77,7 +77,7 @@ class TestSQLAutocorrect:
         assert "'2024-02-29'" in fixed  # 2024 is a leap year
 
     def test_no_policy_table_no_fixes(self):
-        """SQL without insurance_policies_new should not get COUNT/AVG fixes."""
+        """SQL without insurance_trading_data should not get COUNT/AVG fixes."""
         sql = "SELECT COUNT(*) FROM `some_other_table`"
         fixed, warnings = _autocorrect_sql(sql)
         assert "COUNT(*)" in fixed  # Unchanged
@@ -85,7 +85,7 @@ class TestSQLAutocorrect:
 
     def test_multiple_fixes_applied(self):
         sql = ("SELECT COUNT(*), AVG(gp), EXTRACT(DATE FROM transaction_date) "
-               "FROM `hx-data-production.commercial_finance.insurance_policies_new`")
+               "FROM `hx-data-production.insurance.insurance_trading_data`")
         fixed, warnings = _autocorrect_sql(sql)
         assert "SUM(policy_count)" in fixed
         assert "NULLIF" in fixed

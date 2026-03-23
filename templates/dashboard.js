@@ -42,8 +42,8 @@ function buildChart(){
     col.innerHTML=`
       <div class="tooltip">
         <div class="tt-date">${fullDate}</div>
-        <div class="tt-row">TY GP: <span class="tt-val" style="color:${gradTop}">&pound;${d.gp.toLocaleString()}</span></div>
-        <div class="tt-row">LY GP: <span class="tt-val">&pound;${d.ly_gp?d.ly_gp.toLocaleString():'N/A'}</span></div>
+        <div class="tt-row">TY GP (Post PPC): <span class="tt-val" style="color:${gradTop}">&pound;${d.gp.toLocaleString()}</span></div>
+        <div class="tt-row">LY GP (Post PPC): <span class="tt-val">&pound;${d.ly_gp?d.ly_gp.toLocaleString():'N/A'}</span></div>
         ${yoyPct!==null?`<div class="tt-row">YoY: <span class="${yoyClass}">${yoyAbsSign}&pound;${yoyAbs.toLocaleString()} (${yoySign}${yoyPct}%)</span></div>`:''}
         <div class="tt-row">Policies TY: <span class="tt-val">${d.policies.toLocaleString()}</span></div>
       </div>
@@ -325,8 +325,8 @@ function fetchDriverTrend(trendId, btn){
     }catch(e){}
 
     /* Now run the actual trend queries */
-    const tySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \`hx-data-production.commercial_finance.insurance_policies_new\` WHERE transaction_date BETWEEN '${fmt(start)}' AND '${fmt(yesterday)}' AND ${segFilter} GROUP BY transaction_date ORDER BY transaction_date`;
-    const lySQL=`SELECT transaction_date AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64)) AS gp, SUM(policy_count) AS vol FROM \`hx-data-production.commercial_finance.insurance_policies_new\` WHERE transaction_date BETWEEN '${fmt(lyStart)}' AND '${fmt(lyEnd)}' AND ${segFilter} GROUP BY transaction_date ORDER BY transaction_date`;
+    const tySQL=`SELECT DATE(looker_trans_date) AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp, SUM(policy_count) AS vol FROM \`hx-data-production.insurance.insurance_trading_data\` WHERE DATE(looker_trans_date) BETWEEN '${fmt(start)}' AND '${fmt(yesterday)}' AND ${segFilter} GROUP BY DATE(looker_trans_date) ORDER BY DATE(looker_trans_date)`;
+    const lySQL=`SELECT DATE(looker_trans_date) AS dt, SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp, SUM(policy_count) AS vol FROM \`hx-data-production.insurance.insurance_trading_data\` WHERE DATE(looker_trans_date) BETWEEN '${fmt(lyStart)}' AND '${fmt(lyEnd)}' AND ${segFilter} GROUP BY DATE(looker_trans_date) ORDER BY DATE(looker_trans_date)`;
 
     return fetch((window.__apiBase||'')+'/api/ask',{
       method:'POST',

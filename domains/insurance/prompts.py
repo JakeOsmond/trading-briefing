@@ -16,7 +16,7 @@ def build_prompts(trading_context):
     SCHEMA_KNOWLEDGE = dedent("""\
     ## BIGQUERY TABLE SCHEMAS
 
-    ### `hx-data-production.commercial_finance.insurance_policies_new`
+    ### `hx-data-production.insurance.insurance_trading_data`
     The core insurance policy table. Every policy transaction is a row. CRITICAL RULES:
     - Multiple rows per booking: includes New Issue, Contra, MTA Debit, Cancellation, Client Details Update, UnCancel
     - NEVER use COUNT(*), COUNT(policy_id), or COUNT(DISTINCT policy_id) for policy counts — INFLATED figures
@@ -27,17 +27,17 @@ def build_prompts(trading_context):
     - To get AVG customer price: SUM(CAST(total_gross_inc_ipt AS FLOAT64)) / NULLIF(SUM(policy_count), 0)
     - NEVER use AVG() on financial columns — rows are NOT one-per-policy, so AVG is meaningless
     - To compare YoY: use 364-day offset (matches day-of-week)
-    - transaction_date is already DATE type — do NOT use EXTRACT(DATE FROM transaction_date), just use transaction_date directly in WHERE/CASE
+    - looker_trans_date is DATETIME type — wrap in DATE() for date comparisons: DATE(looker_trans_date). Do NOT use EXTRACT(DATE FROM ...), use DATE() directly in WHERE/CASE
     - COVID years 2020-2021 are structural breaks
 
     Key columns:
-    - policy_id, certificate_id, transaction_type, transaction_date, transaction_datetime, policy_count
+    - policy_id, certificate_id, transaction_type, looker_trans_date (DATETIME — wrap in DATE() for date comparisons), policy_count
     - brand, agent_id, agent_code, agent_name, agent_group
     - campaign_id, campaign_name, campaign_discount_perc
     - policy_type (Annual / Single), scheme_id, scheme_name, scheme_version
     - destination, destination_group, highest_rated_country
-    - family_group, trip_value, travel_start_date, travel_end_date, duration
-    - issue_date, quote_date, cancellation_date, cancellation_reason
+    - family_group, trip_value, looker_start_date, looker_end_date, duration
+    - looker_issue_datetime, looker_quote_datetime, looker_cancellation_datetime, cancellation_reason
     - cover_level_name (Bronze/Classic/Silver/Gold/Deluxe/Elite/Adventure), cover_level_tier
     - channel (e.g. 'Direct - Standard', 'Direct - Medical', 'Aggregator - Standard', 'Partner Referral - Medical')
     - distribution_channel (Direct / Aggregator / Partner Referral / Renewals)
@@ -60,6 +60,9 @@ def build_prompts(trading_context):
       - total_paid_commission_perc, total_paid_commission_value
       - base_discount_value, addon_discount_value, total_discount_value
       - campaign_commission_perc, campaign_commission_value
+      - ppc_cost_per_policy (FLOAT64 — PPC advertising cost allocated per policy)
+
+    GP Post PPC: GP is calculated as total_gross_exc_ipt_ntu_comm minus COALESCE(ppc_cost_per_policy, 0) to account for PPC advertising spend.
 
     DERIVED KPIs:
     - Discount rate = SUM(CAST(total_discount_value AS FLOAT64)) / NULLIF(SUM(CAST(total_gross_inc_ipt AS FLOAT64)) + SUM(CAST(total_discount_value AS FLOAT64)), 0)
@@ -423,7 +426,7 @@ def build_prompts(trading_context):
 
     ### WEB vs TRADING DIMENSION RULES
     - **Aggregators** and **Renewals** do NOT have a conventional web journey in our data — drill these
-      ONLY via the trading table (insurance_policies_new). Do NOT try to join web data for these channels.
+      ONLY via the trading table (insurance_trading_data). Do NOT try to join web data for these channels.
     - **Direct** channel DOES have web journey data — you CAN drill by device_type, page_type, funnel stage
       for direct channel movers using the web table (insurance_web_utm_4)
     - **booking_source** (Web/Phone) is available for ALL channels in the trading table
@@ -443,11 +446,11 @@ def build_prompts(trading_context):
     - At least 1 web_search result incorporated
     - Total SQL follow-up queries: minimum 24 (more if recurring movers exist)
 
-    ## CRITICAL SQL RULES for insurance_policies_new:
+    ## CRITICAL SQL RULES for insurance_trading_data:
     - SUM(policy_count) for policy counts — NEVER COUNT(*)
     - SUM(CAST(col AS FLOAT64)) / NULLIF(SUM(policy_count), 0) for averages — NEVER AVG()
-    - transaction_date is DATE — use directly, no EXTRACT()
-    - Fully qualified table names: `hx-data-production.commercial_finance.insurance_policies_new`
+    - looker_trans_date is DATETIME — wrap in DATE() for date comparisons, no EXTRACT()
+    - Fully qualified table names: `hx-data-production.insurance.insurance_trading_data`
 
     ## OUTPUT RULES
     - For EVERY tool call, explain WHY you are making it and what gap it fills
@@ -623,11 +626,11 @@ def build_prompts(trading_context):
     ## SQL DIG BLOCK RULES
 
     - Use REAL DATE LITERALS (e.g., '2026-03-02'), never variables or functions
-    - Fully qualified table names: `hx-data-production.commercial_finance.insurance_policies_new`
+    - Fully qualified table names: `hx-data-production.insurance.insurance_trading_data`
     - Policy counts: SUM(policy_count) — NEVER COUNT(*)
     - Averages: SUM(CAST(col AS FLOAT64)) / NULLIF(SUM(policy_count), 0) — NEVER AVG()
     - Web data: COUNT(DISTINCT session_id) or COUNT(DISTINCT visitor_id)
-    - transaction_date is DATE type — use directly, no EXTRACT()
+    - looker_trans_date is DATETIME type — wrap in DATE() for date comparisons, no EXTRACT()
     - There is NO "period" column — never reference it
 
     ## ANTI-PATTERNS (do not do these)

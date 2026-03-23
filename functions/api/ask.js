@@ -152,13 +152,13 @@ function autocorrectSQL(sql) {
   }
 
   // Fix any wrong table references to the correct fully qualified names
-  const wrongTablePattern = /`[^`]*insurance_policies_new[^`]*`/g;
-  if (wrongTablePattern.test(fixed) && !fixed.includes('`hx-data-production.commercial_finance.insurance_policies_new`')) {
-    fixed = fixed.replace(/`[^`]*insurance_policies_new[^`]*`/g, '`hx-data-production.commercial_finance.insurance_policies_new`');
-    warnings.push('Fixed table name to hx-data-production.commercial_finance.insurance_policies_new');
+  const wrongTablePattern = /`[^`]*insurance_trading_data[^`]*`/g;
+  if (wrongTablePattern.test(fixed) && !fixed.includes('`hx-data-production.insurance.insurance_trading_data`')) {
+    fixed = fixed.replace(/`[^`]*insurance_trading_data[^`]*`/g, '`hx-data-production.insurance.insurance_trading_data`');
+    warnings.push('Fixed table name to hx-data-production.insurance.insurance_trading_data');
   }
-  if (/\binsurance_policies_new\b/.test(fixed) && !fixed.includes('`hx-data-production.commercial_finance.insurance_policies_new`')) {
-    fixed = fixed.replace(/\binsurance_policies_new\b/g, '`hx-data-production.commercial_finance.insurance_policies_new`');
+  if (/\binsurance_trading_data\b/.test(fixed) && !fixed.includes('`hx-data-production.insurance.insurance_trading_data`')) {
+    fixed = fixed.replace(/\binsurance_trading_data\b/g, '`hx-data-production.insurance.insurance_trading_data`');
     warnings.push('Added fully qualified table name');
   }
   const wrongWebPattern = /`[^`]*insurance_web_utm_4[^`]*`/g;
@@ -393,7 +393,7 @@ async function handleQuestion({ question, driverContext, conversationHistory, mo
         return `- ${field}: ${valStr}`;
       }).join('\n');
     };
-    const policySection = formatSection('insurance_policies_new', fieldDiscovery.policies);
+    const policySection = formatSection('insurance_trading_data', fieldDiscovery.policies);
     const webSection = formatSection('insurance_web_utm_4', fieldDiscovery.web);
     if (policySection || webSection) {
       fieldValuesContext = `\n## KNOWN FIELD VALUES (from last 30 days — use these exact values in filters)\n\n${policySection}\n\n${webSection}\n`;
