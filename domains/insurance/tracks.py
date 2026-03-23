@@ -346,14 +346,14 @@ SELECT 'TY' AS yr, DATE(looker_trans_date) AS transaction_date,
     SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp,
     SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0) AS avg_gp
 FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
-GROUP BY DATE(looker_trans_date)
+GROUP BY DATE(looker_trans_date), FORMAT_DATE('%A', DATE(looker_trans_date))
 UNION ALL
 SELECT 'LY', DATE(looker_trans_date) AS transaction_date,
     FORMAT_DATE('%A', DATE(looker_trans_date)),
     SUM(policy_count), SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
     SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) / NULLIF(SUM(policy_count), 0)
 FROM {P} WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
-GROUP BY DATE(looker_trans_date)
+GROUP BY DATE(looker_trans_date), FORMAT_DATE('%A', DATE(looker_trans_date))
 ORDER BY transaction_date
 """
     }

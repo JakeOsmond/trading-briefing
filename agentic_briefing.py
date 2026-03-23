@@ -383,6 +383,7 @@ def _autofix_track_sql(sql: str, error_msg: str) -> str:
 
 def _ai_fix_sql(sql: str, error_msg: str) -> str:
     """Use AI to fix a SQL query that failed, with full schema context."""
+    import re
     try:
         client = openai.OpenAI(api_key=OPENAI_API_KEY)
         response = client.chat.completions.create(
