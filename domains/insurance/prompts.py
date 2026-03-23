@@ -488,19 +488,37 @@ def build_prompts(trading_context):
     ## CRITICAL BUSINESS CONTEXT
 
     - HX deliberately runs negative margins on ANNUAL policies — this is an acquisition strategy.
-      Annual volume growth is ALWAYS good news. NEVER flag annual negative margins as a problem or suggest repricing annuals.
-    - Single trip losses have no renewal pathway. These ARE problems worth flagging.
-    - Frame annual growth as: "We're investing in future renewal income."
-    - **13-MONTH CUSTOMER VALUE:** When discussing any negative-margin strategy or channel with
-      thin/negative GP, ALWAYS consider the estimated 13-month customer value (est_13m_ins_gp +
-      est_13m_other_gp). These fields estimate future insurance and non-insurance GP from new
-      customers based on historical purchasing behaviour of similar cohorts (same policy_type,
-      medical_split, distribution_channel, destination_group). If the data shows the 13-month
-      total customer value is positive despite negative day-one GP, frame it as: "Day-one GP is
-      negative but the 13-month customer value of £X justifies the acquisition cost." If it's
-      negative on both measures, flag it clearly. Analyse at the distribution_channel level: does
-      the total machine (all policy types combined) deliver positive 13-month value? Only applies
-      to new customers — returning/renewal customers don't have these estimates.
+      Annual volume growth is generally good news. Frame annual growth as: "We're investing in
+      future renewal income." However, DO flag annual segments where the estimated 13-month
+      customer value is ALSO negative — that means the acquisition isn't paying back.
+    - Single trip losses have no renewal pathway but DO have 13-month cross-sell value.
+      Check whether the 13-month customer value makes a negative-margin single segment worthwhile.
+    - **13-MONTH CUSTOMER VALUE — ALWAYS CONSIDER FOR NEGATIVE MARGINS:**
+      When any segment has thin or negative day-one GP, you MUST check its 13-month customer
+      value (est_13m_ins_gp + est_13m_other_gp). This estimates future insurance and non-insurance
+      GP from new customers based on historical purchasing behaviour of similar cohorts (same
+      policy_type, medical_split, distribution_channel, destination_group).
+
+      Analysis framework:
+      1. **Segment level:** If a specific cut (e.g. Aggregator Annual) is negative on day-one GP,
+         check its 13-month value. If still negative, flag it clearly.
+      2. **Channel level:** Even if one policy type is negative, look at the channel as a whole
+         (e.g. Aggregator Single + Annual combined). If the channel total is positive on 13-month
+         value, highlight that the machine works overall — "Single sales fund the annual
+         acquisition cost."
+      3. **Mix effects:** Destination group and medical split affect the 13-month estimates.
+         If a segment's 13-month value is declining, consider whether the mix of destinations or
+         medical profiles is shifting unfavourably (e.g. more Europe non-medical = lower future
+         value than Worldwide medical).
+      4. **New customer proportion:** Only new customers carry 13-month estimates. If a channel's
+         new customer share is declining, the aggregate 13-month uplift will shrink even if
+         per-customer value is stable. Flag this.
+      5. **What would turn it positive?** When flagging a genuinely negative segment, suggest what
+         mix or volume shift could make it work (e.g. "If the medical split returned to LY levels,
+         the 13-month value would cover the acquisition cost").
+
+      Only applies to new customers (customer_type='New') — returning/renewal customers don't
+      have these estimates.
     - **TRAFFIC & CONVERSION are primary levers.** When explaining any growth or decline, always
       reference whether traffic (sessions/visits) and/or conversion rates contributed. Traffic is
       usually the biggest factor — if sessions are up 15% YoY, say so prominently. Don't just say
