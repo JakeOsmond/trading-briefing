@@ -415,7 +415,7 @@ YoY comparisons use a **364-day offset** (not 365) to match day-of-week. This en
 COVID years 2020-2021 are **structural breaks** — comparisons against these years are unreliable.
 
 ## Date Handling
-- `transaction_date` is already a DATE type. Use it directly in WHERE clauses — no need for EXTRACT(DATE FROM ...).
+- `looker_trans_date` is a DATETIME type. Wrap in `DATE()` for date comparisons — use `DATE(looker_trans_date)` in WHERE clauses. No need for EXTRACT(DATE FROM ...).
 - When building LY equivalents, always subtract 364 days (52 weeks exactly).
 
 ## Calendar Effects
@@ -638,7 +638,7 @@ Products are tiered: Bronze, Classic, Silver, Gold, Deluxe, Elite, Adventure. Mi
 
 True renewal rate = total policies purchased in the 'Renewal' distribution channel (on transaction date) / total annual policies expiring (by travel end date — the expiry date, i.e. the number of annual policies expiring).
 
-- You must use `travel_end_date` for expiring policies and `transaction_date` for new purchased policies.
+- You must use `looker_end_date` for expiring policies and `DATE(looker_trans_date)` for new purchased policies.
 - This means it is a join on 2 separate SQL queries.
 - This tells us how many customers are going on and keeping an annual policy with us.
 - Renewal rate is **blended only** — never calculate per-channel renewal rates, as the denominator (expiring policies) doesn't split meaningfully by new-purchase channel.
@@ -646,24 +646,24 @@ True renewal rate = total policies purchased in the 'Renewal' distribution chann
 - Auto-renewal process updated with new Dockyard field/rules — Source: Drive: 'Daily Auto Renewals Tracker', 2026-03-18
 </pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-schema-knowledge')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">schema-knowledge.md</span><span class="cm-file-meta">285 lines</span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-insurance-schema-knowledge')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">schema-knowledge.md</span><span class="cm-file-meta">292 lines</span></div>
 <div class="cm-file-title">BigQuery Schema Knowledge — Insurance</div>
 <div class="cm-file-preview" id="file-insurance-schema-knowledge" style="display:none"><pre class="cm-preview-content"># BigQuery Schema Knowledge — Insurance
 
 _Authoritative source for table schemas. Both `agentic_briefing.py` and `functions/api/ask.js` (via injection) should reflect this._
 
-## `hx-data-production.commercial_finance.insurance_policies_new`
+## `hx-data-production.insurance.insurance_trading_data`
 
 The ONLY policy table. Every row is a transaction event on a policy.
 
 ### Critical Rules
-- ALWAYS use the full backtick-quoted name: `hx-data-production.commercial_finance.insurance_policies_new`
+- ALWAYS use the full backtick-quoted name: `hx-data-production.insurance.insurance_trading_data`
 - Use `SUM(policy_count)` not `COUNT(*)` for policy counts — multiple rows per policy
 - Use `SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64))` for GP — NEVER `AVG()`
 - Avg GP = `SUM(CAST(... AS FLOAT64)) / NULLIF(SUM(policy_count), 0)`
 - All BIGNUMERIC financials must be CAST to FLOAT64 for aggregation
 - YoY = 364-day offset (matches day-of-week)
-- `transaction_date` is DATE type — use directly, no `EXTRACT()`
+- `looker_trans_date` is DATETIME type — wrap in `DATE()` for date comparisons, no `EXTRACT()`
 
 ### Transaction Model
 Each policy goes through a lifecycle of transaction events, tracked by `version`:
@@ -694,17 +694,13 @@ The `transaction_type` field has values: `New Issue`, `Contra`, `MTA Debit`, `Ca
 ### Date Columns
 | Column | Type | Description |
 |--------|------|-------------|
-| `transaction_date` | DATE | **When the transaction happened** — primary date for trading analysis |
-| `transaction_datetime` | DATETIME | Exact timestamp of transaction |
-| `travel_start_date` | DATE | When the trip/cover starts |
-| `travel_end_date` | DATE | When the policy expires — used for renewal rate calculations |
+| `looker_trans_date` | DATETIME | **When the transaction happened** — primary date for trading analysis. Wrap in `DATE()` for date comparisons |
+| `looker_start_date` | DATE | When the trip/cover starts |
+| `looker_end_date` | DATE | When the policy expires — used for renewal rate calculations |
 | `duration` | INT64 | Policy duration in days (365 for annual, 8-17 typical for single) |
-| `issue_date` | DATE | Original policy issue date |
-| `issue_datetime` | DATETIME | Original issue timestamp |
-| `quote_date` | DATE | When the quote was generated |
-| `quote_datetime` | DATETIME | Quote timestamp |
-| `cancellation_date` | DATE | Cancellation date (NULL if not cancelled) |
-| `cancellation_datetime` | DATETIME | Cancellation timestamp |
+| `looker_issue_datetime` | DATETIME | Original issue timestamp |
+| `looker_quote_datetime` | DATETIME | Quote timestamp |
+| `looker_cancellation_datetime` | DATETIME | Cancellation timestamp (NULL if not cancelled) |
 | `cancellation_reason` | STRING | Reason for cancellation |
 
 ### Product &amp; Scheme Columns
@@ -799,6 +795,9 @@ The `transaction_type` field has values: `New Issue`, `Contra`, `MTA Debit`, `Ca
 | `addon_discount_value` | FLOAT64 | Discount on add-ons |
 | `campaign_discount_perc` | INT64 | Campaign discount percentage (e.g., 15, 20, 24) |
 | `ipt_rate` | BIGNUMERIC | IPT rate applied |
+| `ppc_cost_per_policy` | FLOAT64 | PPC advertising cost allocated per policy |
+
+**GP Post PPC:** GP is calculated as `total_gross_exc_ipt_ntu_comm` minus `COALESCE(ppc_cost_per_policy, 0)` to account for PPC advertising spend.
 
 ### Financial Columns — Component Breakdown
 The financials decompose into **base** (core policy), **medical** (medical screening top-up), **option** (add-ons), and **gadget** (gadget cover). Each has inc_ipt, exc_ipt, ntu, commission variants. The naming pattern is:
@@ -819,6 +818,14 @@ The financials decompose into **base** (core policy), **medical** (medical scree
 | `auto_renew_opt_in` | BOOL | Whether customer opted into auto-renewal |
 | `currency` | STRING | Currency code (e.g., "Pound") |
 | `user` | STRING | System user who created the record |
+
+### Renewal Columns
+| Column | Type | Description |
+|--------|------|-------------|
+| `renewed_flag` | BOOL/STRING | Whether the policy was renewed |
+| `renew_lag_to_expiry` | INT64 | Days between renewal purchase and original policy expiry |
+| `previous_cover_level_name` | STRING | Cover level of the previous (expiring) policy |
+| `renewal_journey` | STRING | The renewal journey/path taken (e.g., auto-renewal, manual renewal) |
 
 ---
 
@@ -1042,7 +1049,7 @@ Analysis showed all 45 complex Python expressions are in the HTML body section (
 | `templates/dashboard-verify.js` | 143 | None |
 </pre></div>
 </div>
-<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-operational-temporary-context')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">temporary-context.md</span><span class="cm-file-meta">199 lines <span class="cm-ai-count">197 AI-learned</span></span></div>
+<div class="cm-file"><div class="cm-file-header cm-file-clickable" onclick="cmPreview('file-operational-temporary-context')"><span class="cm-file-icon">📄</span> <span class="cm-file-name">temporary-context.md</span><span class="cm-file-meta">215 lines <span class="cm-ai-count">213 AI-learned</span></span></div>
 <div class="cm-file-title">Temporary Context — Auto-Expires After 7 Days</div>
 <div class="cm-ai-item" id="cm-operational-temporary-context-0"><span class="cm-ai-text">Margins were increased for EU Excluding and Worldwide Excluding in Direct Yielding on 12/03/2026 for policies sold via Direct Travel and Cruise. — Source: Drive: 'Weekly Pricing Updates', 2026-03-17 (expires: 2026-03-24)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Margins were increased for EU Excluding and Worldwide Excluding in Direct Yielding on 12/03/2026 for policies sold via Direct Travel and Cruise. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-17 (expires: 2026-03-24)','cm-operational-temporary-context-0')">✕ Remove</button></div>
 <div class="cm-ai-item" id="cm-operational-temporary-context-1"><span class="cm-ai-text">EU Including pricing was not changed because it was already at the maximum margin. — Source: Drive: 'Weekly Pricing Updates', 2026-03-17 (expires: 2026-03-24)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- EU Including pricing was not changed because it was already at the maximum margin. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-17 (expires: 2026-03-24)','cm-operational-temporary-context-1')">✕ Remove</button></div>
@@ -1241,6 +1248,22 @@ Analysis showed all 45 complex Python expressions are in the HTML body section (
 <div class="cm-ai-item" id="cm-operational-temporary-context-194"><span class="cm-ai-text">Competition entry mechanics give extra weighting to annual policies, including entries based on remaining 4-month periods, 12 bonus entries for annual renewals during the campaign window, and an extra entry for providing trip details via social or email. — Source: Drive: 'HX Insurance Competition - Project Outline March 2026', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Competition entry mechanics give extra weighting to annual policies, including entries based on remaining 4-month periods, 12 bonus entries for annual renewals during the campaign window, and an extra entry for providing trip details via social or email. — Source: Drive: \'HX Insurance Competition - Project Outline March 2026\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-194')">✕ Remove</button></div>
 <div class="cm-ai-item" id="cm-operational-temporary-context-195"><span class="cm-ai-text">The team is prioritizing an API review as part of current platform development. — Source: Drive: 'Insurance Trading Check-in – 2026/03/17 13:56 GMT – Notes by Gemini', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- The team is prioritizing an API review as part of current platform development. — Source: Drive: \'Insurance Trading Check-in – 2026/03/17 13:56 GMT – Notes by Gemini\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-195')">✕ Remove</button></div>
 <div class="cm-ai-item" id="cm-operational-temporary-context-196"><span class="cm-ai-text">A stated priority is to simplify claims and support experience, which could influence future customer value and renewal trading outcomes. — Source: Drive: 'Insurance Direct Marketing', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- A stated priority is to simplify claims and support experience, which could influence future customer value and renewal trading outcomes. — Source: Drive: \'Insurance Direct Marketing\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-196')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-197"><span class="cm-ai-text">Ergo AMT new business and renewal discounts are scheduled to go live on Wednesday 25 March after Ergo provided updated rates that mirror all new business discounts on renewals to ensure price parity. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Ergo AMT new business and renewal discounts are scheduled to go live on Wednesday 25 March after Ergo provided updated rates that mirror all new business discounts on renewals to ensure price parity. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-197')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-198"><span class="cm-ai-text">The aggregator discount plan targets about 20% of market quotes with discounts of 4-15%. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- The aggregator discount plan targets about 20% of market quotes with discounts of 4-15%. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-198')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-199"><span class="cm-ai-text">Ergo AMT rate discounts for Direct Travel and Cruise have been signed off and are due to go live on Thursday. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Ergo AMT rate discounts for Direct Travel and Cruise have been signed off and are due to go live on Thursday. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-199')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-200"><span class="cm-ai-text">Search CTRs remain strong year on year following the start of the ongoing Iran conflict. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Search CTRs remain strong year on year following the start of the ongoing Iran conflict. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-200')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-201"><span class="cm-ai-text">Specialist Cruise is actively optimising gross profit on Fred Olsen and conversion on Carnival through partnership work. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Specialist Cruise is actively optimising gross profit on Fred Olsen and conversion on Carnival through partnership work. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-201')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-202"><span class="cm-ai-text">Specialist Cruise price changes went live to improve Fred Olsen gross profit in core demographics, specifically ages 65+ and trip durations 10-12. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Specialist Cruise price changes went live to improve Fred Olsen gross profit in core demographics, specifically ages 65+ and trip durations 10-12. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-202')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-203"><span class="cm-ai-text">Gold discounts were increased across both Specialist Cruise partners to drive upsell. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Gold discounts were increased across both Specialist Cruise partners to drive upsell. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-203')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-204"><span class="cm-ai-text">Gadget prices were discounted because Taurus gave a 40% discount on base rates due to low loss ratios. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Gadget prices were discounted because Taurus gave a 40% discount on base rates due to low loss ratios. — Source: Drive: \'Weekly Pricing Updates\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-204')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-205"><span class="cm-ai-text">People are exploring changing their Easter plans, indicating short-term travel demand disruption with no clear longer-term trend yet. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- People are exploring changing their Easter plans, indicating short-term travel demand disruption with no clear longer-term trend yet. — Source: Drive: \'Insurance Weekly Trading w/c 16/03/2026\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-205')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-206"><span class="cm-ai-text">Google Trends shows reduced searching for partner brand terms such as P&amp;O Cruises, with P&amp;O Cruises search demand down 6% year on year. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Google Trends shows reduced searching for partner brand terms such as P&O Cruises, with P&O Cruises search demand down 6% year on year. — Source: Drive: \'Insurance Weekly Trading w/c 16/03/2026\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-206')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-207"><span class="cm-ai-text">Althams are seeing a decline in performance that is not explained by a location switch. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Althams are seeing a decline in performance that is not explained by a location switch. — Source: Drive: \'Insurance Weekly Trading w/c 16/03/2026\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-207')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-208"><span class="cm-ai-text">A retail survey is showing declines of more than 20%, indicating broader market weakness. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- A retail survey is showing declines of more than 20%, indicating broader market weakness. — Source: Drive: \'Insurance Weekly Trading w/c 16/03/2026\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-208')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-209"><span class="cm-ai-text">Monthly renewal rate is 40%, currently tracking 2 percentage points ahead of the end-of-quarter renewal-rate target. — Source: Drive: 'Insurance Weekly Trading w/c 23/02/2026', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Monthly renewal rate is 40%, currently tracking 2 percentage points ahead of the end-of-quarter renewal-rate target. — Source: Drive: \'Insurance Weekly Trading w/c 23/02/2026\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-209')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-210"><span class="cm-ai-text">Insurance messaging is being tested/planned on high-volume search-results and loading-animation pages, including a proposed loading-animation message and a banner on the availability page to call out the offer. — Source: Drive: 'Insurance Promotion Across HX Sessions Feb 2026', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Insurance messaging is being tested/planned on high-volume search-results and loading-animation pages, including a proposed loading-animation message and a banner on the availability page to call out the offer. — Source: Drive: \'Insurance Promotion Across HX Sessions Feb 2026\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-210')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-211"><span class="cm-ai-text">The strategy is to increase insurance prominence through heavy cross-sell across customer touchpoints, site placements and booking flows. — Source: Drive: 'Insurance marketing mission brief', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- The strategy is to increase insurance prominence through heavy cross-sell across customer touchpoints, site placements and booking flows. — Source: Drive: \'Insurance marketing mission brief\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-211')">✕ Remove</button></div>
+<div class="cm-ai-item" id="cm-operational-temporary-context-212"><span class="cm-ai-text">Marketing will focus on explaining the proposition as good cover, real help while travelling and a smooth claims process to improve purchase consideration. — Source: Drive: 'Insurance marketing mission brief', 2026-03-22 (expires: 2026-03-29)</span><button class="cm-remove-btn" onclick="cmRemove('operational/temporary-context.md','- Marketing will focus on explaining the proposition as good cover, real help while travelling and a smooth claims process to improve purchase consideration. — Source: Drive: \'Insurance marketing mission brief\', 2026-03-22 (expires: 2026-03-29)','cm-operational-temporary-context-212')">✕ Remove</button></div>
 <div class="cm-file-preview" id="file-operational-temporary-context" style="display:none"><pre class="cm-preview-content"># Temporary Context — Auto-Expires After 7 Days
 _Facts below are used in briefings but expire automatically. Do not edit manually._
 - Margins were increased for EU Excluding and Worldwide Excluding in Direct Yielding on 12/03/2026 for policies sold via Direct Travel and Cruise. — Source: Drive: 'Weekly Pricing Updates', 2026-03-17 (expires: 2026-03-24)
@@ -1440,6 +1463,22 @@ _Facts below are used in briefings but expire automatically. Do not edit manuall
 - Competition entry mechanics give extra weighting to annual policies, including entries based on remaining 4-month periods, 12 bonus entries for annual renewals during the campaign window, and an extra entry for providing trip details via social or email. — Source: Drive: 'HX Insurance Competition - Project Outline March 2026', 2026-03-22 (expires: 2026-03-29)
 - The team is prioritizing an API review as part of current platform development. — Source: Drive: 'Insurance Trading Check-in – 2026/03/17 13:56 GMT – Notes by Gemini', 2026-03-22 (expires: 2026-03-29)
 - A stated priority is to simplify claims and support experience, which could influence future customer value and renewal trading outcomes. — Source: Drive: 'Insurance Direct Marketing', 2026-03-22 (expires: 2026-03-29)
+- Ergo AMT new business and renewal discounts are scheduled to go live on Wednesday 25 March after Ergo provided updated rates that mirror all new business discounts on renewals to ensure price parity. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)
+- The aggregator discount plan targets about 20% of market quotes with discounts of 4-15%. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)
+- Ergo AMT rate discounts for Direct Travel and Cruise have been signed off and are due to go live on Thursday. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)
+- Search CTRs remain strong year on year following the start of the ongoing Iran conflict. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)
+- Specialist Cruise is actively optimising gross profit on Fred Olsen and conversion on Carnival through partnership work. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)
+- Specialist Cruise price changes went live to improve Fred Olsen gross profit in core demographics, specifically ages 65+ and trip durations 10-12. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)
+- Gold discounts were increased across both Specialist Cruise partners to drive upsell. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)
+- Gadget prices were discounted because Taurus gave a 40% discount on base rates due to low loss ratios. — Source: Drive: 'Weekly Pricing Updates', 2026-03-22 (expires: 2026-03-29)
+- People are exploring changing their Easter plans, indicating short-term travel demand disruption with no clear longer-term trend yet. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-22 (expires: 2026-03-29)
+- Google Trends shows reduced searching for partner brand terms such as P&amp;O Cruises, with P&amp;O Cruises search demand down 6% year on year. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-22 (expires: 2026-03-29)
+- Althams are seeing a decline in performance that is not explained by a location switch. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-22 (expires: 2026-03-29)
+- A retail survey is showing declines of more than 20%, indicating broader market weakness. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-22 (expires: 2026-03-29)
+- Monthly renewal rate is 40%, currently tracking 2 percentage points ahead of the end-of-quarter renewal-rate target. — Source: Drive: 'Insurance Weekly Trading w/c 23/02/2026', 2026-03-22 (expires: 2026-03-29)
+- Insurance messaging is being tested/planned on high-volume search-results and loading-animation pages, including a proposed loading-animation message and a banner on the availability page to call out the offer. — Source: Drive: 'Insurance Promotion Across HX Sessions Feb 2026', 2026-03-22 (expires: 2026-03-29)
+- The strategy is to increase insurance prominence through heavy cross-sell across customer touchpoints, site placements and booking flows. — Source: Drive: 'Insurance marketing mission brief', 2026-03-22 (expires: 2026-03-29)
+- Marketing will focus on explaining the proposition as good cover, real help while travelling and a smooth claims process to improve purchase consideration. — Source: Drive: 'Insurance marketing mission brief', 2026-03-22 (expires: 2026-03-29)
 </pre></div>
 </div>
 </div>
