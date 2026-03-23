@@ -152,6 +152,16 @@ function autocorrectSQL(sql) {
   }
 
   // Fix any wrong table references to the correct fully qualified names
+  // Catch old table name (insurance_policies_new) and redirect to new table
+  if (/insurance_policies_new/i.test(fixed)) {
+    fixed = fixed.replace(/`[^`]*insurance_policies_new[^`]*`/g, '`hx-data-production.insurance.insurance_trading_data`');
+    fixed = fixed.replace(/\binsurance_policies_new\b/gi, '`hx-data-production.insurance.insurance_trading_data`');
+    warnings.push('Redirected old table insurance_policies_new to insurance_trading_data');
+  }
+  if (/commercial_finance\b/i.test(fixed) && !/insurance_web_utm_4/i.test(fixed)) {
+    fixed = fixed.replace(/commercial_finance\.insurance_policies_new/gi, 'insurance.insurance_trading_data');
+    warnings.push('Fixed old dataset commercial_finance to insurance');
+  }
   const wrongTablePattern = /`[^`]*insurance_trading_data[^`]*`/g;
   if (wrongTablePattern.test(fixed) && !fixed.includes('`hx-data-production.insurance.insurance_trading_data`')) {
     fixed = fixed.replace(/`[^`]*insurance_trading_data[^`]*`/g, '`hx-data-production.insurance.insurance_trading_data`');

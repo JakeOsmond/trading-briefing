@@ -277,6 +277,12 @@ def _autocorrect_sql(sql: str) -> tuple[str, list[str]]:
     upper = corrected.upper()
 
     if "INSURANCE_TRADING_DATA" in upper or "INSURANCE_POLICIES_NEW" in upper:
+        # Redirect old table name to new table
+        if "INSURANCE_POLICIES_NEW" in upper:
+            corrected = re.sub(r'`[^`]*insurance_policies_new[^`]*`', '`hx-data-production.insurance.insurance_trading_data`', corrected, flags=re.IGNORECASE)
+            corrected = re.sub(r'\binsurance_policies_new\b', 'insurance_trading_data', corrected, flags=re.IGNORECASE)
+            corrected = re.sub(r'commercial_finance\.insurance_trading_data', 'insurance.insurance_trading_data', corrected, flags=re.IGNORECASE)
+            warnings.append("Auto-corrected old table insurance_policies_new → insurance_trading_data")
         # Fix COUNT(*) → SUM(policy_count)
         if re.search(r'\bCOUNT\s*\(\s*\*\s*\)', corrected, re.IGNORECASE):
             corrected = re.sub(r'\bCOUNT\s*\(\s*\*\s*\)', 'SUM(policy_count)', corrected, flags=re.IGNORECASE)
