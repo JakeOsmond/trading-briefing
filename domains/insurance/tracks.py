@@ -1,4 +1,4 @@
-"""Insurance investigation tracks — 28 deterministic SQL queries for trading analysis."""
+"""Insurance investigation tracks — 29 deterministic SQL queries for trading analysis."""
 
 
 def build_investigation_tracks(dp, policies_table, web_table):
@@ -1239,6 +1239,39 @@ FROM {P}
 WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
   AND renewed_flag = TRUE
 GROUP BY timing_bucket
+"""
+    }
+
+    # Track 29: 13-Month Customer Value by Channel
+    tracks['customer_value_13m'] = {
+        'name': '13-month customer value by channel',
+        'desc': 'Estimated 13-month total customer value (GP + future insurance + future other HX) for new customers by distribution channel — reveals whether negative-margin channels are profitable over the customer lifetime',
+        'sql': f"""
+SELECT 'TY' AS yr, distribution_channel, policy_type,
+    SUM(policy_count) AS policies,
+    SUM(CASE WHEN customer_type = 'New' THEN policy_count ELSE 0 END) AS new_customer_policies,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp_post_ppc,
+    SUM(COALESCE(CAST(est_13m_ins_gp AS FLOAT64), 0)) AS est_future_ins_gp,
+    SUM(COALESCE(CAST(est_13m_other_gp AS FLOAT64), 0)) AS est_future_other_gp,
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))
+      + SUM(COALESCE(CAST(est_13m_ins_gp AS FLOAT64), 0))
+      + SUM(COALESCE(CAST(est_13m_other_gp AS FLOAT64), 0)) AS total_13m_customer_value
+FROM {P}
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start"]}' AND '{dp["yesterday"]}'
+GROUP BY distribution_channel, policy_type
+UNION ALL
+SELECT 'LY', distribution_channel, policy_type,
+    SUM(policy_count),
+    SUM(CASE WHEN customer_type = 'New' THEN policy_count ELSE 0 END),
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)),
+    SUM(COALESCE(CAST(est_13m_ins_gp AS FLOAT64), 0)),
+    SUM(COALESCE(CAST(est_13m_other_gp AS FLOAT64), 0)),
+    SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))
+      + SUM(COALESCE(CAST(est_13m_ins_gp AS FLOAT64), 0))
+      + SUM(COALESCE(CAST(est_13m_other_gp AS FLOAT64), 0))
+FROM {P}
+WHERE DATE(looker_trans_date) BETWEEN '{dp["week_start_ly"]}' AND '{dp["yesterday_ly"]}'
+GROUP BY distribution_channel, policy_type
 """
     }
 

@@ -149,6 +149,22 @@ The `transaction_type` field has values: `New Issue`, `Contra`, `MTA Debit`, `Ca
 
 **GP Post PPC:** GP is calculated as `total_gross_exc_ipt_ntu_comm` minus `COALESCE(ppc_cost_per_policy, 0)` to account for PPC advertising spend.
 
+### Estimated 13-Month Customer Value
+| Column | Type | Description |
+|--------|------|-------------|
+| `est_13m_ins_gp` | FLOAT64 | Estimated GP from future insurance purchases by this customer over 13 months (NULL if not new) |
+| `est_13m_other_gp` | FLOAT64 | Estimated GP from future non-insurance HX purchases by this customer over 13 months (NULL if not new) |
+
+**Total 13-Month Customer Value** = GP (Post PPC) + COALESCE(est_13m_ins_gp, 0) + COALESCE(est_13m_other_gp, 0)
+
+Key rules:
+- Only populated for **new customers** (customer_type = 'New', transid = 1, version = 1)
+- NULL for renewals and returning customers — they already have purchasing history
+- Values are estimates based on the purchasing behaviour of customers who booked 13 months ago and shared the same **policy_type**, **medical_split**, **distribution_channel**, and **destination_group**
+- Critical for evaluating negative-margin strategies: a channel losing on immediate GP may be profitable when 13-month customer value is considered (e.g., aggregator single-trip acquisition funds future renewal and cross-sell revenue)
+- Analyse at the distribution_channel level: does the total machine (all policy types combined) deliver positive 13-month customer value, even if individual segments are negative on day-one GP?
+- The mix of genuinely new vs returning customers affects the aggregate — more new customers means more 13-month upside in the numbers
+
 ### Financial Columns — Component Breakdown
 The financials decompose into **base** (core policy), **medical** (medical screening top-up), **option** (add-ons), and **gadget** (gadget cover). Each has inc_ipt, exc_ipt, ntu, commission variants. The naming pattern is:
 - `base_*` — core policy premium

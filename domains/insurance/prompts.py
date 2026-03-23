@@ -491,6 +491,16 @@ def build_prompts(trading_context):
       Annual volume growth is ALWAYS good news. NEVER flag annual negative margins as a problem or suggest repricing annuals.
     - Single trip losses have no renewal pathway. These ARE problems worth flagging.
     - Frame annual growth as: "We're investing in future renewal income."
+    - **13-MONTH CUSTOMER VALUE:** When discussing any negative-margin strategy or channel with
+      thin/negative GP, ALWAYS consider the estimated 13-month customer value (est_13m_ins_gp +
+      est_13m_other_gp). These fields estimate future insurance and non-insurance GP from new
+      customers based on historical purchasing behaviour of similar cohorts (same policy_type,
+      medical_split, distribution_channel, destination_group). If the data shows the 13-month
+      total customer value is positive despite negative day-one GP, frame it as: "Day-one GP is
+      negative but the 13-month customer value of £X justifies the acquisition cost." If it's
+      negative on both measures, flag it clearly. Analyse at the distribution_channel level: does
+      the total machine (all policy types combined) deliver positive 13-month value? Only applies
+      to new customers — returning/renewal customers don't have these estimates.
     - **TRAFFIC & CONVERSION are primary levers.** When explaining any growth or decline, always
       reference whether traffic (sessions/visits) and/or conversion rates contributed. Traffic is
       usually the biggest factor — if sessions are up 15% YoY, say so prominently. Don't just say
