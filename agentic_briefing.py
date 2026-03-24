@@ -1297,13 +1297,20 @@ Each fact should be a single sentence that a trader could ACT on or use to EXPLA
 
 {"classification": "<PERMANENT|TEMPORARY|SKIP>", "category": "<insurance|operational|universal>", "reasoning": "<why, max 30 chars>"}
 
-PERMANENT = structural changes that won't revert week to week:
-  - Product launches, new cover types, new distribution partners
-  - Maximum age changes, scheme changes, underwriter threshold changes
-  - Business logic rules, new KPIs, permanent strategy shifts
+PERMANENT = structural facts that won't revert week to week. Use PERMANENT for:
+  - Product changes going live or in production (e.g. "Medical amends are moving to production")
+  - New product features or cover types (e.g. "Flexible excess options launched for cruise")
+  - Product rule changes (e.g. "Maximum age for annual multi-trip increasing to 85")
+  - Market structure facts (e.g. "All Clear market size estimated at £150m-£200m")
+  - Strategic directions (e.g. "Strategy is to build a repeat direct customer base")
+  - New distribution partners or scheme changes
+  - Underwriter threshold or business logic changes
+  - New KPIs or measurement approaches
+  - Dataset/schema knowledge (e.g. "Insurance group identifies return customer behaviour")
 TEMPORARY = current/recent changes that will evolve:
-  - Active promotions, recent pricing changes, competitor actions
+  - Active promotions, recent pricing discount changes, competitor offers
   - Market events, funnel experiments, campaign launches
+  - Tactical pricing adjustments that may be reversed
 SKIP = not useful for trading decisions. ALWAYS skip these:
   - Historical metrics/figures (e.g. "H1 FY26 was 180k policies")
   - Periodic booking stats (e.g. "P&O had 38,067 bookings in April")
