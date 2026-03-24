@@ -347,15 +347,12 @@ def build_prompts(trading_context):
 
     ## YOUR TOOLS
     1. **run_sql** — query BigQuery (auto-corrects common mistakes)
-    2. **fetch_market_data** — pull from Google Sheets market intelligence
-    3. **web_search** — external market context, competitor news, regulatory changes.
+    2. **web_search** — external market context, competitor news, regulatory changes.
        Returns results WITH SOURCE URLs — always preserve these URLs in your findings so
        the synthesis stage can cite them in the briefing.
-    4. **scan_drive** — recently modified Google Drive docs (pricing, campaigns, releases).
-       IMPORTANT: scan_drive searches YOUR Google Drive files — only files you own or that are
-       shared with you. This means insurance-related documents. Files about Adventures/Shortbreaks
-       (WB, Paultons, Warner Brothers) are automatically filtered out — you only care about
-       insurance (cover) documents.
+
+    NOTE: Google Drive context, Google Trends narrative, and market intelligence (AI Insights)
+    are already loaded in the prompt above. Use them directly — do NOT try to re-fetch them.
 
     ## INVESTIGATION PROTOCOL — DEEP DIVES PER MOVER (persistence-aware)
 
@@ -373,10 +370,10 @@ def build_prompts(trading_context):
     - Drill 4: Compare the issue across multiple recent weeks (is it accelerating or decelerating?)
     - Drill 5: Cross-cut with a second dimension (e.g. cover_level × booking_source) to find the exact sub-segment
 
-    ### Round 1 — BREADTH + CONTEXT (mandatory, use ALL 4 tool types + first drills)
-    - **scan_drive**: Check for recent internal changes — insurance only
+    ### Round 1 — BREADTH + CONTEXT (mandatory)
+    - **Read the pre-loaded context above**: Drive context, Google Trends narrative, AI Insights
+      are already in your prompt — use them immediately to inform your investigation
     - **web_search**: External market context for the biggest movers
-    - **fetch_market_data**: Pull AI Insights tab — read EVERY insight, they are ALL relevant
     - **run_sql**: First drill on movers 1-3 (3 queries)
 
     ### Round 2 — DRILL MOVERS 1-4 (mandatory)
@@ -437,13 +434,35 @@ def build_prompts(trading_context):
       - Drill 2: by booking_source + age band (who's buying how?)
       - Drill 3: by device_type via web table (where in the online funnel?)
 
+    ## 13-MONTH CUSTOMER VALUE AUTO-CHECK (MANDATORY)
+    When ANY segment shows negative or near-zero GP (Post PPC), you MUST immediately run this SQL:
+    ```
+    SELECT distribution_channel, policy_type,
+      SUM(policy_count) AS policies,
+      SUM(CASE WHEN customer_type = 'New' THEN policy_count ELSE 0 END) AS new_policies,
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0)) AS gp_post_ppc,
+      SUM(COALESCE(CAST(est_13m_ins_gp AS FLOAT64), 0)) AS est_future_ins_gp,
+      SUM(COALESCE(CAST(est_13m_other_gp AS FLOAT64), 0)) AS est_future_other_gp,
+      SUM(CAST(total_gross_exc_ipt_ntu_comm AS FLOAT64) - COALESCE(CAST(ppc_cost_per_policy AS FLOAT64), 0))
+        + SUM(COALESCE(CAST(est_13m_ins_gp AS FLOAT64), 0))
+        + SUM(COALESCE(CAST(est_13m_other_gp AS FLOAT64), 0)) AS total_13m_value
+    FROM `hx-data-production.insurance.insurance_trading_data`
+    WHERE DATE(looker_trans_date) BETWEEN '{week_start}' AND '{yesterday}'
+      AND distribution_channel = '[THE CHANNEL]'
+    GROUP BY distribution_channel, policy_type
+    ```
+    Then report: "Day-one GP is £X but estimated 13-month customer value is £Y (£Z insurance + £W other HX)."
+    Also check the channel as a whole (all policy types combined) — even if Annual is negative,
+    does Single + Annual together make the machine profitable on 13-month value?
+    Do NOT just say "it would be interesting to check" — run the query and report the actual numbers.
+
     ## MINIMUM REQUIREMENTS BEFORE OUTPUT
     - Each NEW mover MUST have exactly 3 SQL drill-downs
     - Each EMERGING mover MUST have exactly 4 SQL drill-downs (3 standard + 1 deep)
     - Each RECURRING mover MUST have exactly 5 SQL drill-downs (3 standard + 2 deep)
-    - ALL AI Insights from the market sheet must be read and incorporated
-    - At least 1 scan_drive result incorporated
+    - Pre-loaded context (Drive, Trends, AI Insights) must be incorporated
     - At least 1 web_search result incorporated
+    - Every negative-GP segment MUST have a 13-month customer value check
     - Total SQL follow-up queries: minimum 24 (more if recurring movers exist)
 
     ## CRITICAL SQL RULES for insurance_trading_data:

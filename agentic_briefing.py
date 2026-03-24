@@ -1111,7 +1111,9 @@ This will appear on the daily trading briefing as the Customer Search Intent sec
 # PHASE 0: CONTEXT INTELLIGENCE — scan Drive, classify, surface in briefing
 # ---------------------------------------------------------------------------
 
-CONTEXT_REFRESH_KEYWORDS = "insurance,pricing,product,partner,underwriter,scheme,cover,renewal,aggregator,cruise,carnival,ergo"
+# Title whitelist — only scan Drive docs whose title contains one of these words.
+# This prevents scanning sensitive files. Content is read, but only from known-safe doc types.
+CONTEXT_TITLE_WHITELIST = ["trading", "pricing", "price", "circle", "marketing"]
 TRAVEL_EVENTS_SHEET_ID = "1lqLYxLTnfFyBSsIPRyPr8vpr25S7Fhz3p-nlWNToZpU"
 
 
@@ -1190,7 +1192,7 @@ def run_context_refresh(run_date):
 
     # 1. Scan Drive for recently modified docs (owned + shared)
     try:
-        drive_results_json = tool_scan_drive(CONTEXT_REFRESH_KEYWORDS, days_back=7)
+        drive_results_json = tool_scan_drive(",".join(CONTEXT_TITLE_WHITELIST), days_back=7)
         drive_results = json.loads(drive_results_json) if not drive_results_json.startswith("Drive error") else []
         print(f"  📂 Found {len(drive_results)} relevant Drive docs modified in last 7 days")
 
@@ -1293,10 +1295,15 @@ Each fact should be a single sentence that a trader could ACT on or use to EXPLA
 
     classify_prompt = """Classify this fact for a trading briefing context system. Return JSON only.
 
-{"classification": "<PERMANENT|TEMPORARY|SKIP>", "reasoning": "<why, max 30 chars>"}
+{"classification": "<PERMANENT|TEMPORARY|SKIP>", "category": "<insurance|operational|universal>", "reasoning": "<why, max 30 chars>"}
 
-PERMANENT = structural rule, product change, new partner, UW threshold, business logic that won't change week to week
-TEMPORARY = current promotion, recent pricing change, active market event, competitor action that will evolve
+PERMANENT = structural changes that won't revert week to week:
+  - Product launches, new cover types, new distribution partners
+  - Maximum age changes, scheme changes, underwriter threshold changes
+  - Business logic rules, new KPIs, permanent strategy shifts
+TEMPORARY = current/recent changes that will evolve:
+  - Active promotions, recent pricing changes, competitor actions
+  - Market events, funnel experiments, campaign launches
 SKIP = not useful for trading decisions. ALWAYS skip these:
   - Historical metrics/figures (e.g. "H1 FY26 was 180k policies")
   - Periodic booking stats (e.g. "P&O had 38,067 bookings in April")
@@ -1304,7 +1311,12 @@ SKIP = not useful for trading decisions. ALWAYS skip these:
   - Operational processes (e.g. "A rota is used to assign agents")
   - Document metadata (e.g. "The document is dated November 2025")
   - Tool/vendor contact info
-  - Data that describes WHAT HAPPENED rather than WHY or WHAT CHANGED"""
+  - Data that describes WHAT HAPPENED rather than WHY or WHAT CHANGED
+
+CATEGORY (where to file this fact):
+  - insurance = specific to insurance products, pricing, partners, schemes, cover levels
+  - operational = market events, competitor actions, promotions, funnel changes, campaigns
+  - universal = macro factors (economy, regulation, travel demand, geopolitics)"""
 
     client_oai = openai.OpenAI(api_key=OPENAI_API_KEY)
     gpt_items = []
@@ -1432,8 +1444,12 @@ Ask: "Could a trader ACT on this or use it to EXPLAIN a movement?" If no → SKI
                         item["classification"] = cls1
                         agreements += 1
                     else:
-                        # More conservative wins (lower CONSERVATISM score)
-                        item["classification"] = cls1 if CONSERVATISM.get(cls1, 1) <= CONSERVATISM.get(cls2, 1) else cls2
+                        # If EITHER model says PERMANENT, use PERMANENT (rare, valuable)
+                        if cls1 == "PERMANENT" or cls2 == "PERMANENT":
+                            item["classification"] = "PERMANENT"
+                        else:
+                            # For SKIP vs TEMPORARY, more conservative wins
+                            item["classification"] = cls1 if CONSERVATISM.get(cls1, 1) <= CONSERVATISM.get(cls2, 1) else cls2
                         disagreements += 1
 
         total = agreements + disagreements
@@ -1520,30 +1536,37 @@ Ask: "Could a trader ACT on this or use it to EXPLAIN a movement?" If no → SKI
             print(f"  🧹 AI dedup: cleaning {len(temp_lines)} temp facts...")
             try:
                 cleanup_resp = client_oai.chat.completions.create(
-                    model=LIGHTWEIGHT_MODEL,
+                    model="gpt-4.1-mini",
                     max_completion_tokens=8000,
                     response_format={"type": "json_object"},
                     messages=[
-                        {"role": "system", "content": """You are cleaning a list of trading context facts. Remove low-value and duplicate items.
+                        {"role": "system", "content": """You are deduplicating a list of trading context facts using SEMANTIC matching, not word matching.
 
 Return JSON: {"facts": ["- fact 1 — Source: ...", "- fact 2 — Source: ...", ...]}
 
-REMOVE these categories:
-- Exact and near-duplicates (same fact worded slightly differently) — keep the EARLIEST dated version
-- Historical data points and time-series values (e.g. "The Combined Demand Index was 88.6 in 2015Q4")
-- Per-month/quarter booking statistics (e.g. "P&O Cruises had 38,067 bookings in April 2025")
-- Generic metric definitions (e.g. "CTR is defined as the percentage of impressions that were clicked")
-- Document metadata (e.g. "The document is dated January 2026", "The document is for Insurance Circle")
-- Operational process descriptions (rotas, email addresses, Zapier feeds)
-- Tool/vendor descriptions and contact info
-- Weekly trading output snapshots that just report WHAT HAPPENED (e.g. "Policy volume increased by 4.6% last week")
+PROCESS:
+1. Group facts by TOPIC or EVENT (e.g. all facts about "Ergo AMT pricing changes" are one group,
+   all facts about "Carnival cruise promotions" are another group)
+2. Within each group, keep ONLY the single most informative and complete version
+3. Two facts describe the SAME thing if they're about the same event, change, or action — even if
+   they use completely different words. E.g. "Ergo AMT discounts go live on 25/03" and
+   "Aggregator pricing changes targeting 20% of market on 25 March" = SAME event, keep the more detailed one
+4. Remove any fact that is fully covered by another more detailed fact
+
+ALSO REMOVE:
+- Historical data points and time-series values
+- Periodic booking statistics
+- Generic definitions
+- Document metadata
+- Operational process descriptions
+- Weekly trading output snapshots that just report WHAT HAPPENED
 - Vague facts with no actionable content
 
 KEEP only facts a trader could ACT on or use to EXPLAIN a movement:
 - Pricing changes, product launches, competitor actions, promotions, UW rules, strategy decisions, market events
 
 Preserve the FULL line exactly as-is including "— Source: ..." and "(expires: YYYY-MM-DD)"
-Do NOT rewrite, rephrase, or merge facts — only remove lines."""},
+Do NOT rewrite or rephrase — only remove redundant lines."""},
                         {"role": "user", "content": "\n".join(temp_lines)},
                     ],
                 )
