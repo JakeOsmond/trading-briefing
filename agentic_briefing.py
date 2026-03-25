@@ -3220,10 +3220,13 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 
     _driver_idx = [0]
     _heading_texts = []  # collect heading texts on first pass
+    _heading_htmls = []  # collect raw HTML for data-fid extraction
 
     def _collect_headings(match):
-        heading_text = re.sub(r'<[^>]+>', '', match.group(1))
+        heading_html = match.group(1)
+        heading_text = re.sub(r'<[^>]+>', '', heading_html)
         _heading_texts.append(heading_text)
+        _heading_htmls.append(heading_html)
         return match.group(0)  # return unchanged
     re.sub(r'<h3>(.*?)</h3>', _collect_headings, html_body)
 
@@ -3249,41 +3252,48 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         _used_k.add(k_idx)
         _h_to_k[h_idx] = _trend_keys[k_idx]
 
-    # Build verification lookup — keyed by finding ID and by driver name for fuzzy matching
+    # ── Global verification assignment (same greedy-best approach as trends) ──
     _verification_results = verification or {}
-    _verification_by_name = {}
+    _verification_keys = list(_verification_results.keys())  # ["finding-0", "finding-1", ...]
+    _verification_name_tokens = {}  # fid -> tokens of driver name
     for fid, vdata in _verification_results.items():
         driver = vdata.get("driver", "")
         if driver:
-            _verification_by_name[driver.lower().strip()] = {**vdata, "_original_id": fid}
+            _verification_name_tokens[fid] = _tokenize(driver)
 
-    def _find_verification(heading_text):
-        """Match a heading to its verification result by driver name similarity."""
-        h_lower = heading_text.lower().strip()
-        h_words = set(w for w in re.sub(r'[^a-z0-9\s]', '', h_lower).split() if len(w) > 2)
-        if not h_words:
-            return {}
-        best_match = None
-        best_score = 0
-        best_pct = 0
-        for driver_name, vdata in _verification_by_name.items():
-            d_words = set(w for w in re.sub(r'[^a-z0-9\s]', '', driver_name).split() if len(w) > 2)
-            if not d_words:
-                continue
-            shared = h_words & d_words
-            score = len(shared)
-            # Percentage of smaller set that matches
-            pct = score / min(len(h_words), len(d_words)) if min(len(h_words), len(d_words)) > 0 else 0
-            if score > best_score or (score == best_score and pct > best_pct):
-                best_score = score
-                best_pct = pct
-                best_match = vdata
-        # Accept if ≥2 matching words, OR ≥1 word matching ≥50% of the shorter set
-        if best_score >= 2 or (best_score >= 1 and best_pct >= 0.5):
-            return best_match
-        return {}
+    # Strategy 1: Extract data-fid spans from collected heading HTML
+    _h_to_v_fid = {}  # heading_idx -> finding_id (from data-fid span)
+    for h_idx, h_html in enumerate(_heading_htmls):
+        fid_match = re.search(r'data-fid="(finding-\d+)"', h_html)
+        if fid_match and fid_match.group(1) in _verification_results:
+            _h_to_v_fid[h_idx] = fid_match.group(1)
 
-    _used_verification = set()  # track which verifications have been assigned
+    # Strategy 2: Compute pairwise name similarity scores for all unmatched headings
+    _v_scores = []
+    _fid_used_by_span = set(_h_to_v_fid.values())
+    _h_used_by_span = set(_h_to_v_fid.keys())
+    for h_idx, h_toks in enumerate(_heading_tokens):
+        if h_idx in _h_used_by_span:
+            continue  # already matched by data-fid
+        for fid, v_toks in _verification_name_tokens.items():
+            if fid in _fid_used_by_span:
+                continue  # already matched by data-fid
+            score, matches = _match_score(h_toks, v_toks)
+            if matches >= 1:
+                _v_scores.append((score, matches, h_idx, fid))
+
+    _v_scores.sort(key=lambda x: (-x[0], -x[1]))
+    _used_v_h = set(_h_used_by_span)
+    _used_v_fid = set(_fid_used_by_span)
+    _h_to_v = dict(_h_to_v_fid)  # heading_idx -> finding_id (final map)
+    for score, matches, h_idx, fid in _v_scores:
+        if h_idx in _used_v_h or fid in _used_v_fid:
+            continue
+        _used_v_h.add(h_idx)
+        _used_v_fid.add(fid)
+        _h_to_v[h_idx] = fid
+
+    print(f"  ✓ Verification matched: {len(_h_to_v)}/{len(_heading_texts)} headings → {len(_h_to_v)}/{len(_verification_results)} verifications")
 
     def _add_driver_id(match):
         heading_html = match.group(1)
@@ -3293,36 +3303,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         _driver_idx[0] += 1
         tid = f'trend-{idx}'
 
-        # Match verification using multiple strategies (in priority order)
-        vr = {}
-        finding_id = f"finding-{idx}"
-
-        # Strategy 1: data-fid span from synthesis LLM
-        fid_match = re.search(r'data-fid="(finding-\d+)"', heading_html)
-        if fid_match:
-            fid = fid_match.group(1)
-            if fid in _verification_results and fid not in _used_verification:
-                finding_id = fid
-                vr = _verification_results[fid]
-                _used_verification.add(fid)
-
-        # Strategy 2: fuzzy name matching
-        if not vr:
-            vr_candidate = _find_verification(heading_text)
-            cand_id = vr_candidate.get("_original_id", "")
-            if vr_candidate and cand_id and cand_id not in _used_verification:
-                finding_id = cand_id
-                vr = vr_candidate
-                _used_verification.add(cand_id)
-
-        # Strategy 3: grab the next unassigned verification result (all drivers should be verified)
-        if not vr:
-            for fid, vdata in _verification_results.items():
-                if fid not in _used_verification:
-                    finding_id = fid
-                    vr = vdata
-                    _used_verification.add(fid)
-                    break
+        # Use the pre-computed global verification assignment
+        finding_id = _h_to_v.get(idx, f"finding-{idx}")
+        vr = _verification_results.get(finding_id, {})
 
         # Embed matched trend key directly as data attribute
         # Try finding_id first (direct match), then fall back to fuzzy h_to_k
