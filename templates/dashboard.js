@@ -238,7 +238,8 @@ function toggleMatchedTrend(trendId, btn){
   }
 
   /* Get heading text and match to trend data */
-  const h3=btn.closest('h3');
+  const section=btn.closest('.driver-section');
+  const h3=section?section.querySelector('h3'):btn.closest('h3');
   const heading=h3?h3.textContent.replace(/Trend.*/,'').replace(/Recovery/g,'').trim():'Driver';
   let data=container._matchedData;
   if(!data){
@@ -283,7 +284,8 @@ function fetchDriverTrend(trendId, btn){
   }
 
   /* Get driver context from heading */
-  const h3=btn.closest('h3');
+  const sect=btn.closest('.driver-section');
+  const h3=sect?sect.querySelector('h3'):btn.closest('h3');
   const headingText=h3?h3.textContent.replace('Trend','').trim():'';
 
   /* Build dates: 14 days ending yesterday */
@@ -1267,7 +1269,7 @@ function openInvestigations(){
       }
     });
   },{threshold:0.01,rootMargin:'0px 0px 60px 0px'});
-  document.querySelectorAll('.nar h2,.nar blockquote,.nar table,.dig-wrap,.nar>p,.nar>ul,.nar>ol').forEach((el,i)=>{
+  document.querySelectorAll('.nar h2,.nar blockquote,.nar table,.dig-wrap,.nar p,.nar ul,.nar ol').forEach((el,i)=>{
     el.style.opacity='0';
     el.style.transform='translateY(16px)';
     el.style.transition=`opacity 0.45s cubic-bezier(.16,1,.3,1) ${(i%6)*40}ms, transform 0.45s cubic-bezier(.16,1,.3,1) ${(i%6)*40}ms`;
