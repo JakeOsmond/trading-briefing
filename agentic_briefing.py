@@ -2470,7 +2470,7 @@ section AND for the wider trading analysis (it explains search demand dynamics t
 Now produce the final briefing following the 3-tier format exactly:
 1. Headline (one sentence, like a newspaper)
 2. At a Glance (5 traffic light bullets, biggest £ first)
-3. What's Driving This (ALL 8 movers, ordered by CONFIDENCE: VERY HIGH first, then HIGH, MEDIUM, LOW, VERY LOW. Within each confidence tier, order by absolute £ impact. Do NOT put confidence tags in headings — they are injected automatically by the dashboard. 2 sentences + sql-dig)
+3. What's Driving This (EXACTLY 8 movers — no more, no fewer. Ordered by CONFIDENCE: VERY HIGH first, then HIGH, MEDIUM, LOW, VERY LOW. Within each confidence tier, order by absolute £ impact. Do NOT put confidence tags in headings — they are injected automatically by the dashboard. Do NOT add extra movers beyond the 8 provided. 2 sentences + sql-dig)
    IMPORTANT: Each mover has a `finding_id` field (e.g. "finding-0"). You MUST include it at the END of each ### heading as a hidden span: `### Driver heading <span data-fid="finding-0"></span>`. This links each driver to its verification result.
 4. Customer Search Intent (Google Trends / search behaviour data)
 5. News & Market Context (AI Insights, competitor activity, external factors)
@@ -3313,13 +3313,22 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 
     print(f"  ✓ Verification matched: {len(_h_to_v)}/{len(_heading_texts)} headings → {len(_h_to_v)}/{len(_verification_results)} verifications")
 
+    _MAX_DRIVER_HEADINGS = 8  # hard cap — LLM sometimes adds extras
+
     def _add_driver_id(match):
         heading_html = match.group(1)
         heading_text = re.sub(r'<[^>]+>', '', heading_html)
-        slug = re.sub(r'[^a-z0-9]+', '-', heading_text.lower().strip()).strip('-')
         idx = _driver_idx[0]
         _driver_idx[0] += 1
 
+        # Hard cap: only first 8 h3 tags get driver treatment
+        if idx >= _MAX_DRIVER_HEADINGS:
+            # Strip stray code tags but don't add driver attributes
+            clean = re.sub(r'\s*<code>[^<]*</code>\s*', '', heading_html)
+            clean = re.sub(r'\s*<span\s+data-fid="[^"]*"\s*>\s*</span>\s*', '', clean)
+            return f'<h3>{clean}</h3>'
+
+        slug = re.sub(r'[^a-z0-9]+', '-', heading_text.lower().strip()).strip('-')
         tid = f'trend-{idx}'
 
         # Use the pre-computed global verification assignment
