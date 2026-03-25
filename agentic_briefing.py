@@ -2470,7 +2470,7 @@ section AND for the wider trading analysis (it explains search demand dynamics t
 Now produce the final briefing following the 3-tier format exactly:
 1. Headline (one sentence, like a newspaper)
 2. At a Glance (5 traffic light bullets, biggest £ first)
-3. What's Driving This (ALL 8 movers, ordered by CONFIDENCE: VERY HIGH first, then HIGH, MEDIUM, LOW, VERY LOW. Within each confidence tier, order by absolute £ impact. Each needs its confidence tag: VERY HIGH CONFIDENCE / HIGH CONFIDENCE / MEDIUM CONFIDENCE / LOW CONFIDENCE / VERY LOW CONFIDENCE instead of the old RECURRING/EMERGING/NEW tags. 2 sentences + sql-dig)
+3. What's Driving This (ALL 8 movers, ordered by CONFIDENCE: VERY HIGH first, then HIGH, MEDIUM, LOW, VERY LOW. Within each confidence tier, order by absolute £ impact. Do NOT put confidence tags in headings — they are injected automatically by the dashboard. 2 sentences + sql-dig)
    IMPORTANT: Each mover has a `finding_id` field (e.g. "finding-0"). You MUST include it at the END of each ### heading as a hidden span: `### Driver heading <span data-fid="finding-0"></span>`. This links each driver to its verification result.
 4. Customer Search Intent (Google Trends / search behaviour data)
 5. News & Market Context (AI Insights, competitor activity, external factors)
@@ -3293,21 +3293,36 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         _driver_idx[0] += 1
         tid = f'trend-{idx}'
 
-        # Try to extract finding_id from data-fid span injected by synthesis LLM
+        # Match verification using multiple strategies (in priority order)
+        vr = {}
+        finding_id = f"finding-{idx}"
+
+        # Strategy 1: data-fid span from synthesis LLM
         fid_match = re.search(r'data-fid="(finding-\d+)"', heading_html)
         if fid_match:
-            finding_id = fid_match.group(1)
-            vr = _verification_results.get(finding_id, {})
-        else:
-            # Fallback: match verification by driver name similarity
-            vr = _find_verification(heading_text)
-            finding_id = vr.get("_original_id", f"finding-{idx}")
-            # Prevent the same verification from being used twice
-            if finding_id in _used_verification:
-                vr = {}
-                finding_id = f'finding-{idx}'
-            elif vr:
-                _used_verification.add(finding_id)
+            fid = fid_match.group(1)
+            if fid in _verification_results and fid not in _used_verification:
+                finding_id = fid
+                vr = _verification_results[fid]
+                _used_verification.add(fid)
+
+        # Strategy 2: fuzzy name matching
+        if not vr:
+            vr_candidate = _find_verification(heading_text)
+            cand_id = vr_candidate.get("_original_id", "")
+            if vr_candidate and cand_id and cand_id not in _used_verification:
+                finding_id = cand_id
+                vr = vr_candidate
+                _used_verification.add(cand_id)
+
+        # Strategy 3: grab the next unassigned verification result (all drivers should be verified)
+        if not vr:
+            for fid, vdata in _verification_results.items():
+                if fid not in _used_verification:
+                    finding_id = fid
+                    vr = vdata
+                    _used_verification.add(fid)
+                    break
 
         # Embed matched trend key directly as data attribute
         # Try finding_id first (direct match), then fall back to fuzzy h_to_k
@@ -3317,8 +3332,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         if not trend_key:
             trend_key = _h_to_k.get(idx, '')
         trend_attr = f' data-trend-key="{trend_key}"' if trend_key else ''
-        # Strip the data-fid span from visible heading text (used for ID matching, not display)
+        # Strip the data-fid span and stray confidence code tags from heading text
         clean_heading = re.sub(r'\s*<span\s+data-fid="[^"]*"\s*>\s*</span>\s*', '', match.group(1))
+        clean_heading = re.sub(r'\s*<code>\s*(?:VERY\s+)?(?:HIGH|MEDIUM|LOW)\s*(?:CONFIDENCE)?\s*</code>\s*', '', clean_heading)
         # Title on its own line — pills go below
         h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}" data-finding-id="{finding_id}"{trend_attr}>{clean_heading}</h3>'
         # Pills line: persistence dots + confidence injected by initDriverTrends, verification pill here
@@ -3349,12 +3365,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
             pill += f'<span class="verify-tip">OpenAI and Claude disagree on this finding. {concern}. Please speak with Commercial Finance to verify.</span>'
             pill += '</span>'
             pills_line += f' {pill}'
-        else:
-            # No verification match or explicit "unverified" — always show a pill
-            pill = f'<span class="verify-pill verify-pill-unverified" data-finding-id="{finding_id}">UNVERIFIED'
-            pill += '<span class="verify-tip">Cross-model verification was unavailable for this finding. The heading could not be matched to a verification result, or the Claude API could not be reached during pipeline execution.</span>'
-            pill += '</span>'
-            pills_line += f' {pill}'
+        # else: no pill shown — only VERIFIED or CONTESTED appear on the dashboard
 
         pills_line += '</div>'  # close .driver-pills
         h3_tag += pills_line

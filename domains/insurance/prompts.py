@@ -512,32 +512,30 @@ def build_prompts(trading_context):
       customer value is ALSO negative — that means the acquisition isn't paying back.
     - Single trip losses have no renewal pathway but DO have 13-month cross-sell value.
       Check whether the 13-month customer value makes a negative-margin single segment worthwhile.
-    - **13-MONTH CUSTOMER VALUE — ALWAYS CONSIDER FOR NEGATIVE MARGINS:**
-      When any segment has thin or negative day-one GP, you MUST check its 13-month customer
-      value (est_13m_ins_gp + est_13m_other_gp). This estimates future insurance and non-insurance
-      GP from new customers based on historical purchasing behaviour of similar cohorts (same
-      policy_type, medical_split, distribution_channel, destination_group).
+    - **13-MONTH CUSTOMER VALUE — USE THE DATA, DON'T JUST DESCRIBE THE CHECK:**
+      The investigation tracks include Track 29 "13-month customer value by channel" with ACTUAL
+      numbers for gp_post_ppc, est_future_ins_gp, est_future_other_gp, and total_13m_customer_value
+      broken down by distribution_channel × policy_type. USE THESE NUMBERS.
+
+      When any segment has thin or negative day-one GP, you MUST cite the actual 13-month figures
+      from Track 29. Example: "Aggregator Annual lost £4.3k on day-one GP over the last 7 days vs
+      the same period last year, but the estimated 13-month customer value adds £3.4k (£2.8k future
+      insurance + £0.6k other HX), leaving a net loss of £0.9k."
+
+      NEVER say "the check to make is..." or "it would be interesting to see..." — the data is
+      already in the tracks. Find it and report the actual numbers.
 
       Analysis framework:
-      1. **Segment level:** If a specific cut (e.g. Aggregator Annual) is negative on day-one GP,
-         check its 13-month value. If still negative, flag it clearly.
-      2. **Channel level:** Even if one policy type is negative, look at the channel as a whole
-         (e.g. Aggregator Single + Annual combined). If the channel total is positive on 13-month
-         value, highlight that the machine works overall — "Single sales fund the annual
-         acquisition cost."
-      3. **Mix effects:** Destination group and medical split affect the 13-month estimates.
-         If a segment's 13-month value is declining, consider whether the mix of destinations or
-         medical profiles is shifting unfavourably (e.g. more Europe non-medical = lower future
-         value than Worldwide medical).
-      4. **New customer proportion:** Only new customers carry 13-month estimates. If a channel's
-         new customer share is declining, the aggregate 13-month uplift will shrink even if
-         per-customer value is stable. Flag this.
-      5. **What would turn it positive?** When flagging a genuinely negative segment, suggest what
-         mix or volume shift could make it work (e.g. "If the medical split returned to LY levels,
-         the 13-month value would cover the acquisition cost").
+      1. **Segment level:** Cite actual 13-month value from Track 29 for any negative-GP segment.
+      2. **Channel level:** Sum across policy types for the channel total. If Aggregator Annual is
+         negative but Aggregator Single + Annual combined is positive, say so with the numbers.
+      3. **Mix effects:** Destination and medical splits affect the estimates. If a segment's
+         13-month value is declining, note whether the mix shifted unfavourably.
+      4. **New customer proportion:** Only new customers carry estimates. If new_customer_policies
+         is low relative to total policies, the 13-month uplift will be small — flag this.
+      5. **What would turn it positive?** Suggest what would fix a genuinely negative segment.
 
-      Only applies to new customers (customer_type='New') — returning/renewal customers don't
-      have these estimates.
+      Only applies to new customers — returning/renewal customers don't have these estimates.
     - **TRAFFIC & CONVERSION are primary levers.** When explaining any growth or decline, always
       reference whether traffic (sessions/visits) and/or conversion rates contributed. Traffic is
       usually the biggest factor — if sessions are up 15% YoY, say so prominently. Don't just say
