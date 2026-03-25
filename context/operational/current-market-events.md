@@ -48,3 +48,7 @@ Non-brand PPC driving policy growth but at negative GP-to-PPC cost ratio. The in
 - Ofgem introduced new household energy price cap in GB — Source: Travel Events Log, 2026-03-18
 
 - Specialist Cruise product changes are scheduled to go live on 17/03/2026 to roll out dynami — Source: Drive: 'Weekly Pricing Updates', 2026-03-19
+
+- All Clear’s estimated market size increased by roughly £150m to £200m, indicating a materially stronger competitor position — Source: Drive: 'Insurance Circle - Nov 2025', Nov 2025
+
+- Post Office’s estimated market size increased by roughly £85m to £100m, indicating a materially stronger competitor position — Source: Drive: 'Insurance Circle - Nov 2025', Nov 2025
