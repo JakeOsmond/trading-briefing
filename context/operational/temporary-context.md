@@ -1,7 +1,5 @@
 # Temporary Context — Auto-Expires After 7 Days
-
 _Facts below are used in briefings but expire automatically. Do not edit manually._
-
 - Google trends are showing reduced customer searches for partner brand terms such as P&O Cruises, with P&O Cruises searches down 6% year-on-year, which could pressure partnership-driven insurance demand. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-23 (expires: 2026-03-30)
 - Customers are exploring changes to their Easter plans, creating short-term uncertainty in travel insurance demand. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-23 (expires: 2026-03-30)
 - Althams are seeing a decline in performance that is not due to a location switch, indicating a brand- or market-specific issue rather than a distribution change. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-24 (expires: 2026-03-31)
@@ -54,3 +52,16 @@ _Facts below are used in briefings but expire automatically. Do not edit manuall
 - The Direct Travel and Cruise discount changes target about 55% of volume with discounts between 2% and 10%. — Source: Drive: 'Weekly Pricing Updates', 2026-03-24 (expires: 2026-03-31)
 - Journey data for renewals is currently broken and needs fixing, which affects daily trading monitoring across Auto, Self-Serve, and Exceptions journeys. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-24 (expires: 2026-03-31)
 - Opt-out status is captured in the autorenewal opt-outs table, where Y indicates opt-out and N indicates opt-in, providing a direct driver of renewal conversion performance. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-24 (expires: 2026-03-31)
+- A wider market survey is being conducted to understand performance by brand, indicating current brand-level performance visibility is limited. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-24 (expires: 2026-03-31)
+- The cancellation rate is trending back toward normal after Middle East impact, which can explain a moderation in recent trading disruption. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-24 (expires: 2026-03-31)
+- Middle East impact drove last week’s net bookings decline through higher cancellations and lower new bookings. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-24 (expires: 2026-03-31)
+- Summer demand remains hesitant while short-term decline is materially lower, indicating weaker forward demand for summer travel. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-24 (expires: 2026-03-31)
+- Shorter lead times within 21 days continue to perform better than longer lead times, which should influence trading focus and expectations by booking window. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-24 (expires: 2026-03-31)
+- Conversion is up while traffic has returned, suggesting the recent weakness is more demand-led than funnel-led. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-24 (expires: 2026-03-31)
+- Search decline mirrors booking decline, with lower decline on shorter lead times and conversion uplift throughout, reinforcing stronger near-term demand versus longer lead. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-24 (expires: 2026-03-31)
+- Suppliers have not yet reduced summer prices, suggesting continued pricing firmness that may constrain summer conversion and demand. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-24 (expires: 2026-03-31)
+- Fast Track is the only product not seeing year-on-year decline, driven by a Top Cashback trial, indicating the cashback promotion is positively affecting performance. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-24 (expires: 2026-03-31)
+- Specialist Cruise is actively optimising gross profit on Fred Olsen and conversion on Carnival through partnership work. — Source: Drive: 'Weekly Pricing Updates', 2026-03-24 (expires: 2026-03-31)
+- Starting in April, MSM aggregator market data will be added to the dataset, expanding market demand visibility beyond the current IDOL-only view. — Source: Drive: 'Insurance Weekly Trading w/c 09/03/2026', 2026-03-24 (expires: 2026-03-31)
+- The renewals historical quote tables are updated daily with renewal quotes 28 days before policy expiry, which determines the renewal trading window and timing for monitoring quote and exception trends. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-24 (expires: 2026-03-31)
+- Exception reason and message data is used in trading to identify causes of spikes in performance, indicating that exception-driven issues can materially explain trading movements. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-24 (expires: 2026-03-31)
