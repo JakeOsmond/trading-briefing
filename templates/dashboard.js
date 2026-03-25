@@ -532,23 +532,30 @@ function openDriverAsk(id){
 }
 
 function getDriverContext(panel){
-  const wrap=panel.closest('.dig-wrap');
+  /* Find the driver-section container (or fall back to dig-wrap sibling walk) */
+  const section=panel.closest('.driver-section');
   let ctx='';
-  if(wrap){
-    /* Collect all narrative paragraphs and heading above this dig-wrap */
-    const parts=[];
-    let prev=wrap.previousElementSibling;
-    while(prev){
-      if(prev.tagName==='H3'||prev.tagName==='P'){
-        parts.unshift(prev.textContent);
+  if(section){
+    const h3=section.querySelector('h3');
+    if(h3) ctx+=h3.textContent+'\n';
+    section.querySelectorAll('p').forEach(function(p){ctx+=p.textContent+'\n';});
+    const sqlCode=section.querySelector('pre.dig-sql code');
+    if(sqlCode) ctx+='\nOriginal SQL used for this driver:\n'+sqlCode.textContent;
+  } else {
+    /* Fallback for any edge case where driver-section wrapper is missing */
+    const wrap=panel.closest('.dig-wrap');
+    if(wrap){
+      const parts=[];
+      let prev=wrap.previousElementSibling;
+      while(prev){
+        if(prev.tagName==='H3'||prev.tagName==='P') parts.unshift(prev.textContent);
+        if(prev.tagName==='H3') break;
+        prev=prev.previousElementSibling;
       }
-      if(prev.tagName==='H3') break;
-      prev=prev.previousElementSibling;
+      ctx=parts.join('\n');
+      const sqlCode=wrap.querySelector('pre.dig-sql code');
+      if(sqlCode) ctx+='\nOriginal SQL used for this driver:\n'+sqlCode.textContent;
     }
-    ctx=parts.join('\n');
-    /* Also grab the SQL query if present — tells the AI exactly which table/filters apply */
-    const sqlCode=wrap.querySelector('pre.dig-sql code');
-    if(sqlCode) ctx+='\n\nOriginal SQL used for this driver:\n'+sqlCode.textContent;
   }
   return ctx;
 }
@@ -1311,19 +1318,22 @@ function openInvestigations(){
   /* 10. Init driver trend badges + buttons from computed data */
   (function initDriverTrends(){
     var trends=window.__driverTrends||{};
-    var headings=document.querySelectorAll('h3[data-driver-idx]');
+    /* Each driver lives in a .driver-section container with data attributes */
+    var sections=document.querySelectorAll('.driver-section');
 
-    headings.forEach(function(h3){
-      var trendKey=h3.getAttribute('data-trend-key');
-      /* Find the pills line — next sibling div.driver-pills */
-      var pillsDiv=h3.nextElementSibling&&h3.nextElementSibling.classList.contains('driver-pills')?h3.nextElementSibling:null;
+    sections.forEach(function(section){
+      var h3=section.querySelector('h3[data-driver-idx]');
+      if(!h3) return;
+      var pillsDiv=section.querySelector('.driver-pills');
       if(!pillsDiv) return;
 
+      /* Read identity from container attributes (set by Python, order-independent) */
+      var trendKey=section.getAttribute('data-trend-key')||'';
       var td=trendKey&&trends[trendKey]?trends[trendKey]:null;
       var p=td?(td.persistence||'new'):'new';
       var cd=td?(td.consistent_days||0):0;
       var tot=td?(td.total_days||10):10;
-      var conf=td?(td.confidence||'Low'):'Low';
+      var conf=section.getAttribute('data-confidence')||'Low';
       var recovery=td?!!td.recovery:false;
       var hasTrend=!!td;
 
@@ -1331,21 +1341,12 @@ function openInvestigations(){
       var idx=h3.getAttribute('data-driver-idx');
       var tid='trend-'+idx;
       if(hasTrend){
-        var container=document.getElementById(tid);
-        if(container) container._matchedData=td;
+        var trendEl=document.getElementById(tid);
+        if(trendEl) trendEl._matchedData=td;
       }
 
-      /* Remove old persistence badges from h3 and pills */
-      var oldBadges=h3.querySelectorAll('.badge-recurring,.badge-emerging,.badge-new');
-      oldBadges.forEach(function(b){b.remove();});
-      var oldPBadges=pillsDiv.querySelectorAll('.badge-recurring,.badge-emerging,.badge-new');
-      oldPBadges.forEach(function(b){b.remove();});
-
-      /* Remove any old confidence badges */
-      var oldConf=pillsDiv.querySelectorAll('[class^="badge-confidence-"]');
-      oldConf.forEach(function(b){b.remove();});
-      var oldConfH3=h3.querySelectorAll('[class^="badge-confidence-"]');
-      oldConfH3.forEach(function(b){b.remove();});
+      /* Remove old badges from h3 and pills */
+      section.querySelectorAll('.badge-recurring,.badge-emerging,.badge-new,[class^="badge-confidence-"]').forEach(function(b){b.remove();});
 
       /* Remove old trend button from pills (it moves to dig-buttons) */
       var oldTrendBtn=pillsDiv.querySelector('.view-trend-btn');
@@ -1372,7 +1373,6 @@ function openInvestigations(){
         label.textContent='No data';
       }
       dotsWrap.appendChild(label);
-      /* Insert dots at the start of pills */
       pillsDiv.insertBefore(dotsWrap,pillsDiv.firstChild);
 
       /* 2. Confidence badge */
@@ -1384,7 +1384,6 @@ function openInvestigations(){
       tip.className='conf-tip';
       tip.textContent=cd+'/'+tot+' days consistent. Click Trend for full analysis.';
       badge.appendChild(tip);
-      /* Insert after dots, before verification pill */
       var verifyPill=pillsDiv.querySelector('.verify-pill');
       if(verifyPill) pillsDiv.insertBefore(badge,verifyPill);
       else pillsDiv.appendChild(badge);
@@ -1398,33 +1397,27 @@ function openInvestigations(){
         else pillsDiv.appendChild(recBadge);
       }
 
-      /* 4. Find the nearest dig-wrap in this driver section */
-      var sibling=pillsDiv.nextElementSibling;
+      /* 4. Find dig-wrap and trend container INSIDE the section (no sibling walking) */
       var lastDigWrap=null;
       var digBtns=null;
-      while(sibling){
-        if(sibling.tagName==='H3'||sibling.tagName==='H2') break;
-        if(sibling.classList.contains('dig-wrap')){
-          lastDigWrap=sibling;
-          if(!digBtns) digBtns=sibling.querySelector('.dig-buttons');
-        }
-        sibling=sibling.nextElementSibling;
-      }
+      section.querySelectorAll('.dig-wrap').forEach(function(dw){
+        lastDigWrap=dw;
+        if(!digBtns) digBtns=dw.querySelector('.dig-buttons');
+      });
 
-      /* 5. Relocate trend container AFTER the last dig-wrap (fixes above-content rendering) */
+      /* 5. Relocate trend container after last dig-wrap */
       var trendContainer=document.getElementById(tid);
       if(trendContainer&&lastDigWrap){
         lastDigWrap.parentNode.insertBefore(trendContainer,lastDigWrap.nextSibling);
       }
 
-      /* 6. Move/create trend button into .dig-buttons row */
+      /* 6. Create trend button in dig-buttons row */
       if(hasTrend&&digBtns){
         var trendBtn=document.createElement('button');
         trendBtn.className='view-trend-btn';
         trendBtn.setAttribute('data-trend-id',tid);
         trendBtn.setAttribute('onclick',"toggleMatchedTrend('"+tid+"',this)");
         trendBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Trend';
-        /* Insert between Ask and Dig buttons (after first child) */
         var askBtn=digBtns.querySelector('.ask-driver-btn');
         var digBtn=digBtns.querySelector('.dig-btn');
         if(askBtn&&digBtn) digBtns.insertBefore(trendBtn,digBtn);

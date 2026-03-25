@@ -3368,29 +3368,49 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         return h3_tag
     html_body = re.sub(r'<h3>(.*?)</h3>', _add_driver_id, html_body)
 
-    # ── Reorder deep dive sections by confidence (High → Medium → Low) ────
-    if _all_trends_for_js and _h_to_k:
-        try:
-            # Split HTML into h3 sections within "What's Driving This"
-            h3_pattern = re.compile(r'(<h3\s[^>]*data-driver-idx="(\d+)"[^>]*>.*?)(?=<h3\s|<h2\s|$)', re.DOTALL)
-            h3_sections = list(h3_pattern.finditer(html_body))
-            if h3_sections:
-                first_start = h3_sections[0].start()
-                last_end = h3_sections[-1].end()
-                before = html_body[:first_start]
-                after = html_body[last_end:]
-                conf_priority = {"Very High": 0, "High": 1, "Medium": 2, "Low": 3, "Very Low": 4}
-                section_list = []
-                for m in h3_sections:
-                    idx = int(m.group(2))
+    # ── Wrap each driver in a container div and reorder by confidence ────
+    try:
+        h3_pattern = re.compile(r'(<h3\s[^>]*data-driver-idx="(\d+)"[^>]*>.*?)(?=<h3\s|<h2\s|$)', re.DOTALL)
+        h3_sections = list(h3_pattern.finditer(html_body))
+        if h3_sections:
+            first_start = h3_sections[0].start()
+            last_end = h3_sections[-1].end()
+            before = html_body[:first_start]
+            after = html_body[last_end:]
+            conf_priority = {"Very High": 0, "High": 1, "Medium": 2, "Low": 3, "Very Low": 4}
+            section_list = []
+            for m in h3_sections:
+                idx = int(m.group(2))
+                # Resolve all identity attributes for this driver
+                finding_id = _h_to_v.get(idx, f"finding-{idx}")
+                vr = _verification_results.get(finding_id, {})
+                verdict = vr.get("verdict", "")
+                driver_name = vr.get("driver", "").replace('"', '&quot;')
+                trend_key = ""
+                if finding_id and _all_trends_for_js and finding_id in _all_trends_for_js:
+                    trend_key = finding_id
+                if not trend_key:
                     trend_key = _h_to_k.get(idx, '')
-                    td = _all_trends_for_js.get(trend_key, {})
-                    conf = td.get("confidence", "Low")
-                    section_list.append((conf_priority.get(conf, 2), m.group(0)))
-                section_list.sort(key=lambda x: x[0])
-                html_body = before + ''.join(s[1] for s in section_list) + after
-        except Exception as e:
-            print(f"  ⚠ Section reorder failed (non-fatal): {e}")
+                td = _all_trends_for_js.get(trend_key, {}) if _all_trends_for_js else {}
+                conf = td.get("confidence", "Low")
+                persistence = td.get("persistence", "")
+
+                # Build container div with all identity data attributes
+                attrs = (
+                    f'class="driver-section"'
+                    f' data-finding-id="{finding_id}"'
+                    f' data-driver-name="{driver_name}"'
+                    f' data-verdict="{verdict}"'
+                    f' data-trend-key="{trend_key}"'
+                    f' data-confidence="{conf}"'
+                    f' data-persistence="{persistence}"'
+                )
+                wrapped = f'<div {attrs}>{m.group(0)}</div>'
+                section_list.append((conf_priority.get(conf, 2), wrapped))
+            section_list.sort(key=lambda x: x[0])
+            html_body = before + ''.join(s[1] for s in section_list) + after
+    except Exception as e:
+        print(f"  ⚠ Section wrap/reorder failed (non-fatal): {e}")
 
     ty = next((r for r in trading_data if r["period"] == "yesterday"), {})
     ly = next((r for r in trading_data if r["period"] == "yesterday_ly"), {})
