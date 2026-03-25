@@ -3263,10 +3263,14 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 
     # Strategy 1: Extract data-fid spans from collected heading HTML
     _h_to_v_fid = {}  # heading_idx -> finding_id (from data-fid span)
+    _fids_seen = set()  # prevent duplicate fid assignments from LLM errors
     for h_idx, h_html in enumerate(_heading_htmls):
         fid_match = re.search(r'data-fid="(finding-\d+)"', h_html)
         if fid_match and fid_match.group(1) in _verification_results:
-            _h_to_v_fid[h_idx] = fid_match.group(1)
+            fid = fid_match.group(1)
+            if fid not in _fids_seen:  # only use first occurrence — LLM may duplicate
+                _h_to_v_fid[h_idx] = fid
+                _fids_seen.add(fid)
 
     # Strategy 2: Compute pairwise name similarity scores for all unmatched headings
     _v_scores = []
