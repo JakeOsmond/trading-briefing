@@ -3299,12 +3299,19 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 
     print(f"  ✓ Verification matched: {len(_h_to_v)}/{len(_heading_texts)} headings → {len(_h_to_v)}/{len(_verification_results)} verifications")
 
+    _max_drivers = max(len(_verification_results), len(_all_trends_for_js) // 2 if _all_trends_for_js else 0, 8)
+
     def _add_driver_id(match):
         heading_html = match.group(1)
         heading_text = re.sub(r'<[^>]+>', '', heading_html)
         slug = re.sub(r'[^a-z0-9]+', '-', heading_text.lower().strip()).strip('-')
         idx = _driver_idx[0]
         _driver_idx[0] += 1
+
+        # Guard: skip non-driver h3 tags (beyond expected mover count)
+        if idx >= _max_drivers and idx not in _h_to_v:
+            return f'<h3>{match.group(1)}</h3>'
+
         tid = f'trend-{idx}'
 
         # Use the pre-computed global verification assignment
@@ -3321,7 +3328,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         trend_attr = f' data-trend-key="{trend_key}"' if trend_key else ''
         # Strip the data-fid span and stray confidence code tags from heading text
         clean_heading = re.sub(r'\s*<span\s+data-fid="[^"]*"\s*>\s*</span>\s*', '', match.group(1))
+        # Strip ALL stray code tags: confidence (HIGH/MEDIUM/LOW), persistence (RECURRING/EMERGING/NEW)
         clean_heading = re.sub(r'\s*<code>\s*(?:VERY\s+)?(?:HIGH|MEDIUM|LOW)\s*(?:CONFIDENCE)?\s*</code>\s*', '', clean_heading)
+        clean_heading = re.sub(r'\s*<code>\s*(?:RECURRING|EMERGING|NEW)\s*</code>\s*', '', clean_heading)
         # Title on its own line — pills go below
         h3_tag = f'<h3 id="driver-{slug}" data-driver-idx="{idx}" data-finding-id="{finding_id}"{trend_attr}>{clean_heading}</h3>'
         # Pills line: persistence dots + confidence injected by initDriverTrends, verification pill here
