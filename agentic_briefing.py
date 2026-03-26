@@ -2381,6 +2381,39 @@ Investigate all follow-up questions, then output your refined findings as JSON."
     return {"raw_follow_up": "Max follow-up rounds reached"}, follow_up_log
 
 
+def _extract_13m_summary(track_results):
+    """Extract Track 29 (13-month customer value) data and format as a readable table for the synthesis prompt."""
+    cv_track = track_results.get("customer_value_13m", {})
+    data = cv_track.get("data", [])
+    if not data:
+        return "(Track 29 data not available — run the 13-month customer value check manually for any negative-GP segment)"
+
+    lines = ["| Channel | Policy Type | Yr | Policies | New | GP Post PPC | Est Future Ins | Est Future Other | Total 13m Value |"]
+    lines.append("|---------|-------------|-----|----------|-----|-------------|----------------|------------------|-----------------|")
+    for row in data:
+        channel = row.get("distribution_channel", "?")
+        ptype = row.get("policy_type", "?")
+        yr = row.get("yr", "?")
+        policies = row.get("policies", 0)
+        new_pol = row.get("new_customer_policies", 0)
+        gp = row.get("gp_post_ppc", 0)
+        ins_gp = row.get("est_future_ins_gp", 0)
+        other_gp = row.get("est_future_other_gp", 0)
+        total = row.get("total_13m_customer_value", 0)
+        try:
+            gp_f = float(gp)
+            total_f = float(total)
+            lines.append(f"| {channel} | {ptype} | {yr} | {policies} | {new_pol} | £{gp_f:,.0f} | £{float(ins_gp):,.0f} | £{float(other_gp):,.0f} | £{total_f:,.0f} |")
+        except (ValueError, TypeError):
+            pass
+
+    result = "\n".join(lines)
+    result += "\n\nWhen ANY segment above shows negative or thin GP Post PPC, you MUST cite the Total 13m Value from this table."
+    result += "\nSay: 'Day-one GP was -£X but estimated 13-month customer value is £Y, leaving a net [gain/loss] of £Z.'"
+    result += "\nNEVER say 'needs confirming' or 'should be checked' — the data is RIGHT HERE."
+    return result
+
+
 def run_synthesis(baseline_data, analysis, follow_up_results, track_results, run_date, driver_trends=None):
     """Phase 5: Two-pass synthesis — draft then self-critique."""
     print("\n📝 Phase 5: Synthesising final briefing (two-pass)...")
@@ -2466,6 +2499,9 @@ section AND for the wider trading analysis (it explains search demand dynamics t
 ```json
 {json.dumps({k: {"confidence": v.get("confidence", "Low"), "explanation": v.get("confidence_explanation", ""), "bank_holiday_note": v.get("bank_holiday_note")} for k, v in (driver_trends or {}).items()}, indent=2, default=str)}
 ```
+
+## 13-MONTH CUSTOMER VALUE BY CHANNEL (USE THESE NUMBERS — DO NOT SAY "needs confirming")
+{_extract_13m_summary(track_results)}
 
 Now produce the final briefing following the 3-tier format exactly:
 1. Headline (one sentence, like a newspaper)
