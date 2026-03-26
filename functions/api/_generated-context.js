@@ -68,9 +68,13 @@ certificate_id is STRING here (INT64 in policies) — CAST for joins.
 
 SESSION COLUMNS: session_id, visitor_id, session_seconds, session_start_date (DATE — primary filter), session_landing_path, session_landing_agent, session_browser_name.
 
-PAGE/EVENT COLUMNS: device_type (mobile/computer/tablet), page_type (landing/gatekeeper/screening/extra_details/search_results/addon_results/checkout_*/just_booked), page_path, event_name (e.g. engine_search_button, select_product, chat_started, verisk-radio-answer-*), event_type (click/auto_capture/customer_state/focus/capture/ecommerce), event_value, booking_flow_stage (funnel stage).
+PAGE/EVENT COLUMNS: device_type (mobile/computer/tablet), page_type (landing/gatekeeper/screening/extra_details/search_results/addon_results/checkout_*/just_booked), page_path, event_name (e.g. select_product, chat_started, verisk-radio-answer-*), event_type (click/auto_capture/customer_state/focus/capture/ecommerce), event_value, booking_flow_stage (funnel stage).
 
-PRODUCT COLUMNS: scheme_search (Single/Annual — search intent), insurance_group (sub-channel: "Web Links", "Direct Mailings", "Affiliates" — SAME dimension as policies table), scheme_name, scheme_type, scheme_id.
+MEASURING SEARCH TRAFFIC: Use page_type = 'search_results' to count sessions reaching the quote page. Do NOT use event_name = 'engine_search_button'.
+
+FIELD AVAILABILITY BY FUNNEL STAGE: Before search_results, only device_type/distribution_channel/insurance_group/customer_type are available. policy_type and scheme fields only populate AT search_results. cover_level only populates AFTER search_results. Max granularity for session-to-search: distribution_channel → insurance_group → customer_type → device_type. Do NOT break session-to-search by policy_type or cover_level — they are not known yet.
+
+PRODUCT COLUMNS: scheme_search (Single/Annual — search intent, only at search_results+), insurance_group (sub-channel: "Web Links", "Direct Mailings", "Affiliates" — SAME dimension as policies table, available from landing), scheme_name, scheme_type, scheme_id.
 
 DESTINATION: region_name, travel_start_date, travel_end_date, duration, passenger_count.
 

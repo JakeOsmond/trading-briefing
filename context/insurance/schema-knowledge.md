@@ -227,16 +227,34 @@ Web analytics — event-level data for the Direct channel ONLY (no aggregator/re
 | `page_path` | STRING | URL path of the page |
 | `page_agent` | STRING | Agent code on the page |
 | `page_datetime_start` | TIMESTAMP | Page view timestamp |
-| `event_name` | STRING | Specific event (e.g., "engine_search_button", "select_product", "chat_started", "verisk-radio-answer-*") |
+| `event_name` | STRING | Specific event (e.g., "select_product", "chat_started", "verisk-radio-answer-*") |
 | `event_type` | STRING | Event category: click, auto_capture, customer_state, focus, capture, ecommerce |
 | `event_value` | STRING | Event payload/value |
 | `event_start_datetime` | TIMESTAMP | Event timestamp |
 | `booking_flow_stage` | STRING | **Funnel stage**: Landing, Gatekeeper, Screening, Search, Addon, Checkout, Just_Booked etc. |
 
+### Measuring Search Traffic (CRITICAL)
+To count how many sessions reached the search/quote results page, use:
+`COUNT(DISTINCT CASE WHEN page_type = 'search_results' THEN session_id END)`
+Do NOT use `event_name = 'engine_search_button'` — that counts button clicks, not sessions that actually reached results.
+
+### Field Availability by Funnel Stage (CRITICAL)
+Not all fields are populated at every stage. Fields are only known once the user reaches the relevant point in the journey:
+
+| Stage | Fields Available |
+|-------|-----------------|
+| **Landing** (session start) | `device_type`, `distribution_channel`, `insurance_group`, `customer_type`, `source`, `medium`, `campaign` |
+| **Search results** (quote page) | All above + `policy_type` (Single/Annual), `scheme_search`, `scheme_name`, `scheme_id` |
+| **After search results** | All above + `cover_level_name`, `cover_level_tier` |
+| **Checkout → Booked** | All above + `certificate_id`, financial fields, `booking_flow_stage` |
+
+**Max granularity for session-to-search metrics:** `distribution_channel → insurance_group → customer_type → device_type`
+You CANNOT break session-to-search rates down by `policy_type` or `cover_level_name` because those fields are not known until AFTER search results. Attempting to do so produces misleading NULL-heavy results.
+
 ### Product & Scheme Columns
 | Column | Type | Description |
 |--------|------|-------------|
-| `scheme_search` | STRING | Policy type being searched: "Single" or "Annual" (NOTE: different from `policy_type` — this is the search intent) |
+| `scheme_search` | STRING | Policy type being searched: "Single" or "Annual" (NOTE: only populated at search_results stage and beyond) |
 | `insurance_group` | STRING | **Sub-channel**: "Web Links", "Direct Mailings", "Affiliates", etc. — same dimension as policies table |
 | `scheme_id` | INT64 | Scheme identifier |
 | `scheme_name` | STRING | Full scheme name (e.g., "Bronze Main Single Med HX") |

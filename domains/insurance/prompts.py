@@ -97,7 +97,7 @@ def build_prompts(trading_context):
 
     #### EVENT TYPES (event_type column):
     - 'click' (262M rows) — user interactions. Key event_names for clicks:
-      - 'engine_search_button' — user hits SEARCH on landing page (start of quote journey)
+      - 'select_product' — user selects a product on landing page
       - 'continue-button' / 'continue_button' — progresses through funnel steps
       - 'select_product' — user selects a product on landing page
       - 'book-button' — user clicks BOOK (checkout intent)
@@ -144,11 +144,23 @@ def build_prompts(trading_context):
     - Multiple_search ('Yes'/'No') — user did multiple quote searches (~3.5% of sessions)
 
     #### KEY FUNNEL CLICK PATTERNS (by page_type):
-    - landing → 'select_product' (2.9M sessions), 'engine_search_button' (1.7M sessions)
+    - landing → 'select_product' (2.9M sessions)
     - gatekeeper → 'continue-button' (2.8M sessions)
     - extra_details → 'continue_button' (1.8M sessions)
     - screening → 'continue-button' (1.0M sessions)
     These click counts vs page views give DROP-OFF rates at each funnel step.
+
+    #### MEASURING SEARCH TRAFFIC (CRITICAL)
+    Use `page_type = 'search_results'` to count sessions that reached the quote page.
+    Do NOT use `event_name = 'engine_search_button'` — that counts button clicks, not results page views.
+
+    #### FIELD AVAILABILITY BY FUNNEL STAGE (CRITICAL)
+    - **Before search_results:** Only `device_type`, `distribution_channel`, `insurance_group`, `customer_type` are available
+    - **At search_results:** `policy_type`, `scheme_search`, `scheme_name` become available
+    - **After search_results:** `cover_level_name`, `cover_level_tier` become available
+
+    MAX GRANULARITY for session-to-search: `distribution_channel → insurance_group → customer_type → device_type`
+    You CANNOT break session-to-search by `policy_type` or `cover_level_name` — those fields aren't known until the user reaches results.
 
     ### GOOGLE SHEETS: Market Intelligence
     Sheet ID: 1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg
