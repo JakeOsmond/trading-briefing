@@ -955,6 +955,20 @@ function toggleChat(){
   const handle=document.getElementById('chatResizeHandle');
   const panel=document.getElementById('chatPanel');
   if(!handle||!panel) return;
+
+  /* Position the fixed handle at the left edge of the panel */
+  function positionHandle(){
+    if(panel.style.display==='none') return;
+    const panelLeft=panel.getBoundingClientRect().left;
+    handle.style.left=(panelLeft-6)+'px';
+  }
+
+  /* Reposition whenever panel becomes visible */
+  const observer=new MutationObserver(function(){
+    if(panel.style.display!=='none') setTimeout(positionHandle,50);
+  });
+  observer.observe(panel,{attributes:true,attributeFilter:['style']});
+
   let dragging=false,startX=0,startW=0;
   handle.addEventListener('mousedown',function(e){
     e.preventDefault();
@@ -969,6 +983,7 @@ function toggleChat(){
     const newW=Math.min(Math.max(startW+diff,320),window.innerWidth*0.85);
     panel.style.width=newW+'px';
     panel.style.transition='none';
+    handle.style.left=(window.innerWidth-newW-6)+'px';
     /* Push page content to match panel width */
     document.body.style.marginRight=newW+'px';
     document.body.style.transition='none';
@@ -999,6 +1014,7 @@ function toggleChat(){
     const newW=Math.min(Math.max(startW+diff,320),window.innerWidth*0.85);
     panel.style.width=newW+'px';
     panel.style.transition='none';
+    handle.style.left=(window.innerWidth-newW-6)+'px';
     document.body.style.marginRight=newW+'px';
     document.body.style.transition='none';
     const hdr=document.querySelector('.hdr');
