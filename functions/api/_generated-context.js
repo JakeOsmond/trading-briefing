@@ -98,13 +98,15 @@ Fields ONLY in the web table (NOT in trading): session_id, visitor_id, page_type
 Fields ONLY in the trading table (NOT in web): distribution_channel, policy_type, cover_level_name, total_gross_exc_ipt_ntu_comm, policy_count, looker_trans_date, ppc_cost_per_policy
 
 When calculating conversion rates (e.g. session-to-book):
-- Get sessions from the WEB table and bookings from the TRADING table SEPARATELY
-- Aggregate each independently, then divide — do NOT join row-level then count
-- Example: sessions = COUNT(DISTINCT session_id) from web WHERE session_start_date BETWEEN ...
-  bookings = SUM(policy_count) from trading WHERE DATE(looker_trans_date) BETWEEN ... AND distribution_channel = 'Direct'
-  conversion = bookings / sessions
+- Use SEPARATE CTEs for sessions and bookings — NEVER join web and trading on certificate_id for conversion
+- Aggregate each by shared dimensions (insurance_group, customer_type), then join the CTEs
+- ALWAYS filter bookings to booking_source = 'Web' (phone bookings are not web conversions)
+- Example:
+  WITH sessions AS (SELECT insurance_group, COUNT(DISTINCT session_id) AS sessions FROM web_table WHERE ... GROUP BY 1),
+  bookings AS (SELECT insurance_group, SUM(policy_count) AS bookings FROM trading_table WHERE ... AND LOWER(booking_source) = 'web' GROUP BY 1)
+  SELECT s.*, b.bookings, SAFE_DIVIDE(b.bookings, s.sessions)*100 AS conversion FROM sessions s LEFT JOIN bookings b USING(insurance_group)
 
-SANITY CHECK: Conversion rates can NEVER exceed 100%. If your result shows >100%, the query is wrong — likely joining on a field that doesn't exist in both tables, causing row multiplication. Fix the query.
+SANITY CHECK: Conversion rates can NEVER exceed 100%. If >100%, your query has a bad join. Use separate CTEs, not row-level joins.
 
 ### insurance_group (both tables)
 Sub-channel within distribution channels: "Cross Sell", "Direct Mailings", "Web Links", "Affiliates", "Independent". Use this for drilling into which sub-channel drives patterns within Direct/Partner Referral.

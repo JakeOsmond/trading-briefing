@@ -219,6 +219,13 @@ function autocorrectSQL(sql) {
     warnings.push('Replaced engine_search_button with page_type = search_results');
   }
 
+  // Warn if joining web and trading tables on certificate_id with COUNT/SUM (likely conversion calc)
+  if (/certificate_id/i.test(fixed) && /insurance_web_utm_4/i.test(fixed) && /insurance_trading_data/i.test(fixed)) {
+    if (/COUNT|SUM|conversion|rate/i.test(fixed) && !/WITH\s/i.test(fixed)) {
+      warnings.push('WARNING: Joining web and trading tables on certificate_id for aggregated metrics will cause row multiplication. Use separate CTEs aggregated by insurance_group/customer_type instead.');
+    }
+  }
+
   // Replace hardcoded epoch-era dates with CURRENT_DATE() expressions
   // Catches DATE '1970-01-01' or similar obviously-wrong dates
   if (/DATE\s*'19[67]\d-\d{2}-\d{2}'/i.test(fixed)) {
@@ -514,9 +521,25 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
 14. Use the KNOWN FIELD VALUES above to write correct filters. You already know the exact values — no need to run SELECT DISTINCT first.
 15. SELF-VERIFY before answering: Re-read the SQL results and check every number in your answer matches the data. If a number doesn't appear in the results, DELETE that claim. Never include unverifiable figures. Remove any "which SQL produced what" meta-commentary — just state the facts.
 16. FORMAT AS CLEAN HTML. Use classes: ai-metrics, ai-metric-card, ai-metric-label, ai-metric-value, ai-metric-change (up/down) for headline metrics; ai-summary for narrative; ai-table for breakdowns; ai-section-heading for headings. No markdown, no emojis. Do NOT offer to run more queries or present follow-up suggestions.
-18. CONVERSION RATE SANITY: If any conversion rate exceeds 100%, your query is WRONG. This usually means you joined the web table and trading table on a field that only exists in one table, causing row multiplication. Fix: calculate sessions and bookings SEPARATELY from their respective tables, then divide. Never join row-level then aggregate for conversion metrics.
-19. CROSS-TABLE QUERIES: When you need data from both the web table and trading table, only use fields that exist in BOTH: certificate_id, insurance_group, customer_type. Do NOT filter/group the trading table by session_id, page_type, or device_type. Do NOT filter/group the web table by distribution_channel, policy_type, or cover_level_name.
-20. SEARCH TRAFFIC: To count sessions that searched/got quotes, use COUNT(DISTINCT CASE WHEN page_type = 'search_results' THEN session_id END). NEVER use event_name = 'engine_search_button' — that field counts button clicks, not sessions that reached results. Session-to-search rate = sessions reaching search_results / total sessions.`;
+18. CONVERSION RATE SANITY: If any conversion rate exceeds 100%, your query is WRONG. This means your join is creating row multiplication. NEVER join web and trading tables on certificate_id for conversion calculations — use separate CTEs aggregated by shared dimensions instead.
+19. CROSS-TABLE QUERIES — HOW TO CALCULATE CONVERSION RATES:
+    NEVER do: SELECT ... FROM web JOIN trading ON certificate_id (this multiplies rows → >100% conversion)
+    ALWAYS do: Use SEPARATE CTEs for sessions and bookings, then join on shared dimensions.
+    Example pattern:
+    WITH sessions AS (
+      SELECT insurance_group, customer_type, device_type, COUNT(DISTINCT session_id) AS sessions
+      FROM web_table WHERE session_start_date BETWEEN ... GROUP BY 1,2,3
+    ),
+    bookings AS (
+      SELECT insurance_group, customer_type, SUM(policy_count) AS bookings
+      FROM trading_table WHERE DATE(looker_trans_date) BETWEEN ... AND LOWER(distribution_channel) = 'direct' AND LOWER(booking_source) = 'web'
+      GROUP BY 1,2
+    )
+    SELECT s.*, b.bookings, SAFE_DIVIDE(b.bookings, s.sessions)*100 AS conversion_pct
+    FROM sessions s LEFT JOIN bookings b ON s.insurance_group = b.insurance_group AND s.customer_type = b.customer_type
+    Shared fields for joining: insurance_group, customer_type. Do NOT join on certificate_id for aggregated metrics.
+20. BOOKING SOURCE FILTER: When calculating web conversion rates, ALWAYS filter bookings to booking_source = 'Web'. Phone bookings are not part of the web funnel and must be excluded.
+21. SEARCH TRAFFIC: To count sessions that searched/got quotes, use COUNT(DISTINCT CASE WHEN page_type = 'search_results' THEN session_id END). NEVER use event_name = 'engine_search_button'. Session-to-search rate = sessions reaching search_results / total sessions.`;
 
   const tools = [{
     type: 'function',
