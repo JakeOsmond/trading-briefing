@@ -84,9 +84,27 @@ MARKETING: campaign, source, medium, channel (UTM channel), utm_id.
 
 FLAGS: Multiple_search (STRING: "Yes"/"No"), med_session (BOOL), used_syd (BOOL), customer_type (New/Existing/Lapsed/Re-engaged).
 
-### Joining the tables
-CAST(p.certificate_id AS STRING) = w.certificate_id
+### Joining the tables (CRITICAL — read carefully)
+The ONLY safe join key: CAST(p.certificate_id AS STRING) = w.certificate_id
 Web table = Direct channel only. No web data for aggregator/renewal.
+
+Fields that exist in BOTH tables (safe to use in cross-table queries):
+- certificate_id (STRING in web, INT64 in trading — CAST for joins)
+- insurance_group (sub-channel: "Cross Sell", "Direct Mailings", "Web Links", etc.)
+- customer_type (New/Existing/Lapsed/Re-engaged)
+- device_type (web table only has this for sessions; trading table does NOT have device_type)
+
+Fields ONLY in the web table (NOT in trading): session_id, visitor_id, page_type, event_name, event_type, booking_flow_stage, scheme_search, med_session, Multiple_search, session_start_date
+Fields ONLY in the trading table (NOT in web): distribution_channel, policy_type, cover_level_name, total_gross_exc_ipt_ntu_comm, policy_count, looker_trans_date, ppc_cost_per_policy
+
+When calculating conversion rates (e.g. session-to-book):
+- Get sessions from the WEB table and bookings from the TRADING table SEPARATELY
+- Aggregate each independently, then divide — do NOT join row-level then count
+- Example: sessions = COUNT(DISTINCT session_id) from web WHERE session_start_date BETWEEN ...
+  bookings = SUM(policy_count) from trading WHERE DATE(looker_trans_date) BETWEEN ... AND distribution_channel = 'Direct'
+  conversion = bookings / sessions
+
+SANITY CHECK: Conversion rates can NEVER exceed 100%. If your result shows >100%, the query is wrong — likely joining on a field that doesn't exist in both tables, causing row multiplication. Fix the query.
 
 ### insurance_group (both tables)
 Sub-channel within distribution channels: "Cross Sell", "Direct Mailings", "Web Links", "Affiliates", "Independent". Use this for drilling into which sub-channel drives patterns within Direct/Partner Referral.

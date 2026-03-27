@@ -500,7 +500,9 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
 13. CASE-INSENSITIVE FILTERING: When filtering by string fields, use LOWER() on both sides: WHERE LOWER(field) = LOWER('value').
 14. Use the KNOWN FIELD VALUES above to write correct filters. You already know the exact values — no need to run SELECT DISTINCT first.
 15. SELF-VERIFY before answering: Re-read the SQL results and check every number in your answer matches the data. If a number doesn't appear in the results, DELETE that claim. Never include unverifiable figures. Remove any "which SQL produced what" meta-commentary — just state the facts.
-16. FORMAT AS CLEAN HTML. Use classes: ai-metrics, ai-metric-card, ai-metric-label, ai-metric-value, ai-metric-change (up/down) for headline metrics; ai-summary for narrative; ai-table for breakdowns; ai-section-heading for headings. No markdown, no emojis. Do NOT offer to run more queries or present follow-up suggestions.`;
+16. FORMAT AS CLEAN HTML. Use classes: ai-metrics, ai-metric-card, ai-metric-label, ai-metric-value, ai-metric-change (up/down) for headline metrics; ai-summary for narrative; ai-table for breakdowns; ai-section-heading for headings. No markdown, no emojis. Do NOT offer to run more queries or present follow-up suggestions.
+18. CONVERSION RATE SANITY: If any conversion rate exceeds 100%, your query is WRONG. This usually means you joined the web table and trading table on a field that only exists in one table, causing row multiplication. Fix: calculate sessions and bookings SEPARATELY from their respective tables, then divide. Never join row-level then aggregate for conversion metrics.
+19. CROSS-TABLE QUERIES: When you need data from both the web table and trading table, only use fields that exist in BOTH: certificate_id, insurance_group, customer_type. Do NOT filter/group the trading table by session_id, page_type, or device_type. Do NOT filter/group the web table by distribution_channel, policy_type, or cover_level_name.`;
 
   const tools = [{
     type: 'function',
@@ -642,7 +644,23 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
 
         if (result) {
           const prefix = warnings.length > 0 ? `Auto-corrected: ${warnings.join('; ')}\n\n` : '';
-          messages.push({ role: 'tool', tool_call_id: tc.id, content: prefix + result });
+          // Sanity check: flag any values that look like >100% conversion rates
+          let sanityWarning = '';
+          try {
+            const parsed = JSON.parse(result);
+            if (Array.isArray(parsed)) {
+              for (const row of parsed) {
+                for (const [k, v] of Object.entries(row)) {
+                  if (/rate|conversion|pct|percent/i.test(k) && typeof v === 'number' && v > 100) {
+                    sanityWarning = `\n\nWARNING: ${k}=${v} exceeds 100%. This is impossible for a conversion rate. Your query likely has a bad join causing row multiplication. Recalculate sessions and bookings SEPARATELY from their respective tables, then divide.`;
+                    break;
+                  }
+                }
+                if (sanityWarning) break;
+              }
+            }
+          } catch { /* not JSON, skip */ }
+          messages.push({ role: 'tool', tool_call_id: tc.id, content: prefix + result + sanityWarning });
         } else {
           sqlQueries.push({ sql: currentSQL, error: lastError, success: false });
           messages.push({ role: 'tool', tool_call_id: tc.id, content: `SQL failed after retries: ${lastError}` });
