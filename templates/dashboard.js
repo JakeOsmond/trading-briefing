@@ -938,9 +938,15 @@ function toggleChat(){
   if(fab)fab.style.display=isOpen?'flex':'none';
   if(fabLabel)fabLabel.style.display=isOpen?'block':'none';
   if(!isOpen){
+    document.body.classList.add('chat-open');
     const inputWrap=document.querySelector('.chat-input-wrap');
     inputWrap.style.display='flex';
     document.getElementById('chatInput').focus();
+  }else{
+    document.body.classList.remove('chat-open');
+    document.body.style.marginRight='';
+    const hdr=document.querySelector('.hdr');
+    if(hdr) hdr.style.right='';
   }
 }
 
@@ -963,6 +969,11 @@ function toggleChat(){
     const newW=Math.min(Math.max(startW+diff,320),window.innerWidth*0.85);
     panel.style.width=newW+'px';
     panel.style.transition='none';
+    /* Push page content to match panel width */
+    document.body.style.marginRight=newW+'px';
+    document.body.style.transition='none';
+    const hdr=document.querySelector('.hdr');
+    if(hdr){hdr.style.right=(newW+12)+'px';hdr.style.transition='none';}
   });
   document.addEventListener('mouseup',function(){
     if(!dragging) return;
@@ -971,6 +982,9 @@ function toggleChat(){
     document.body.style.cursor='';
     document.body.style.userSelect='';
     panel.style.transition='';
+    document.body.style.transition='';
+    const hdr=document.querySelector('.hdr');
+    if(hdr) hdr.style.transition='';
   });
   /* Touch support for tablets */
   handle.addEventListener('touchstart',function(e){
@@ -985,12 +999,19 @@ function toggleChat(){
     const newW=Math.min(Math.max(startW+diff,320),window.innerWidth*0.85);
     panel.style.width=newW+'px';
     panel.style.transition='none';
+    document.body.style.marginRight=newW+'px';
+    document.body.style.transition='none';
+    const hdr=document.querySelector('.hdr');
+    if(hdr){hdr.style.right=(newW+12)+'px';hdr.style.transition='none';}
   });
   document.addEventListener('touchend',function(){
     if(!dragging) return;
     dragging=false;
     handle.classList.remove('active');
     panel.style.transition='';
+    document.body.style.transition='';
+    const hdr=document.querySelector('.hdr');
+    if(hdr) hdr.style.transition='';
   });
 })();
 
