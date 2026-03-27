@@ -557,6 +557,7 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
 
   const MAX_ROUNDS = 8;
   const MAX_SQL_RETRIES = 2;
+  let headlineResult = null; // Store first successful query result as the headline
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const response = await callOpenAI(messages, tools, apiKey);
@@ -634,6 +635,10 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
             if (rows.length > 100) result += `\n... (${rows.length} total rows, showing 100)`;
             const sampleData = rows.slice(0, 5).map(r => JSON.stringify(r)).join('\n');
             sqlQueries.push({ sql: currentSQL, rows: rows.length, success: true, sample_data: sampleData, result_rows: rows.slice(0, 200) });
+            // Store first successful result as the headline
+            if (!headlineResult && rows.length > 0) {
+              headlineResult = sampleData;
+            }
             break;
           } catch (e) {
             lastError = e.message;
@@ -693,22 +698,24 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
           content: `Round ${round + 1} complete. Your SQL failed. Try again with a simpler, corrected query. Check table names, column names, and date expressions carefully.`,
         });
       } else if (successCount === 1) {
-        // First successful query — encourage drilling deeper
+        // First successful query — drill deeper but remember the headline
         messages.push({
           role: 'user',
-          content: `Round ${round + 1} complete. Good, you have the headline data. Now THINK: based on these results and everything you know about the schema, what dimension would most likely explain WHY this is happening? Break it down by that dimension in your next query. Don't answer yet — investigate further.`,
+          content: `Round ${round + 1} complete. Good, you have the headline number. REMEMBER this headline — you MUST include it in your final answer (the WHAT). Now THINK: what dimension would most likely explain WHY? Break it down by that dimension in your next query.`,
         });
       } else if (successCount < 4) {
-        // Have some data — keep drilling if there's a standout segment
+        // Have some data — keep drilling if needed
+        const headlineReminder = headlineResult ? `\n\nREMEMBER your headline result from Round 1:\n${headlineResult}\nPresent THIS first in your answer (the WHAT), then explain the WHY.` : '';
         messages.push({
           role: 'user',
-          content: `Round ${round + 1} complete. Review your results so far. THINK: does one segment stand out as the main driver? If yes, drill into THAT segment by another dimension. If you've found the clear driver, provide your final answer as formatted HTML. Lead with "The main driver is..." not just a data table.`,
+          content: `Round ${round + 1} complete. Review your results so far. THINK: does one segment stand out as the main driver? If yes, drill deeper. If you have enough to explain the WHY, provide your final answer as formatted HTML. Structure: (1) The headline WHAT with the actual number and YoY comparison, THEN (2) The WHY — what is driving it, broken down by dimension. Always give the WHAT first.${headlineReminder}`,
         });
       } else {
         // Enough data gathered — synthesise
+        const headlineReminder2 = headlineResult ? `\n\nYour headline result from Round 1 (present THIS first):\n${headlineResult}` : '';
         messages.push({
           role: 'user',
-          content: `Round ${round + 1} complete. You have substantial data across ${successCount} queries. Provide your final answer as formatted HTML. Lead with the key insight: what is the single biggest driver of this movement? Then support with the data.`,
+          content: `Round ${round + 1} complete. You have substantial data across ${successCount} queries. Provide your final answer as formatted HTML. Structure: (1) THE WHAT — the headline metric with the actual number and YoY change. (2) THE WHY — what is driving it, with dimensional breakdown. Always give the overall number first before explaining what's behind it.${headlineReminder2}`,
         });
       }
     }
