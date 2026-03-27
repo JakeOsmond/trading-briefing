@@ -15,3 +15,5 @@ When the briefing cites external context, it should always attribute the source 
 - From next week, MSM market data will be added to the aggregator market demand dataset alongside the current IDOL-only view. — Source: Drive: 'Insurance Weekly Trading w/c 02/03/2026', 2026-03-19
 
 - MSM aggregator market data will be included from April, altering the market demand dataset which has been limited to IDOL market share — Source: Drive: 'Insurance Weekly Trading w/c 09/03/2026', 09/03/2026
+
+- Starting in April, MSM aggregator market data will be added to the dataset alongside IDOL market share data, changing the market visibility available for trading decisions — Source: Drive: 'Insurance Weekly Trading w/c 09/03/2026', 09/03/2026
