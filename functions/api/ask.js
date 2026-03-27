@@ -205,6 +205,19 @@ function autocorrectSQL(sql) {
     fixed = fixed.replace(/\btravel_start_date\b/gi, 'looker_start_date');
     warnings.push('Replaced travel_start_date with looker_start_date');
   }
+  // Fix engine_search_button → page_type = 'search_results' for counting searches
+  if (/engine_search_button/i.test(fixed)) {
+    // Replace COUNTIF(event_name = 'engine_search_button') pattern
+    fixed = fixed.replace(/COUNTIF\s*\(\s*event_name\s*=\s*'engine_search_button'\s*\)/gi,
+      "COUNT(DISTINCT CASE WHEN page_type = 'search_results' THEN session_id END)");
+    // Replace COUNT(DISTINCT CASE WHEN ... engine_search_button pattern
+    fixed = fixed.replace(/COUNT\s*\(\s*DISTINCT\s+CASE\s+WHEN\s+(?:event_type\s*=\s*'click'\s+AND\s+)?event_name\s*=\s*'engine_search_button'\s+THEN\s+session_id\s+END\s*\)/gi,
+      "COUNT(DISTINCT CASE WHEN page_type = 'search_results' THEN session_id END)");
+    // Replace any remaining bare references
+    fixed = fixed.replace(/'engine_search_button'/gi, "'search_results'");
+    fixed = fixed.replace(/event_name\s*=\s*'search_results'/gi, "page_type = 'search_results'");
+    warnings.push('Replaced engine_search_button with page_type = search_results');
+  }
 
   // Replace hardcoded epoch-era dates with CURRENT_DATE() expressions
   // Catches DATE '1970-01-01' or similar obviously-wrong dates
@@ -502,7 +515,8 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
 15. SELF-VERIFY before answering: Re-read the SQL results and check every number in your answer matches the data. If a number doesn't appear in the results, DELETE that claim. Never include unverifiable figures. Remove any "which SQL produced what" meta-commentary — just state the facts.
 16. FORMAT AS CLEAN HTML. Use classes: ai-metrics, ai-metric-card, ai-metric-label, ai-metric-value, ai-metric-change (up/down) for headline metrics; ai-summary for narrative; ai-table for breakdowns; ai-section-heading for headings. No markdown, no emojis. Do NOT offer to run more queries or present follow-up suggestions.
 18. CONVERSION RATE SANITY: If any conversion rate exceeds 100%, your query is WRONG. This usually means you joined the web table and trading table on a field that only exists in one table, causing row multiplication. Fix: calculate sessions and bookings SEPARATELY from their respective tables, then divide. Never join row-level then aggregate for conversion metrics.
-19. CROSS-TABLE QUERIES: When you need data from both the web table and trading table, only use fields that exist in BOTH: certificate_id, insurance_group, customer_type. Do NOT filter/group the trading table by session_id, page_type, or device_type. Do NOT filter/group the web table by distribution_channel, policy_type, or cover_level_name.`;
+19. CROSS-TABLE QUERIES: When you need data from both the web table and trading table, only use fields that exist in BOTH: certificate_id, insurance_group, customer_type. Do NOT filter/group the trading table by session_id, page_type, or device_type. Do NOT filter/group the web table by distribution_channel, policy_type, or cover_level_name.
+20. SEARCH TRAFFIC: To count sessions that searched/got quotes, use COUNT(DISTINCT CASE WHEN page_type = 'search_results' THEN session_id END). NEVER use event_name = 'engine_search_button' — that field counts button clicks, not sessions that reached results. Session-to-search rate = sessions reaching search_results / total sessions.`;
 
   const tools = [{
     type: 'function',
