@@ -53,3 +53,4 @@ _Facts below are used in briefings but expire automatically. Do not edit manuall
 - There are 7k future stays still live in affected regions, with most due to travel before the end of May, creating ongoing cancellation and booking risk. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-26 (expires: 2026-04-02)
 - Deploying Ergo rate relief on direct is a planned pricing action. — Source: Drive: 'Insurance Trading - Insights, Product & Pricing Mar26', 2026-03-26 (expires: 2026-04-02)
 - Updating competitor price benchmarking is a next step for direct trading decisions. — Source: Drive: 'Insurance Trading - Insights, Product & Pricing Mar26', 2026-03-26 (expires: 2026-04-02)
+- Direct competitor price benchmarking for both annual and single-trip products is being updated, indicating pricing decisions may be reviewed against market positioning. — Source: Drive: 'Insurance Trading - Insights, Product & Pricing Mar26', 2026-03-26 (expires: 2026-04-02)
