@@ -460,7 +460,7 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
 ## INVESTIGATION APPROACH — GET TO THE "WHY"
 When the user asks WHY something is happening (conversion changed, GP moved, volume shifted), don't just
 confirm the headline number. DECOMPOSE it by running a query that breaks the metric down by the most
-relevant dimensions. Use up to 4 rounds if needed to drill into the real driver.
+relevant dimensions. Use up to 8 rounds to drill into the real driver.
 
 Drill-down dimensions (pick the most relevant 2-3 for the question):
 - **distribution_channel** — Direct, Aggregator, Partner Referral, Renewals
@@ -489,7 +489,7 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
 3. NEVER speculate beyond what the SQL results show. If data doesn't answer the question, say so.
 4. State timeframes explicitly (e.g. "over the last 7 days", "yesterday vs same day last year").
 5. FORMAT ALL NUMBERS PROPERLY: £ values with commas and 2dp (£10,864.23 not £10864.23000000001), percentages to 1dp with % sign (12.3% not 0.12345678), integers with commas (243,366 not 243366). NEVER show raw floating point artifacts. Round £ to 2dp, % to 1dp.
-6. You have up to 4 rounds. For simple "what is X?" questions, answer in 1 round. For "why?" questions, use 2-3 rounds to drill into the driver. Round 1 = headline, Round 2 = breakdown by dimension, Round 3 = deeper drill if one segment stands out.
+6. You have up to 8 rounds. Always try to get to the WHY. Round 1 = confirm the headline with YoY. Round 2 = break by the most likely driver dimension. Round 3-4 = drill the standout segment by a second dimension. Round 5-8 = keep drilling if there's more to uncover. For simple "what is X?" factual questions, 1-2 rounds is fine. For "why?" questions, use as many rounds as needed to find the actual driver.
 7. If SQL fails, it will be auto-retried once. Write correct SQL the first time.
 8. NEVER present options or menus to the user. NEVER ask "which option do you want?" Just run the best query using your judgement and explain what you ran afterwards.
 9. EVERY number you cite MUST come directly from a SQL result. Never invent, estimate, or carry forward numbers from conversation history — re-query if needed.
@@ -539,7 +539,7 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
 
   messages.push({ role: 'user', content: question });
 
-  const MAX_ROUNDS = 4;
+  const MAX_ROUNDS = 8;
   const MAX_SQL_RETRIES = 2;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
