@@ -650,18 +650,33 @@ customer_type → device_type (policy_type and cover_level are NOT known until a
       }
     }
 
-    // After processing tools, nudge based on whether we got data
+    // After processing tools, inject a thinking prompt to guide next investigation step
     if (round < MAX_ROUNDS - 1) {
-      const anySuccess = sqlQueries.some(q => q.success);
-      if (anySuccess) {
-        messages.push({
-          role: 'user',
-          content: `Round ${round + 1} complete. You have data — provide your final answer NOW as formatted HTML. Do not run more queries.`,
-        });
-      } else {
+      const successCount = sqlQueries.filter(q => q.success).length;
+      const anyFailed = sqlQueries.some(q => !q.success);
+
+      if (successCount === 0) {
         messages.push({
           role: 'user',
           content: `Round ${round + 1} complete. Your SQL failed. Try again with a simpler, corrected query. Check table names, column names, and date expressions carefully.`,
+        });
+      } else if (successCount === 1) {
+        // First successful query — encourage drilling deeper
+        messages.push({
+          role: 'user',
+          content: `Round ${round + 1} complete. Good, you have the headline data. Now THINK: based on these results and everything you know about the schema, what dimension would most likely explain WHY this is happening? Break it down by that dimension in your next query. Don't answer yet — investigate further.`,
+        });
+      } else if (successCount < 4) {
+        // Have some data — keep drilling if there's a standout segment
+        messages.push({
+          role: 'user',
+          content: `Round ${round + 1} complete. Review your results so far. THINK: does one segment stand out as the main driver? If yes, drill into THAT segment by another dimension. If you've found the clear driver, provide your final answer as formatted HTML. Lead with "The main driver is..." not just a data table.`,
+        });
+      } else {
+        // Enough data gathered — synthesise
+        messages.push({
+          role: 'user',
+          content: `Round ${round + 1} complete. You have substantial data across ${successCount} queries. Provide your final answer as formatted HTML. Lead with the key insight: what is the single biggest driver of this movement? Then support with the data.`,
         });
       }
     }
