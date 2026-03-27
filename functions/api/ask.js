@@ -135,6 +135,12 @@ function autocorrectSQL(sql) {
   const warnings = [];
   let fixed = sql;
 
+  // Strip markdown code fences (LLM sometimes wraps SQL in ```sql ... ```)
+  fixed = fixed.replace(/^```(?:sql)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+
+  // Strip smart/curly backticks and other Unicode quote variants that break BQ
+  fixed = fixed.replace(/[\u0060\u2018\u2019\u201C\u201D\uFF40]/g, '`');
+
   // Fix COUNT(*) or COUNT(DISTINCT policy_id)
   if (/COUNT\s*\(\s*\*\s*\)/i.test(fixed) || /COUNT\s*\(\s*DISTINCT\s+policy_id\s*\)/i.test(fixed)) {
     fixed = fixed.replace(/COUNT\s*\(\s*\*\s*\)/gi, 'SUM(policy_count)');
@@ -175,6 +181,29 @@ function autocorrectSQL(sql) {
   if (wrongWebPattern.test(fixed) && !fixed.includes('`hx-data-production.commercial_finance.insurance_web_utm_4`')) {
     fixed = fixed.replace(/`[^`]*insurance_web_utm_4[^`]*`/g, '`hx-data-production.commercial_finance.insurance_web_utm_4`');
     warnings.push('Fixed web table name');
+  }
+
+  // Fix date field references — transaction_date doesn't exist, use DATE(looker_trans_date)
+  if (/\btransaction_date\b/i.test(fixed) && !/looker_trans_date/i.test(fixed)) {
+    // Replace bare transaction_date with DATE(looker_trans_date)
+    // But preserve it as an alias in "AS transaction_date"
+    fixed = fixed.replace(/\bEXTRACT\s*\(\s*DATE\s+FROM\s+transaction_date\s*\)/gi, 'DATE(looker_trans_date)');
+    fixed = fixed.replace(/(?<!AS\s)(?<!AS\s\s)\btransaction_date\b(?!\s*AS\b)/gi, 'DATE(looker_trans_date)');
+    warnings.push('Replaced transaction_date with DATE(looker_trans_date)');
+  }
+  // Fix transaction_type used as a date (common LLM mistake — confuses transaction_type with transaction_date)
+  if (/transaction_type\s+BETWEEN\s/i.test(fixed)) {
+    fixed = fixed.replace(/\btransaction_type\s+(BETWEEN\s)/gi, 'DATE(looker_trans_date) $1');
+    warnings.push('Replaced transaction_type BETWEEN with DATE(looker_trans_date) BETWEEN');
+  }
+  // Fix travel_end_date → looker_end_date, travel_start_date → looker_start_date
+  if (/\btravel_end_date\b/i.test(fixed)) {
+    fixed = fixed.replace(/\btravel_end_date\b/gi, 'looker_end_date');
+    warnings.push('Replaced travel_end_date with looker_end_date');
+  }
+  if (/\btravel_start_date\b/i.test(fixed)) {
+    fixed = fixed.replace(/\btravel_start_date\b/gi, 'looker_start_date');
+    warnings.push('Replaced travel_start_date with looker_start_date');
   }
 
   // Replace hardcoded epoch-era dates with CURRENT_DATE() expressions
@@ -572,7 +601,9 @@ ${driverContext ? `## CURRENT DRIVER CONTEXT (use for topic context only, NOT fo
                 { role: 'system', content: 'Fix this BigQuery SQL error. Return ONLY the corrected SQL, nothing else.' },
                 { role: 'user', content: `SQL:\n${currentSQL}\n\nError:\n${lastError}` },
               ], null, apiKey, 2048);
-              const fixedSQL = fixResponse.choices?.[0]?.message?.content?.trim();
+              let fixedSQL = fixResponse.choices?.[0]?.message?.content?.trim() || '';
+              // Strip markdown code fences from fix response
+              fixedSQL = fixedSQL.replace(/^```(?:sql)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
               if (fixedSQL && fixedSQL !== currentSQL) {
                 currentSQL = fixedSQL;
               } else {
