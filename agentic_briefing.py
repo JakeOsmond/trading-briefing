@@ -31,7 +31,7 @@ from google.cloud import bigquery
 from googleapiclient.discovery import build
 
 # ---------------------------------------------------------------------------
-# CONFIG [DOMAIN-AGNOSTIC — except BQ_PROJECT and MARKET_SHEET_ID]
+# CONFIG [DOMAIN-AGNOSTIC — except BQ_PROJECT]
 # ---------------------------------------------------------------------------
 
 def _load_env():
@@ -84,7 +84,6 @@ def _load_domain_config(domain="insurance"):
 _DOMAIN_CONFIG = _load_domain_config()
 
 BQ_PROJECT = _DOMAIN_CONFIG.get("bq_project", "hx-data-production")
-MARKET_SHEET_ID = _DOMAIN_CONFIG.get("market_sheet_id", "1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 # Model configuration — roles map to specific models.
@@ -479,24 +478,6 @@ def tool_run_sql(sql: str) -> str:
             return f"SQL Error (after {attempt} attempts): {error_msg}"
 
 
-def tool_fetch_market_data(sheet_tab: str, cell_range: str = "A1:Z500") -> str:
-    """Fetch data from a tab in the market intelligence Google Sheet."""
-    try:
-        print(f"    📈 Fetching sheet: {sheet_tab}!{cell_range}")
-        range_str = f"{sheet_tab}!{cell_range}"
-        resp = SHEETS_SVC.spreadsheets().values().get(
-            spreadsheetId=MARKET_SHEET_ID, range=range_str
-        ).execute()
-        rows = resp.get("values", [])
-        if rows:
-            headers = rows[0]
-            data = [dict(zip(headers, row)) for row in rows[1:]]
-            return json.dumps(data[:100], indent=2)
-        return "No data found"
-    except Exception as e:
-        return f"Sheets Error: {e}"
-
-
 def tool_web_search(query: str) -> str:
     """Search the web for market context, competitor info, or industry news. Returns results with source URLs."""
     try:
@@ -645,7 +626,6 @@ def tool_read_drive_doc(file_id: str, max_chars: int = 100000) -> str:
 # Map of tool names to functions
 TOOL_FUNCTIONS = {
     "run_sql": tool_run_sql,
-    "fetch_market_data": tool_fetch_market_data,
     "web_search": tool_web_search,
     "scan_drive": tool_scan_drive,
 }
@@ -669,28 +649,6 @@ TOOLS = [
                     }
                 },
                 "required": ["sql"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "fetch_market_data",
-            "description": "Fetch data from the market intelligence Google Sheet. Available tabs: 'Market Demand Summary', 'AI Insights', 'Dashboard Section Trends', 'Dashboard Metrics', 'Dashboard Weekly', 'Insurance Intent', 'Data Freshness', 'Spike Log', 'Global Aviation', 'ONS Travel', 'UK Passengers', 'Holiday Intent'.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "sheet_tab": {
-                        "type": "string",
-                        "description": "The tab name in the Google Sheet to fetch data from."
-                    },
-                    "cell_range": {
-                        "type": "string",
-                        "description": "Cell range to fetch, e.g. 'A1:Z500'. Defaults to 'A1:Z500'.",
-                        "default": "A1:Z500"
-                    }
-                },
-                "required": ["sheet_tab"]
             }
         }
     },
@@ -1788,21 +1746,6 @@ Return ONLY valid JSON array."""
 # THE AGENTIC LOOP
 # ---------------------------------------------------------------------------
 
-def _fetch_sheet_tab(tab_name, cell_range="A1:Z500"):
-    """Fetch a single Google Sheet tab, returning list of dicts. Returns [] on error."""
-    try:
-        range_str = f"{tab_name}!{cell_range}"
-        resp = SHEETS_SVC.spreadsheets().values().get(
-            spreadsheetId=MARKET_SHEET_ID, range=range_str
-        ).execute()
-        rows = resp.get("values", [])
-        if rows:
-            headers = rows[0]
-            return [dict(zip(headers, r)) for r in rows[1:]]
-        return []
-    except Exception as e:
-        print(f"  ⚠ Failed to fetch sheet tab '{tab_name}': {e}")
-        return []
 
 
 def run_baseline_queries(date_params):
@@ -1839,33 +1782,9 @@ def run_baseline_queries(date_params):
     web_engagement = [dict(r) for r in BQ_CLIENT.query(build_baseline_web_engagement_sql(date_params)).result()]
     print("  ✓ Web engagement (device, clicks, medical)")
 
-    # Fetch ALL important Google Sheet tabs
-    print("  Fetching market intelligence sheets...")
-
-    ai_insights = _fetch_sheet_tab("AI Insights", "A1:Z500")
-    print("  ✓ AI Insights (full)")
-
-    market_demand = _fetch_sheet_tab("Market Demand Summary", "A1:Z500")
-    print("  ✓ Market Demand Summary")
-
-    section_trends = _fetch_sheet_tab("Dashboard Section Trends", "A1:Z500")
-    print("  ✓ Dashboard Section Trends")
-
-    dashboard_metrics = _fetch_sheet_tab("Dashboard Metrics", "A1:Z500")
-    print("  ✓ Dashboard Metrics")
-
-    dashboard_weekly = _fetch_sheet_tab("Dashboard Weekly", "A1:Z500")
-    # Keep only last 20 rows for weekly data
-    if len(dashboard_weekly) > 20:
-        dashboard_weekly = dashboard_weekly[-20:]
-    print("  ✓ Dashboard Weekly (recent 20 rows)")
-
-    # Google Trends — fetch directly instead of via Google Sheet
+    # Google Trends — fetch directly (Google Sheet removed)
     run_date_obj = date.fromisoformat(date_params["yesterday"])
     google_trends = fetch_google_trends(run_date_obj)
-
-    spike_log = _fetch_sheet_tab("Spike Log", "A1:Z500")
-    print("  ✓ Spike Log")
 
     return {
         "trading": trading,
@@ -1873,13 +1792,7 @@ def run_baseline_queries(date_params):
         "trend_ly": trend_ly,
         "funnel": funnel,
         "web_engagement": web_engagement,
-        "ai_insights": ai_insights,
-        "market_demand_summary": market_demand,
-        "section_trends": section_trends,
-        "dashboard_metrics": dashboard_metrics,
-        "dashboard_weekly": dashboard_weekly,
         "google_trends": google_trends,
-        "spike_log": spike_log,
     }
 
 
@@ -2003,26 +1916,9 @@ def run_ai_analysis(baseline_data, track_results, run_date):
 {json.dumps(baseline_data['web_engagement'], indent=2, default=str)}
 ```
 
-## MARKET INTELLIGENCE (Google Sheets)
-### AI Insights
-```json
-{json.dumps(baseline_data.get('ai_insights', []), indent=2, default=str)}
-```
-### Google Trends — Search Intent (live data, 2-year window)
+## GOOGLE TRENDS — Search Intent (live data, 2-year window)
 ```json
 {json.dumps(baseline_data.get('google_trends', {}), indent=2, default=str)}
-```
-### Dashboard Section Trends
-```json
-{json.dumps(baseline_data.get('section_trends', [])[:20], indent=2, default=str)}
-```
-### Market Demand Summary
-```json
-{json.dumps(baseline_data.get('market_demand_summary', [])[:10], indent=2, default=str)}
-```
-### Spike Log
-```json
-{json.dumps(baseline_data.get('spike_log', [])[:10], indent=2, default=str)}
 ```
 
 ## INVESTIGATION TRACK RESULTS (23 tracks, each comparing TY vs LY)
@@ -2232,9 +2128,6 @@ Market context: {str(analysis.get('market_context', ''))[:500]}
     gt = baseline_data.get("google_trends")
     if isinstance(gt, dict):
         gt_narrative = gt.get("narrative", "")
-    # AI Insights from market intelligence sheet
-    ai_insights = json.dumps(baseline_data.get("ai_insights", [])[:30], indent=2, default=str)
-
     # Build initial messages with follow-up questions and tools
     analysis_date = run_date.strftime("%A %d %B %Y")
     messages = [
@@ -2248,15 +2141,11 @@ Market context: {str(analysis.get('market_context', ''))[:500]}
 ### Google Trends Narrative
 {gt_narrative if gt_narrative else '(not available)'}
 
-### Market Intelligence — AI Insights
-{ai_insights}
-
 ## FOLLOW-UP QUESTIONS TO INVESTIGATE
 {json.dumps(follow_up_questions, indent=2, default=str)}
 
 Use the context above alongside your SQL investigations. You have run_sql and web_search
-available. Drive context and market intelligence sheets are already loaded above — use them
-directly, do not try to re-fetch them.
+available. Drive context is already loaded above — use it directly.
 
 For EVERY tool call, explain WHY in your response text before calling the tool.
 Investigate all follow-up questions, then output your refined findings as JSON."""},
@@ -2462,11 +2351,6 @@ USE THESE DATE LITERALS in all sql-dig blocks (do NOT use a 'period' column — 
 {json.dumps(baseline_data['trend'], indent=2, default=str)}
 ```
 
-## MARKET INTELLIGENCE — AI Insights (read ALL of these, every insight matters for News & Market Context)
-```json
-{json.dumps(baseline_data.get('ai_insights', []), indent=2, default=str)}
-```
-
 ## CUSTOMER SEARCH INTENT — Google Trends (live data with deep links)
 Each term has a `deep_link` field — use these as markdown source links in the briefing.
 The `insurance_compare_link` and `holiday_compare_link` fields compare all terms in each category.
@@ -2480,11 +2364,6 @@ section AND for the wider trading analysis (it explains search demand dynamics t
 ### Full Google Trends Data
 ```json
 {json.dumps(baseline_data.get('google_trends', {}), indent=2, default=str)}
-```
-
-## DASHBOARD METRICS (search volume, demand signals)
-```json
-{json.dumps(baseline_data.get('dashboard_metrics', [])[:20], indent=2, default=str)}
 ```
 
 ## INVESTIGATED FINDINGS (from 23 tracks + AI analysis + follow-ups)
@@ -3827,7 +3706,7 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 
     # Step 3+: Follow-up Investigations — one sub-step per round
     if follow_up_log:
-        tool_icons = {"run_sql": "&#128269;", "fetch_market_data": "&#128200;", "web_search": "&#127760;", "scan_drive": "&#128194;"}
+        tool_icons = {"run_sql": "&#128269;", "web_search": "&#127760;", "scan_drive": "&#128194;"}
         base_step = step_num  # will be 2 after analysis step
 
         # Group follow_up_log entries by round
@@ -3935,9 +3814,6 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
                     else:
                         what_text = "Ran a targeted data query to investigate further"
 
-                elif tool == "fetch_market_data":
-                    tab = args_val.get("sheet_tab", "market data")
-                    what_text = f'Pulled the latest figures from our <strong>{tab}</strong> market tracker'
                 elif tool == "web_search":
                     query = args_val.get("query", "")
                     safe_q = query[:150].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -4418,10 +4294,14 @@ def main():
     baseline = run_baseline_queries(dp)
 
     for row in baseline["trading"]:
+        gp = row.get('total_gp')
+        policies = row.get('new_policies', 0)
+        if gp is None:
+            continue
         if row.get("period") == "yesterday_ly":
-            print(f"  LY equiv GP:  £{row['total_gp']:,.2f} | Policies: {row['new_policies']}")
+            print(f"  LY equiv GP:  £{gp:,.2f} | Policies: {policies}")
         elif row.get("period") == "yesterday":
-            print(f"\n  Yesterday GP: £{row['total_gp']:,.2f} | Policies: {row['new_policies']}")
+            print(f"\n  Yesterday GP: £{gp:,.2f} | Policies: {policies}")
 
     _phase_start = _log_phase("Phase 1: Baseline queries", _phase_start)
 

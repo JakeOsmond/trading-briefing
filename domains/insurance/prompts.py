@@ -162,17 +162,8 @@ def build_prompts(trading_context):
     MAX GRANULARITY for session-to-search: `distribution_channel → insurance_group → customer_type → device_type`
     You CANNOT break session-to-search by `policy_type` or `cover_level_name` — those fields aren't known until the user reaches results.
 
-    ### GOOGLE SHEETS: Market Intelligence
-    Sheet ID: 1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg
-    Tabs available:
-    - 'Market Demand Summary' — quarterly demand indices (UK passengers, visits abroad, aviation, combined)
-    - 'AI Insights' — pre-generated strategic insights (section_key, insight_text, generated_at)
-    - 'Dashboard Section Trends' — term-level trends (section, term, current, peak, change_pct, trending)
-    - 'Dashboard Metrics' — headline metrics (metric_key, value, direction, description)
-    - 'Dashboard Weekly' — weekly combined/holiday/insurance index scores
-    - Google Trends data is now fetched DIRECTLY (not from sheets) — per-term YoY changes with deep links to Google Trends
-    - 'Spike Log' — known anomalies (date, source, metric_name, spike_event — includes COVID, Thomas Cook etc)
-    - 'Global Aviation', 'ONS Travel', 'UK Passengers' — macro travel data
+    ### GOOGLE TRENDS
+    Google Trends data is fetched DIRECTLY — per-term YoY changes with deep links to Google Trends.
     """)
 
     # --- ANALYSIS_SYSTEM ---

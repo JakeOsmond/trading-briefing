@@ -10,9 +10,6 @@ tables:
   policies: "hx-data-production.insurance.insurance_trading_data"
   web: "hx-data-production.commercial_finance.insurance_web_utm_4"
 
-# Market intelligence
-market_sheet_id: "1RUasLdbB9OiHPJzQClglC7aY5KMH4P-dnzk4v_h-tsg"
-
 # Model assignments (override MODELS dict in pipeline)
 models:
   analyst: "gpt-5.4"
