@@ -52,3 +52,5 @@ Non-brand PPC driving policy growth but at negative GP-to-PPC cost ratio. The in
 - All Clear’s estimated market size increased by roughly £150m to £200m, indicating a materially stronger competitor position — Source: Drive: 'Insurance Circle - Nov 2025', Nov 2025
 
 - Post Office’s estimated market size increased by roughly £85m to £100m, indicating a materially stronger competitor position — Source: Drive: 'Insurance Circle - Nov 2025', Nov 2025
+
+- Summer bookings remain weak due to customer hesitancy, while short-term declines are much lower — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 16 Mar 2026
