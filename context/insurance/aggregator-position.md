@@ -15,3 +15,5 @@ Aggregators (price comparison sites) are a major acquisition channel.
 - HX Insurance is prioritising moving renewals beyond an email-only journey — Source: Drive: 'Insurance Direct Marketing [RAGGED]', 2026-03-27
 
 - HX Insurance is prioritising increasing brand awareness and improving acquisition efficiency through lower CPA/CPC over time — Source: Drive: 'Insurance Direct Marketing [RAGGED]', 2026-03-27
+
+- From April, aggregator market data will include MSM in addition to the current IDOL-only dataset, altering market visibility and benchmarking — Source: Drive: 'Insurance Weekly Trading w/c 09/03/2026', 09/03/2026
