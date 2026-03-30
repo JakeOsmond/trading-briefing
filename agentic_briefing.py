@@ -3364,8 +3364,13 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
     m_ty = next((r for r in trading_data if r["period"] == "trailing_28d"), {})
     m_ly = next((r for r in trading_data if r["period"] == "trailing_28d_ly"), {})
 
+    def v(d, key, default=0):
+        """Get value from dict, coalescing None to default."""
+        val = d.get(key, default)
+        return default if val is None else val
+
     def pct(a, b):
-        if not b: return 0
+        if a is None or b is None or not b: return 0
         return ((a - b) / abs(b)) * 100
     def fmt_pct(val):
         return f"{'+' if val >= 0 else ''}{val:.1f}%"
@@ -3374,12 +3379,12 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
         if val >= -2: return "#FFB55F"
         return "#FF5F68"
 
-    gp_pct = pct(ty.get("total_gp", 0), ly.get("total_gp", 1))
-    vol_pct = pct(ty.get("new_policies", 0), ly.get("new_policies", 1))
-    gppp_pct = pct(ty.get("avg_gp_per_policy", 0), ly.get("avg_gp_per_policy", 1))
-    price_pct = pct(ty.get("avg_customer_price", 0), ly.get("avg_customer_price", 1))
-    w_gp_pct = pct(w_ty.get("total_gp", 0), w_ly.get("total_gp", 1))
-    m_gp_pct = pct(m_ty.get("total_gp", 0), m_ly.get("total_gp", 1))
+    gp_pct = pct(v(ty, "total_gp", 0), v(ly, "total_gp", 1))
+    vol_pct = pct(v(ty, "new_policies", 0), v(ly, "new_policies", 1))
+    gppp_pct = pct(v(ty, "avg_gp_per_policy", 0), v(ly, "avg_gp_per_policy", 1))
+    price_pct = pct(v(ty, "avg_customer_price", 0), v(ly, "avg_customer_price", 1))
+    w_gp_pct = pct(v(w_ty, "total_gp", 0), v(w_ly, "total_gp", 1))
+    m_gp_pct = pct(v(m_ty, "total_gp", 0), v(m_ly, "total_gp", 1))
 
     if m_gp_pct >= 2:
         status_text, status_bg = "ON TRACK", "#00B0A6"
@@ -4094,10 +4099,10 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 <div class="section-gap">
 <div class="section-title">Key Metrics &mdash; Yesterday vs Last Year</div>
 <div class="grid4">
-<div class="card glass-card" data-animate="card" style="transition-delay:0ms"><div class="lbl">Yesterday's GP (Post PPC)</div><div class="val" data-countup data-target="{ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{ty.get('total_gp',0):,.0f}</div><div class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('total_gp',0):,.0f}</div></div>
-<div class="card glass-card" data-animate="card" style="transition-delay:80ms"><div class="lbl">Yesterday's Policies</div><div class="val" data-countup data-target="{ty.get('new_policies',0)}" data-prefix="">{ty.get('new_policies',0):,}</div><div class="chg {"chg-up" if vol_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(vol_pct)} vs same day LY</div><div class="sub">Same day LY: {ly.get('new_policies',0):,}</div></div>
-<div class="card glass-card" data-animate="card" style="transition-delay:160ms"><div class="lbl">Yesterday's GP / Policy (Post PPC)</div><div class="val" data-countup data-target="{ty.get('avg_gp_per_policy',0):.2f}" data-prefix="&pound;" data-decimals="2">&pound;{ty.get('avg_gp_per_policy',0):.2f}</div><div class="chg {"chg-up" if gppp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gppp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('avg_gp_per_policy',0):.2f}</div></div>
-<div class="card glass-card" data-animate="card" style="transition-delay:240ms"><div class="lbl">Yesterday's Avg Price</div><div class="val" data-countup data-target="{ty.get('avg_customer_price',0):.0f}" data-prefix="&pound;">&pound;{ty.get('avg_customer_price',0):.0f}</div><div class="chg {"chg-fl" if abs(price_pct)<2 else ("chg-up" if price_pct>=0 else "chg-dn")}" data-metric>{fmt_pct(price_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{ly.get('avg_customer_price',0):.0f}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:0ms"><div class="lbl">Yesterday's GP (Post PPC)</div><div class="val" data-countup data-target="{v(ty,'total_gp',0):.0f}" data-prefix="&pound;">&pound;{v(ty,'total_gp',0):,.0f}</div><div class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{v(ly,'total_gp',0):,.0f}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:80ms"><div class="lbl">Yesterday's Policies</div><div class="val" data-countup data-target="{v(ty,'new_policies',0)}" data-prefix="">{v(ty,'new_policies',0):,}</div><div class="chg {"chg-up" if vol_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(vol_pct)} vs same day LY</div><div class="sub">Same day LY: {v(ly,'new_policies',0):,}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:160ms"><div class="lbl">Yesterday's GP / Policy (Post PPC)</div><div class="val" data-countup data-target="{v(ty,'avg_gp_per_policy',0):.2f}" data-prefix="&pound;" data-decimals="2">&pound;{v(ty,'avg_gp_per_policy',0):.2f}</div><div class="chg {"chg-up" if gppp_pct>=0 else "chg-dn"}" data-metric>{fmt_pct(gppp_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{v(ly,'avg_gp_per_policy',0):.2f}</div></div>
+<div class="card glass-card" data-animate="card" style="transition-delay:240ms"><div class="lbl">Yesterday's Avg Price</div><div class="val" data-countup data-target="{v(ty,'avg_customer_price',0):.0f}" data-prefix="&pound;">&pound;{v(ty,'avg_customer_price',0):.0f}</div><div class="chg {"chg-fl" if abs(price_pct)<2 else ("chg-up" if price_pct>=0 else "chg-dn")}" data-metric>{fmt_pct(price_pct)} vs same day LY</div><div class="sub">Same day LY: &pound;{v(ly,'avg_customer_price',0):.0f}</div></div>
 </div>
 </div>
 
@@ -4105,9 +4110,9 @@ def generate_dashboard_html(briefing_md, trading_data, trend_data, today_str, in
 <div class="section-gap">
 <div class="section-title">Period Comparison &mdash; GP vs Last Year</div>
 <div class="grid3">
-<div class="pcard glass-card" data-animate="card" style="transition-delay:0ms"><div class="pl">Yesterday</div><div class="pv" data-countup data-target="{ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}">{fmt_pct(gp_pct)} YoY</div></div>
-<div class="pcard glass-card" data-animate="card" style="transition-delay:80ms"><div class="pl">Trailing 7 Days GP (Post PPC)</div><div class="pv" data-countup data-target="{w_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{w_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(w_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if w_gp_pct>=0 else "chg-dn"}">{fmt_pct(w_gp_pct)} vs same 7d LY</div></div>
-<div class="pcard glass-card" data-animate="card" style="transition-delay:160ms"><div class="pl">Trailing 28 Days GP (Post PPC)</div><div class="pv" data-countup data-target="{m_ty.get('total_gp',0):.0f}" data-prefix="&pound;">&pound;{m_ty.get('total_gp',0):,.0f}</div><div style="color:{status_color(m_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if m_gp_pct>=0 else "chg-dn"}">{fmt_pct(m_gp_pct)} vs same 28d LY</div></div>
+<div class="pcard glass-card" data-animate="card" style="transition-delay:0ms"><div class="pl">Yesterday</div><div class="pv" data-countup data-target="{v(ty,'total_gp',0):.0f}" data-prefix="&pound;">&pound;{v(ty,'total_gp',0):,.0f}</div><div style="color:{status_color(gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if gp_pct>=0 else "chg-dn"}">{fmt_pct(gp_pct)} YoY</div></div>
+<div class="pcard glass-card" data-animate="card" style="transition-delay:80ms"><div class="pl">Trailing 7 Days GP (Post PPC)</div><div class="pv" data-countup data-target="{v(w_ty,'total_gp',0):.0f}" data-prefix="&pound;">&pound;{v(w_ty,'total_gp',0):,.0f}</div><div style="color:{status_color(w_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if w_gp_pct>=0 else "chg-dn"}">{fmt_pct(w_gp_pct)} vs same 7d LY</div></div>
+<div class="pcard glass-card" data-animate="card" style="transition-delay:160ms"><div class="pl">Trailing 28 Days GP (Post PPC)</div><div class="pv" data-countup data-target="{v(m_ty,'total_gp',0):.0f}" data-prefix="&pound;">&pound;{v(m_ty,'total_gp',0):,.0f}</div><div style="color:{status_color(m_gp_pct)};font-size:14px;font-weight:700" data-metric class="chg {"chg-up" if m_gp_pct>=0 else "chg-dn"}">{fmt_pct(m_gp_pct)} vs same 28d LY</div></div>
 </div>
 </div>
 
