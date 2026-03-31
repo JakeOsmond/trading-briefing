@@ -1,7 +1,5 @@
 # Temporary Context — Auto-Expires After 7 Days
-
 _Facts below are used in briefings but expire automatically. Do not edit manually._
-
 - Ergo AMT new business and renewal discounts are scheduled to go live on Wednesday 25th March after updated rates were provided to mirror all new business discounts on renewals for price parity. — Source: Drive: 'Weekly Pricing Updates', 2026-03-25 (expires: 2026-04-01)
 - Ergo AMT rate discounts for Direct Travel and Cruise are signed off and scheduled to go live on Friday 28th March. — Source: Drive: 'Weekly Pricing Updates', 2026-03-25 (expires: 2026-04-01)
 - The aggregator discount changes are targeting about 20% of market quotes with discounts of 4-15%. — Source: Drive: 'Weekly Pricing Updates', 2026-03-25 (expires: 2026-04-01)
@@ -62,3 +60,12 @@ _Facts below are used in briefings but expire automatically. Do not edit manuall
 - Competitor price benchmarking for annual and single-trip products is a current focus and needs updating. — Source: Drive: 'Insurance Trading - Insights, Product & Pricing Mar26', 2026-03-29 (expires: 2026-04-05)
 - Shorter lead times within 21 days are outperforming longer lead times, while summer demand remains weaker due to customer hesitancy. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-29 (expires: 2026-04-05)
 - Suppliers have not reduced summer prices yet, indicating they are holding price and limiting demand stimulation for now. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-29 (expires: 2026-04-05)
+- Net bookings declined last week due to a 5% increase in cancellations and a 10% decline in new bookings, linked to Middle East impact. — Source: Drive: 'UKD Trading 51: WC 16th Mar 26', 2026-03-30 (expires: 2026-04-06)
+- People are exploring changing their Easter plans, creating very short-term uncertainty in travel insurance demand. — Source: Drive: 'Insurance Weekly Trading w/c 16/03/2026', 2026-03-30 (expires: 2026-04-06)
+- Journey type (Auto, Self-Serve, Exceptions) is considered most critical for daily renewal trading monitoring. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-30 (expires: 2026-04-06)
+- The current journey reporting needs fixing, which could impair renewal trading insight until resolved. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-30 (expires: 2026-04-06)
+- The table hx-data-production.commercial_finance.insurance_renewal_emails_by_policy_id_historical contains every renewal email send by policy ID and can be joined to hx-data-production.salesforce.jobs by job_id to identify the customer journey. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-30 (expires: 2026-04-06)
+- The opt-out status for auto-renewal is stored in hx-data-production.commercial_finance.insurance_autorenewal_optouts, where Y means opt-out and N means opt-in. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-30 (expires: 2026-04-06)
+- Historical renewal quote tables are updated daily with renewal quotes generated 28 days before policy expiry, affecting the renewal trading window monitored. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-30 (expires: 2026-04-06)
+- The tables hx-data-production.insurance__reporting.hx_ins_renewal_quotes_historical and hx-data-production.insurance__reporting.hx_ins_renewal_exceptions_historical contain quote information and exception reasons used for renewal trading insight. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-30 (expires: 2026-04-06)
+- Insurance Group is a key metric to add because it helps understand return behaviour such as via the mobile app. — Source: Drive: 'WIP: Trading Dataset for Renewals — Amendments', 2026-03-30 (expires: 2026-04-06)
