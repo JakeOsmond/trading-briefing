@@ -2,8 +2,8 @@ name: Daily Trading Briefing
 
 on:
   schedule:
-    # 05:00 UTC = 06:00 BST (UK summer), 05:00 GMT (UK winter). Mon-Fri.
-    - cron: "0 5 * * 1-5"
+    # 06:30 UTC = 07:30 BST (UK summer), 06:30 GMT (UK winter). Mon-Fri.
+    - cron: "30 6 * * 1-5"
   workflow_dispatch:
     inputs:
       date:
