@@ -162,7 +162,21 @@ jobs:
           git commit -m "Briefing: ${DATE}
 
           Co-Authored-By: Trading Covered Bot <noreply@holidayextras.com>"
-          git pull --rebase origin main
+          # Pull remote changes — if rebase conflicts on generated files, resolve automatically
+          if ! git pull --rebase origin main; then
+            echo "⚠ Rebase conflict — auto-resolving generated files with this run's version"
+            # In a rebase, --ours = the commit being rebased (our new briefing)
+            git checkout --ours calibration.jsonl context/operational/temporary-context.md context/operational/pending-context.md 2>/dev/null || true
+            git add calibration.jsonl context/operational/temporary-context.md context/operational/pending-context.md 2>/dev/null || true
+            # Also resolve any briefing file conflicts with ours
+            git diff --name-only --diff-filter=U | xargs -I{} git checkout --ours {} 2>/dev/null || true
+            git diff --name-only --diff-filter=U | xargs -I{} git add {} 2>/dev/null || true
+            GIT_EDITOR=true git rebase --continue || {
+              echo "⚠ Rebase continue failed — aborting and using merge instead"
+              git rebase --abort
+              git pull --no-rebase -X ours origin main
+            }
+          fi
           git push
 
       - name: Inject schema/business context into ask.js
