@@ -2,8 +2,10 @@ name: Daily Trading Briefing
 
 on:
   schedule:
-    # 06:25 UTC = 07:25 BST (UK summer). Mon-Fri. GitHub may delay 5-15min.
-    - cron: "25 6 * * 1-5"
+    # Probe every 10 minutes from 04:00-09:59 UTC. The workflow itself gates
+    # execution to 05:00-09:00 Europe/London so the same config works across
+    # BST/GMT without manual cron rewrites.
+    - cron: "*/10 4-9 * * 1-5"
   workflow_dispatch:
     inputs:
       date:
@@ -13,7 +15,7 @@ on:
 
 concurrency:
   group: briefing
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -31,30 +33,141 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Gate schedule to 05:00-09:00 Europe/London
+        id: local_window
+        if: github.event_name == 'schedule'
+        run: |
+          python3 <<'PY'
+          import os
+          from datetime import datetime, time
+          from zoneinfo import ZoneInfo
+
+          now = datetime.now(ZoneInfo("Europe/London"))
+          allowed = time(5, 0) <= now.time() <= time(9, 0)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"allowed={'true' if allowed else 'false'}\n")
+              fh.write(f"local_now={now.isoformat()}\n")
+          print(f"Local time: {now.isoformat()} | allowed={allowed}")
+          PY
+
+      - name: Skip outside local run window
+        if: github.event_name == 'schedule' && steps.local_window.outputs.allowed != 'true'
+        run: |
+          echo "Skipping scheduled probe outside the 05:00-09:00 Europe/London window."
+          exit 0
+
+      - name: Skip if another run already started today
+        id: run_guard
+        if: github.event_name == 'schedule' && steps.local_window.outputs.allowed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 <<'PY'
+          import json
+          import os
+          import subprocess
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          current_run_id = os.environ["GITHUB_RUN_ID"]
+          response = subprocess.check_output(
+              [
+                  "gh",
+                  "api",
+                  f"repos/{repo}/actions/workflows/daily-briefing.yml/runs?branch=main&event=schedule&per_page=50",
+              ],
+              text=True,
+          )
+          runs = json.loads(response).get("workflow_runs", [])
+          london = ZoneInfo("Europe/London")
+          today = datetime.now(london).date()
+          statuses_to_block = {"queued", "in_progress", "waiting", "requested", "pending"}
+
+          should_skip = False
+          reason = "none"
+          for run in runs:
+              run_id = str(run.get("id"))
+              if run_id == current_run_id:
+                  continue
+              created_at = datetime.fromisoformat(run["created_at"].replace("Z", "+00:00")).astimezone(london)
+              if created_at.date() != today:
+                  continue
+              if run.get("status") in statuses_to_block:
+                  should_skip = True
+                  reason = f"Earlier run {run_id} is already {run.get('status')}"
+                  break
+              if run.get("conclusion") == "success":
+                  should_skip = True
+                  reason = f"Earlier run {run_id} already succeeded today"
+                  break
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"skip={'true' if should_skip else 'false'}\n")
+              fh.write(f"reason={reason}\n")
+
+          print(reason)
+          PY
+
+      - name: Stop because an earlier run already started today
+        if: github.event_name == 'schedule' && steps.run_guard.outputs.skip == 'true'
+        run: |
+          echo "${{ steps.run_guard.outputs.reason }}"
+          exit 0
 
       - name: Install dependencies
+        if: github.event_name != 'schedule' || (steps.local_window.outputs.allowed == 'true' && steps.run_guard.outputs.skip != 'true')
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
 
+      - name: Write GCP credentials file
+        if: github.event_name != 'schedule' || (steps.local_window.outputs.allowed == 'true' && steps.run_guard.outputs.skip != 'true')
+        run: |
+          echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
+          python3 -c "import json; c=json.load(open('/tmp/gcp-key.json')); print(f'Credential type: {c.get(\"type\",\"unknown\")}'); print(f'Account: {c.get(\"client_email\", c.get(\"account\", \"authorized_user\"))}')"
+
+      - name: Probe data readiness
+        id: readiness
+        if: github.event_name == 'schedule' && steps.local_window.outputs.allowed == 'true' && steps.run_guard.outputs.skip != 'true'
+        run: |
+          set +e
+          GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json python agentic_briefing.py --preflight-readiness
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$status" -eq 3 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Readiness gate not yet met. Exiting cleanly."
+            exit 0
+          fi
+          exit "$status"
+
       - name: Run tests
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         run: python -m pytest tests/test_pipeline.py -v
 
       - name: Validate template JS syntax
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         run: |
           node --check templates/dashboard.js
           node --check templates/dashboard-verify.js
 
       - name: Lint template JS
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         run: npx eslint@8 templates/dashboard.js templates/dashboard-verify.js --no-eslintrc -c templates/.eslintrc.json --max-warnings 5
 
-      - name: Write GCP credentials file
-        run: |
-          echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
-          python3 -c "import json; c=json.load(open('/tmp/gcp-key.json')); print(f'Credential type: {c.get(\"type\",\"unknown\")}'); print(f'Account: {c.get(\"client_email\", c.get(\"account\", \"authorized_user\"))}')"
-
       - name: Fetch pending context from KV
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -136,6 +249,7 @@ jobs:
           KVFETCH
 
       - name: Run briefing script
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -153,6 +267,7 @@ jobs:
         run: rm -f /tmp/gcp-key.json
 
       - name: Commit and push briefing
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -180,9 +295,11 @@ jobs:
           git push
 
       - name: Inject schema/business context into ask.js
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         run: bash scripts/inject-ask-context.sh insurance
 
       - name: Stage deployment (briefings + functions)
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         run: |
           test -f functions/api/_generated-context.js || { echo "ERROR: _generated-context.js missing — run inject-ask-context.sh first"; exit 1; }
           mkdir -p _deploy
@@ -190,6 +307,7 @@ jobs:
           cp -r functions _deploy/functions
 
       - name: Set Pages runtime secrets
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -200,12 +318,14 @@ jobs:
           echo "${{ secrets.VERIFY_PASSWORD }}" | npx wrangler pages secret put VERIFY_PASSWORD --project-name trading-covered 2>/dev/null || true
 
       - name: Deploy to Cloudflare Pages
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler pages deploy _deploy --project-name trading-covered --commit-dirty=true
 
       - name: Sync staging branch to main
+        if: github.event_name != 'schedule' || steps.readiness.outputs.ready == 'true'
         run: |
           git fetch origin staging 2>/dev/null || true
           git push origin HEAD:staging --force

@@ -99,6 +99,8 @@ VERIFY_MODEL = MODELS["verifier"]
 LIGHTWEIGHT_MODEL = MODELS["lightweight"]
 BROWSER = "Arc"
 MAX_INVESTIGATION_LOOPS = _DOMAIN_CONFIG.get("max_investigation_loops", 10)
+READINESS_LOOKBACK_DAYS = 365
+READINESS_LOWER_BOUND_FACTOR = 0.5
 
 # ---------------------------------------------------------------------------
 # UK HOLIDAYS [DOMAIN-AGNOSTIC — UK-wide, applies to all HX products]
@@ -218,6 +220,125 @@ def _generate_school_holidays(year):
     holidays.append((summer_start.isoformat(), summer_end.isoformat()))
 
     return holidays
+
+
+def _percentile(values, pct):
+    """Return a simple interpolated percentile for a list of numeric values."""
+    if not values:
+        return 0.0
+    ordered = sorted(float(v) for v in values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (len(ordered) - 1) * max(0.0, min(100.0, pct)) / 100.0
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = rank - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+
+def _readiness_threshold(history_values, floor_factor=READINESS_LOWER_BOUND_FACTOR):
+    """Derive a dynamic lower-bound threshold from the lower edge of recent history."""
+    positives = [float(v) for v in history_values if v is not None and float(v) > 0]
+    if not positives:
+        return 1, 0.0
+    lower_edge = _percentile(positives, 10)
+    threshold = max(1, int(lower_edge * floor_factor))
+    return threshold, lower_edge
+
+
+def evaluate_data_readiness(metrics):
+    """Evaluate whether yesterday's data looks loaded enough for a full run."""
+    evaluations = {}
+    ready = True
+
+    for metric_name, payload in metrics.items():
+        observed = int(payload.get("observed") or 0)
+        history = payload.get("history") or []
+        threshold, lower_edge = _readiness_threshold(history)
+        history_points = len([v for v in history if v is not None and float(v) > 0])
+        metric_ready = observed >= threshold and observed > 0
+        evaluations[metric_name] = {
+            "observed": observed,
+            "threshold": threshold,
+            "lower_edge": lower_edge,
+            "history_points": history_points,
+            "ready": metric_ready,
+        }
+        ready = ready and metric_ready
+
+    return {"ready": ready, "metrics": evaluations}
+
+
+def check_data_readiness(run_date):
+    """Check whether transactional and web data for the target date look materially loaded."""
+    target_date = run_date.isoformat()
+    start_date = (run_date - timedelta(days=READINESS_LOOKBACK_DAYS)).isoformat()
+    policies_table = f"`{BQ_PROJECT}.insurance.insurance_trading_data`"
+    web_table = f"`{BQ_PROJECT}.commercial_finance.insurance_web_utm_4`"
+
+    readiness_sql = f"""
+    WITH policy_daily AS (
+      SELECT
+        DATE(looker_trans_date) AS metric_date,
+        SUM(policy_count) AS policy_count
+      FROM {policies_table}
+      WHERE DATE(looker_trans_date) BETWEEN DATE('{start_date}') AND DATE('{target_date}')
+      GROUP BY 1
+    ),
+    web_daily AS (
+      SELECT
+        session_start_date AS metric_date,
+        COUNT(DISTINCT session_id) AS session_count,
+        COUNT(DISTINCT visitor_id) AS visitor_count
+      FROM {web_table}
+      WHERE session_start_date BETWEEN DATE('{start_date}') AND DATE('{target_date}')
+      GROUP BY 1
+    )
+    SELECT
+      DATE('{target_date}') AS target_date,
+      COALESCE((SELECT policy_count FROM policy_daily WHERE metric_date = DATE('{target_date}')), 0) AS observed_policies,
+      COALESCE((SELECT session_count FROM web_daily WHERE metric_date = DATE('{target_date}')), 0) AS observed_sessions,
+      COALESCE((SELECT visitor_count FROM web_daily WHERE metric_date = DATE('{target_date}')), 0) AS observed_visitors,
+      ARRAY(
+        SELECT CAST(policy_count AS FLOAT64)
+        FROM policy_daily
+        WHERE metric_date < DATE('{target_date}')
+          AND EXTRACT(DAYOFWEEK FROM metric_date) = EXTRACT(DAYOFWEEK FROM DATE('{target_date}'))
+        ORDER BY metric_date DESC
+      ) AS history_policies,
+      ARRAY(
+        SELECT CAST(session_count AS FLOAT64)
+        FROM web_daily
+        WHERE metric_date < DATE('{target_date}')
+          AND EXTRACT(DAYOFWEEK FROM metric_date) = EXTRACT(DAYOFWEEK FROM DATE('{target_date}'))
+        ORDER BY metric_date DESC
+      ) AS history_sessions,
+      ARRAY(
+        SELECT CAST(visitor_count AS FLOAT64)
+        FROM web_daily
+        WHERE metric_date < DATE('{target_date}')
+          AND EXTRACT(DAYOFWEEK FROM metric_date) = EXTRACT(DAYOFWEEK FROM DATE('{target_date}'))
+        ORDER BY metric_date DESC
+      ) AS history_visitors
+    """
+
+    rows = [dict(r) for r in BQ_CLIENT.query(readiness_sql).result()]
+    row = rows[0] if rows else {}
+    metrics = {
+        "policies": {
+            "observed": row.get("observed_policies", 0),
+            "history": row.get("history_policies", []),
+        },
+        "sessions": {
+            "observed": row.get("observed_sessions", 0),
+            "history": row.get("history_sessions", []),
+        },
+        "visitors": {
+            "observed": row.get("observed_visitors", 0),
+            "history": row.get("history_visitors", []),
+        },
+    }
+    return evaluate_data_readiness(metrics)
 
 
 def _build_school_holidays():
@@ -1752,24 +1873,22 @@ def run_baseline_queries(date_params):
     """Phase 1: Pull all baseline data using explicit date parameters."""
     print("\n📊 Phase 1: Pulling baseline data...")
 
-    # Data freshness gate — check that BigQuery has data for the expected date
-    expected_date = date_params["yesterday"]
-    freshness_sql = f"""
-    SELECT MAX(DATE(looker_trans_date)) AS latest_date,
-           SUM(policy_count) AS row_count
-    FROM `{BQ_PROJECT}.insurance.insurance_trading_data`
-    WHERE DATE(looker_trans_date) = '{expected_date}'
-    """
+    # Data readiness gate — check that BigQuery looks materially loaded for the expected date
+    expected_date = date.fromisoformat(date_params["yesterday"])
     try:
-        freshness = [dict(r) for r in BQ_CLIENT.query(freshness_sql).result()]
-        if freshness and freshness[0].get("row_count", 0) and freshness[0]["row_count"] > 0:
-            print(f"  ✓ Data freshness check: {freshness[0]['row_count']} policies for {expected_date}")
-        else:
-            print(f"  ⚠ WARNING: No data found for {expected_date} in BigQuery!")
-            print(f"    The upstream data load may not have completed yet.")
-            print(f"    Proceeding anyway — briefing may contain incomplete data.")
+        readiness = check_data_readiness(expected_date)
+        for metric_name, payload in readiness["metrics"].items():
+            status = "✓" if payload["ready"] else "⚠"
+            lower_edge = int(payload["lower_edge"]) if payload["lower_edge"] else 0
+            print(
+                f"  {status} {metric_name.title()}: {payload['observed']:,} "
+                f"(threshold {payload['threshold']:,}; lower-edge ref {lower_edge:,})"
+            )
+        if not readiness["ready"]:
+            print(f"  ⚠ WARNING: {expected_date.isoformat()} looks under-loaded in BigQuery/web data.")
+            print("    Proceeding anyway — briefing may contain incomplete data.")
     except Exception as e:
-        print(f"  ⚠ Freshness check failed (non-fatal): {e}")
+        print(f"  ⚠ Readiness check failed (non-fatal): {e}")
 
     trading = [dict(r) for r in BQ_CLIENT.query(build_baseline_trading_sql(date_params)).result()]
     print("  ✓ Trading summary")
@@ -4239,6 +4358,8 @@ def main():
                         help="End of date range (YYYY-MM-DD). Use with --from.")
     parser.add_argument("--domain", type=str, default="insurance",
                         help="Domain to run (default: insurance). Must have domains/{domain}/ folder.")
+    parser.add_argument("--preflight-readiness", action="store_true",
+                        help="Only test whether yesterday's data looks materially loaded, then exit.")
     args = parser.parse_args()
 
     # Determine run_date (the "yesterday" equivalent — the most recent trading day to analyse)
@@ -4284,6 +4405,23 @@ def main():
 
     print("\n🔐 Authenticating...")
     init_services()
+
+    if args.preflight_readiness:
+        readiness = check_data_readiness(run_date)
+        print("\n📡 Preflight readiness check")
+        print(f"   Target date: {run_date.isoformat()}")
+        for metric_name, payload in readiness["metrics"].items():
+            lower_edge = int(payload["lower_edge"]) if payload["lower_edge"] else 0
+            print(
+                f"   - {metric_name}: observed={payload['observed']:,} "
+                f"threshold={payload['threshold']:,} lower_edge_ref={lower_edge:,} "
+                f"history_points={payload['history_points']} ready={payload['ready']}"
+            )
+        if readiness["ready"]:
+            print("\n✅ Data readiness check passed.")
+            return
+        print("\n⏳ Data readiness check failed. Retry later.")
+        raise SystemExit(3)
 
     # Phase 0: Context intelligence refresh
     _phase_start = time.time()

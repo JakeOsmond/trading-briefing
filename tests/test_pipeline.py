@@ -18,7 +18,14 @@ from datetime import date, timedelta
 # Add project root to path so we can import from agentic_briefing
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agentic_briefing import _autocorrect_sql, _parse_llm_json, _compute_confidence, generate_dashboard_html, _load_domain_config
+from agentic_briefing import (
+    _autocorrect_sql,
+    _parse_llm_json,
+    _compute_confidence,
+    evaluate_data_readiness,
+    generate_dashboard_html,
+    _load_domain_config,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -430,3 +437,27 @@ class TestContextLoading:
         assert "HX" in TRADING_CONTEXT or "Holiday Extras" in TRADING_CONTEXT
         # Operational dir content (temporary context or market events)
         assert len(TRADING_CONTEXT) > 1000, "TRADING_CONTEXT suspiciously small"
+
+
+class TestDataReadiness:
+    """Tests for dynamic readiness thresholds based on rolling history."""
+
+    def test_readiness_passes_when_all_metrics_clear_dynamic_floor(self):
+        history = [200, 220, 240, 260, 280, 300, 320, 340, 360, 380]
+        result = evaluate_data_readiness({
+            "policies": {"observed": 120, "history": history},
+            "sessions": {"observed": 140, "history": history},
+            "visitors": {"observed": 150, "history": history},
+        })
+        assert result["ready"] is True
+        assert result["metrics"]["policies"]["threshold"] > 0
+
+    def test_readiness_fails_when_one_metric_is_below_dynamic_floor(self):
+        history = [200, 220, 240, 260, 280, 300, 320, 340, 360, 380]
+        result = evaluate_data_readiness({
+            "policies": {"observed": 120, "history": history},
+            "sessions": {"observed": 80, "history": history},
+            "visitors": {"observed": 150, "history": history},
+        })
+        assert result["ready"] is False
+        assert result["metrics"]["sessions"]["ready"] is False
